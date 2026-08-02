@@ -2,8 +2,6 @@
 
 Oracle41 Open is a Linux-first desktop application for read-only EVM wallet analytics. It gives users a local workspace for inspecting wallet balances, activity, token details, portfolios, notes, snapshots, and exports without handling private keys or signing transactions.
 
-This project ports a macOS wallet analytics application to Linux. It is implemented in Python and PySide6, not translated line by line from Swift.
-
 ## Alpha Status
 
 Version `0.1.0` is an alpha release. It includes wallet analytics, provider integrations, local persistence, exports, tests, and Debian packaging. Validate live provider behavior and Debian installation on each supported Ubuntu or Debian version before relying on it.
