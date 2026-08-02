@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Oracle41 Open
+Comment=Inspect EVM wallet activity and holdings
+Exec=oracle41-open
+Icon=io.github.damianpitt.oracle41_open
+Terminal=false
+Type=Application
+Categories=Finance;Utility;
+Keywords=Ethereum;EVM;Wallet;Blockchain;Analytics;
+StartupNotify=true

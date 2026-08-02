@@ -1,0 +1,124 @@
+name: Release Debian Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Development Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run Tests
+        run: python -m pytest
+
+      - name: Run Lint
+        run: python -m ruff check .
+
+      - name: Run Type Check
+        run: python -m mypy src
+
+  build-deb:
+    needs: quality
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Packaging Dependencies
+        run: |
+          python -m pip install --constraint requirements/release-constraints.txt -e ".[packaging]"
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils dpkg-dev
+
+      - name: Validate Desktop Metadata
+        run: |
+          appstreamcli validate --no-net packaging/linux/io.github.damianpitt.oracle41_open.metainfo.xml
+          desktop-file-validate packaging/linux/io.github.damianpitt.oracle41_open.desktop
+
+      - name: Set Reproducible Build Timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> "$GITHUB_ENV"
+
+      - name: Build .deb Package
+        run: ./scripts/release/build_deb.sh
+
+      - name: Verify Package
+        run: |
+          set -euo pipefail
+          deb_path="$(find dist -maxdepth 1 -name '*.deb' -type f -print -quit)"
+          test -n "$deb_path"
+          dpkg-deb --info "$deb_path"
+          dpkg-deb --contents "$deb_path" > /tmp/oracle41-open-package-contents.txt
+          grep -q 'io.github.damianpitt.oracle41_open.desktop' /tmp/oracle41-open-package-contents.txt
+          grep -q 'io.github.damianpitt.oracle41_open.metainfo.xml' /tmp/oracle41-open-package-contents.txt
+          grep -q 'io.github.damianpitt.oracle41_open.svg' /tmp/oracle41-open-package-contents.txt
+          grep -q '128x128/apps/io.github.damianpitt.oracle41_open.png' /tmp/oracle41-open-package-contents.txt
+          grep -q '512x512/apps/io.github.damianpitt.oracle41_open.png' /tmp/oracle41-open-package-contents.txt
+          grep -q 'icon-license-CC0.txt' /tmp/oracle41-open-package-contents.txt
+          sha256sum -c "${deb_path}.sha256"
+          mkdir -p /tmp/oracle41-open-package
+          dpkg-deb --extract "$deb_path" /tmp/oracle41-open-package
+          packaged_binary=/tmp/oracle41-open-package/usr/lib/oracle41-open/oracle41-open
+          "$packaged_binary" --version
+          mkdir -p /tmp/oracle41-open-smoke/config /tmp/oracle41-open-smoke/data /tmp/oracle41-open-smoke/cache
+          QT_QPA_PLATFORM=offscreen \
+          XDG_CONFIG_HOME=/tmp/oracle41-open-smoke/config \
+          XDG_DATA_HOME=/tmp/oracle41-open-smoke/data \
+          XDG_CACHE_HOME=/tmp/oracle41-open-smoke/cache \
+          "$packaged_binary" --smoke-test
+
+      - name: Install Package
+        run: |
+          set -euo pipefail
+          deb_path="$(find dist -maxdepth 1 -name '*.deb' -type f -print -quit)"
+          sudo apt-get install -y "$deb_path"
+          mkdir -p /tmp/oracle41-open-installed/config /tmp/oracle41-open-installed/data /tmp/oracle41-open-installed/cache
+          QT_QPA_PLATFORM=offscreen \
+          XDG_CONFIG_HOME=/tmp/oracle41-open-installed/config \
+          XDG_DATA_HOME=/tmp/oracle41-open-installed/data \
+          XDG_CACHE_HOME=/tmp/oracle41-open-installed/cache \
+          oracle41-open --smoke-test
+
+      - name: Upload Package Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle41-open-deb
+          path: |
+            dist/*.deb
+            dist/*.deb.sha256
+
+      - name: Publish Release Assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.deb
+            dist/*.deb.sha256

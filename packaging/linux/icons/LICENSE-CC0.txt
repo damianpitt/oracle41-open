@@ -1,0 +1,8 @@
+CC0 1.0 Universal
+
+To the extent possible under law, the creator has waived all copyright and
+related or neighboring rights to this work. You may copy, modify, distribute,
+and use the work, including for commercial purposes, without asking permission.
+
+This is a plain-language summary of the CC0 1.0 Universal public domain
+dedication. Full legal text: https://creativecommons.org/publicdomain/zero/1.0/

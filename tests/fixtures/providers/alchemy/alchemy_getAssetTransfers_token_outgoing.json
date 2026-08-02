@@ -1,0 +1,56 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "transfers": [
+      {
+        "blockNum": "0x20",
+        "hash": "0xnft721",
+        "logIndex": "0x0",
+        "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "asset": "NFT721",
+        "category": "erc721",
+        "value": null,
+        "erc721TokenId": "0x01",
+        "rawContract": {
+          "address": "0x1111111111111111111111111111111111111111",
+          "decimal": "0",
+          "value": null
+        },
+        "metadata": {
+          "blockTimestamp": "2026-01-20T11:00:00Z"
+        }
+      },
+      {
+        "blockNum": "0x21",
+        "hash": "0xnft1155",
+        "logIndex": "0x1",
+        "from": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "to": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "asset": "NFT1155",
+        "category": "erc1155",
+        "value": null,
+        "erc1155Metadata": [
+          {
+            "tokenId": "0x01",
+            "value": "0x02"
+          },
+          {
+            "tokenId": "0x02",
+            "value": "0x01"
+          }
+        ],
+        "rawContract": {
+          "address": "0x1111111111111111111111111111111111111111",
+          "decimal": "0",
+          "value": null
+        },
+        "metadata": {
+          "blockTimestamp": "2026-01-20T10:00:00Z"
+        }
+      }
+    ],
+    "pageKey": null
+  }
+}

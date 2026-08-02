@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Oracle41 Open Linux icon. License: CC0-1.0. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Oracle41 Open blockchain eye icon</title>
+  <desc id="desc">A clean feline eye within an orbital circle; its pupil contains a linked-block network.</desc>
+  <!-- Transparent canvas. -->
+  <circle cx="512" cy="512" r="480" fill="#111111"/>
+  <!-- Shared Linux/open-source orbital motif. -->
+  <circle cx="512" cy="512" r="370" fill="none" stroke="#ffffff" stroke-width="52"/>
+  <!-- Deliberately unadorned eye: no marks at either side. -->
+  <path d="M236 512 C319 384 411 322 512 322 C613 322 705 384 788 512 C705 640 613 702 512 702 C411 702 319 640 236 512 Z" fill="#ffffff"/>
+  <path d="M276 512 C352 414 431 370 512 370 C593 370 672 414 748 512 C672 610 593 654 512 654 C431 654 352 610 276 512 Z" fill="none" stroke="#111111" stroke-width="24"/>
+  <!-- Pupil. -->
+  <path d="M512 366 C457 429 438 473 438 512 C438 551 457 595 512 658 C567 595 586 551 586 512 C586 473 567 429 512 366 Z" fill="#111111"/>
+  <!-- Linked blocks: a compact blockchain/network reference, centered for small-size readability. -->
+  <path d="M512 442 L542 472 L512 502 L482 472 Z M512 522 L542 552 L512 582 L482 552 Z" fill="#ffffff"/>
+  <path d="M512 502 V522" fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="square"/>
+</svg>
