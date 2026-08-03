@@ -5,8 +5,13 @@
   <summary>Local EVM wallet analytics for Linux</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>Apache-2.0</project_license>
+  <developer_name>Oracle41 Team</developer_name>
   <launchable type="desktop-id">io.github.damianpitt.oracle41_open.desktop</launchable>
   <icon type="stock">io.github.damianpitt.oracle41_open</icon>
+  <categories>
+    <category>Office</category>
+    <category>Finance</category>
+  </categories>
   <description>
     <p>
       Oracle41 Open is a read-only desktop application for inspecting EVM wallet

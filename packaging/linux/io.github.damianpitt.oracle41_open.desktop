@@ -5,6 +5,6 @@ Exec=oracle41-open
 Icon=io.github.damianpitt.oracle41_open
 Terminal=false
 Type=Application
-Categories=Finance;Utility;
+Categories=Office;Finance;
 Keywords=Ethereum;EVM;Wallet;Blockchain;Analytics;
 StartupNotify=true
