@@ -11,8 +11,9 @@ All notable changes to Oracle41 Open will be documented here.
 - Wallet overview, activity feed, token detail, portfolio, watchlist, notes, tags, saved views, and snapshots.
 - ENS/label resolution, token filtering, cache telemetry, SQLite persistence, and backup/restore.
 - CSV and JSON exports for activity, portfolios, watchlists, and snapshots.
-- Debian packaging and GitHub Actions quality/release workflows.
+- Native AMD64 and ARM64 Debian packaging and GitHub Actions quality/release workflows.
 - Self-contained Debian runtime with source, frozen-binary, and installed-package smoke checks.
+- Architecture-specific release artifacts with portable SHA-256 checksum files.
 - Linux desktop icon, launcher metadata, and AppStream package metadata.
 - Environment-variable provider key fallback for headless and development environments.
 
@@ -30,6 +31,6 @@ All notable changes to Oracle41 Open will be documented here.
 
 ### Known Limitations
 
-- This is an alpha release and requires validation on the target Ubuntu/Debian versions.
+- This is an alpha release; Debian compatibility targets and derivative distributions require clean-system validation beyond the Ubuntu CI runners.
 - Live provider behavior depends on third-party API limits and metadata quality.
 - The application does not sign or broadcast transactions.

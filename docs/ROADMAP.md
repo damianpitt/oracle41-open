@@ -6,11 +6,11 @@
 - Accept ENS names as wallet input and resolve them to addresses.
 - Add GUI interaction tests for each primary workflow.
 - Add live-provider smoke tests that use maintainer-owned test keys outside pull-request CI.
-- Validate the Debian package on clean Ubuntu 22.04, Ubuntu 24.04, and Debian 12 systems.
+- Validate the AMD64 package on clean Ubuntu 22.04, Ubuntu 24.04, and Debian 12 systems.
 
 ## Distribution
 
-- Validate the native ARM64 Debian package on clean Ubuntu 24.04 and Debian 13 systems.
+- Validate the ARM64 package on clean Ubuntu 24.04 and Debian 13 systems and representative 64-bit ARM hardware.
 - Evaluate AppImage after the Debian release path is stable.
 
 ## Data Coverage

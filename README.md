@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.1.0` is an alpha release. It includes wallet analytics, provider integrations, local persistence, exports, tests, and Debian packaging. Validate live provider behavior and Debian installation on each supported Ubuntu or Debian version before relying on it.
+Version `0.1.0` is an alpha release. It includes wallet analytics, provider integrations, local persistence, exports, tests, and native AMD64 and ARM64 Debian packaging. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -22,7 +22,7 @@ Version `0.1.0` is an alpha release. It includes wallet analytics, provider inte
 - Cache telemetry, diagnostics, refresh, and clear-cache controls
 - CSV and JSON exports for activity, portfolios, watchlists, and snapshots
 - Backup and restore for local settings and SQLite state
-- Self-contained Debian package with desktop launcher and AppStream metadata for Ubuntu/Debian
+- Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 ## Privacy and Scope
 
@@ -88,7 +88,11 @@ On Ubuntu or Debian, download the matching `.deb` release asset and either doubl
 sudo apt install ./oracle41-open_<version>_<arch>.deb
 ```
 
-The package includes its Python runtime, creates the `oracle41-open` command, and installs a desktop application entry. The first release target is AMD64 Ubuntu 22.04 or newer and Debian 12 or newer.
+The package includes its Python runtime, creates the `oracle41-open` command, and installs a desktop application entry.
+
+Oracle41 Open provides an AMD64 Debian package targeting Ubuntu 22.04 or newer and Debian 12 or newer. It also provides an ARM64 Debian package targeting Ubuntu 24.04 or newer and Debian 13 or newer. Other Debian-based distributions may work but have not yet been formally validated. ARM64 requires a 64-bit ARM operating system; ARM32 systems are not supported.
+
+The release workflow currently performs native build, installation, and smoke testing on Ubuntu 22.04 AMD64 and Ubuntu 24.04 ARM64. See [docs/SUPPORTED_PLATFORMS.md](docs/SUPPORTED_PLATFORMS.md) for package selection and validation details.
 
 ## Development
 
@@ -133,7 +137,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Token metadata quality depends on provider responses and local filtering rules.
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
 - The application currently targets EVM-compatible chains supported by the configured providers.
-- Linux desktop packaging still needs validation on each supported distribution release.
+- Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 
 ## License
 

@@ -18,6 +18,15 @@ make check
 
 The GitHub release workflow repeats the quality checks before building native AMD64 and ARM64 Debian packages. Each package is built, installed, and smoke-tested on a runner with the matching architecture. AMD64 builds use Ubuntu 22.04; ARM64 builds use Ubuntu 24.04 because the pinned Qt ARM64 wheel requires `glibc 2.39` or newer.
 
+## Platform Targets
+
+| Package architecture | Native CI runner | Compatibility target |
+| --- | --- | --- |
+| AMD64 | Ubuntu 22.04 AMD64 | Ubuntu 22.04+ and Debian 12+ |
+| ARM64 | Ubuntu 24.04 ARM64 | Ubuntu 24.04+ and Debian 13+ |
+
+CI validates package creation, installation, and headless startup on the listed Ubuntu runners. Debian versions and derivative distributions remain compatibility targets until they pass clean-system validation. ARM32 is not supported. See [SUPPORTED_PLATFORMS.md](SUPPORTED_PLATFORMS.md) for the public support policy.
+
 ## Debian Build
 
 ```bash
@@ -44,7 +53,7 @@ sudo apt install ./dist/oracle41-open_*.deb
 oracle41-open
 ```
 
-Verify startup, tab navigation, Settings, provider-key storage, backup/restore, and uninstall behavior on each supported architecture before documenting it as validated.
+Verify startup, tab navigation, Settings, provider-key storage, backup/restore, and uninstall behavior on each target distribution before marking it as manually validated.
 
 ## Tagging
 
