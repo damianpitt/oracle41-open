@@ -14,6 +14,11 @@ if ! command -v dpkg-deb >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v dpkg >/dev/null 2>&1; then
+  echo "dpkg is required to determine the native package architecture." >&2
+  exit 1
+fi
+
 if ! python3 -c "import PyInstaller" >/dev/null 2>&1; then
   echo "PyInstaller is required. Install with: pip install --constraint requirements/release-constraints.txt -e '.[packaging]'" >&2
   exit 1
@@ -28,12 +33,19 @@ pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 print(pyproject["project"]["version"])
 PY
 )}"
-if command -v dpkg >/dev/null 2>&1; then
-  DEFAULT_ARCH="$(dpkg --print-architecture)"
-else
-  DEFAULT_ARCH="amd64"
+NATIVE_ARCH="$(dpkg --print-architecture)"
+ARCH="${2:-$NATIVE_ARCH}"
+case "$ARCH" in
+  amd64 | arm64) ;;
+  *)
+    echo "Unsupported package architecture: $ARCH (expected amd64 or arm64)." >&2
+    exit 1
+    ;;
+esac
+if [[ "$ARCH" != "$NATIVE_ARCH" ]]; then
+  echo "Cross-architecture packaging is not supported: host is $NATIVE_ARCH, requested $ARCH." >&2
+  exit 1
 fi
-ARCH="${2:-$DEFAULT_ARCH}"
 OUTPUT_DIR="${3:-$ROOT_DIR/dist}"
 BUILD_ROOT="$OUTPUT_DIR/deb-build"
 PKG_DIR="$BUILD_ROOT/${PACKAGE_NAME}_${VERSION}_${ARCH}"
@@ -151,7 +163,10 @@ PY
 fi
 
 dpkg-deb --root-owner-group --build "$PKG_DIR" "$DEB_PATH"
-sha256sum "$DEB_PATH" > "${DEB_PATH}.sha256"
+(
+  cd "$OUTPUT_DIR"
+  sha256sum "$(basename "$DEB_PATH")" > "$(basename "${DEB_PATH}.sha256")"
+)
 
 echo "Built package:"
 echo "  ${DEB_PATH}"

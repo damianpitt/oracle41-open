@@ -16,7 +16,7 @@ Before a release:
 make check
 ```
 
-The GitHub release workflow repeats the quality checks before building the Debian package.
+The GitHub release workflow repeats the quality checks before building native AMD64 and ARM64 Debian packages. Each package is built, installed, and smoke-tested on a runner with the matching architecture. AMD64 builds use Ubuntu 22.04; ARM64 builds use Ubuntu 24.04 because the pinned Qt ARM64 wheel requires `glibc 2.39` or newer.
 
 ## Debian Build
 
@@ -31,11 +31,11 @@ The build produces:
 - `dist/oracle41-open_<version>_<arch>.deb`
 - `dist/oracle41-open_<version>_<arch>.deb.sha256`
 
-The build uses a self-contained PyInstaller runtime. Release dependency versions are pinned in `requirements/release-constraints.txt`; update that file deliberately when upgrading packaging or runtime dependencies.
+The build uses a self-contained PyInstaller runtime. It must run natively on the target architecture; the script rejects attempts to label a package for a different architecture. Release dependency versions are pinned in `requirements/release-constraints.txt`; update that file deliberately when upgrading packaging or runtime dependencies.
 
 ## Package Verification
 
-Validate package metadata and contents with `dpkg-deb --info`, `dpkg-deb --contents`, and `sha256sum -c`. The release workflow also validates the desktop and AppStream metadata, extracts the package, runs the frozen binary offscreen, installs the `.deb`, and repeats the smoke test through `/usr/bin/oracle41-open`.
+Validate package metadata and contents with `dpkg-deb --info`, `dpkg-deb --contents`, and `sha256sum -c`. The release workflow also validates the desktop and AppStream metadata, extracts each package, runs the frozen binary offscreen, installs the `.deb`, and repeats the smoke test through `/usr/bin/oracle41-open`.
 
 On a clean Ubuntu or Debian VM, install with:
 
@@ -44,7 +44,7 @@ sudo apt install ./dist/oracle41-open_*.deb
 oracle41-open
 ```
 
-Verify startup, tab navigation, Settings, provider-key storage, backup/restore, and uninstall behavior.
+Verify startup, tab navigation, Settings, provider-key storage, backup/restore, and uninstall behavior on each supported architecture before documenting it as validated.
 
 ## Tagging
 

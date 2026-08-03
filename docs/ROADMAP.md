@@ -10,7 +10,7 @@
 
 ## Distribution
 
-- Add an ARM64 Debian build after native-runner validation.
+- Validate the native ARM64 Debian package on clean Ubuntu 24.04 and Debian 13 systems.
 - Evaluate AppImage after the Debian release path is stable.
 
 ## Data Coverage
