@@ -113,7 +113,7 @@ jobs:
       - name: Verify Package
         run: |
           set -euo pipefail
-          deb_path="$(find dist -maxdepth 1 -name '*.deb' -type f -print -quit)"
+          deb_path="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -name '*.deb' -type f -print -quit)"
           test -n "$deb_path"
           dpkg-deb --info "$deb_path"
           dpkg-deb --contents "$deb_path" > /tmp/oracle41-open-package-contents.txt
@@ -138,7 +138,8 @@ jobs:
       - name: Install Package
         run: |
           set -euo pipefail
-          deb_path="$(find dist -maxdepth 1 -name '*.deb' -type f -print -quit)"
+          deb_path="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -name '*.deb' -type f -print -quit)"
+          test -n "$deb_path"
           sudo apt-get install -y "$deb_path"
           mkdir -p /tmp/oracle41-open-installed/config /tmp/oracle41-open-installed/data /tmp/oracle41-open-installed/cache
           QT_QPA_PLATFORM=offscreen \
