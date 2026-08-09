@@ -10,6 +10,8 @@ from oracle41_open.core.models import (
     ActivityCategory,
     ActivityItem,
     Chain,
+    CompletenessState,
+    DataProvenance,
     Token,
     TokenBalance,
     WalletOverviewResult,
@@ -22,6 +24,7 @@ from oracle41_open.core.services.portfolio_service import (
     PortfolioWalletResult,
 )
 from oracle41_open.exports import (
+    ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
     SnapshotExportTemplate,
@@ -101,6 +104,34 @@ def test_activity_json_bytes_audit_template_exposes_expected_keys() -> None:
     assert isinstance(items, list)
     assert "block_number" in items[0]
     assert "raw_value" not in items[0]
+
+
+def test_activity_exports_include_optional_completeness_and_provenance() -> None:
+    fetched_at = datetime(2026, 8, 7, 10, 0, tzinfo=UTC)
+    context = ActivityExportContext(
+        completeness=CompletenessState.PARTIAL,
+        updated_at=datetime(2026, 8, 7, 10, 1, tzinfo=UTC),
+        provenance=DataProvenance(
+            source_provider="alchemy",
+            fetched_at=fetched_at,
+            request_cursor="page-2",
+            query_from_block=20_000_000,
+        ),
+        is_persisted=True,
+    )
+
+    csv_rows = list(csv.reader(activity_csv_text(_sample_items(), context=context).splitlines()))
+    completeness_index = csv_rows[0].index("completeness")
+    source_index = csv_rows[0].index("source_provider")
+    assert csv_rows[1][completeness_index] == "partial"
+    assert csv_rows[1][source_index] == "alchemy"
+
+    payload = json_loads(activity_json_bytes(_sample_items(), pretty=False, context=context))
+    assert payload["format"] == "oracle41-activity"
+    assert payload["format_version"] == 2
+    assert payload["context"]["completeness"] == "partial"
+    assert payload["context"]["source_provider"] == "alchemy"
+    assert payload["context"]["is_persisted"] is True
 
 
 def test_watchlist_exports_include_expected_fields() -> None:

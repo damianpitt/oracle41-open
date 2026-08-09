@@ -26,6 +26,7 @@ from oracle41_open.providers.stub import (
 from oracle41_open.storage.backup_restore import BackupRestoreService
 from oracle41_open.storage.cache_store import DiskCacheStore
 from oracle41_open.storage.db import (
+    EventLedgerRepository,
     SavedViewsRepository,
     SnapshotsRepository,
     SQLiteDatabase,
@@ -47,6 +48,7 @@ class AppContainer:
     wallet_notes_repository: WalletNotesRepository
     saved_views_repository: SavedViewsRepository
     snapshots_repository: SnapshotsRepository
+    event_ledger_repository: EventLedgerRepository
     watchlist_service: WatchlistService
     data_provider: DataProvider
     pricing_provider: PricingProvider
@@ -74,6 +76,7 @@ def build_container() -> AppContainer:
     wallet_notes_repository = WalletNotesRepository(sqlite_database)
     saved_views_repository = SavedViewsRepository(sqlite_database)
     snapshots_repository = SnapshotsRepository(sqlite_database)
+    event_ledger_repository = EventLedgerRepository(sqlite_database)
     watchlist_service = WatchlistService(repository=watchlist_repository)
 
     uses_live_providers = False
@@ -146,12 +149,14 @@ def build_container() -> AppContainer:
         pricing_provider=pricing_service,
         cache_store=cache_store,
         cache_ttl_seconds=settings.activity_cache_ttl_seconds,
+        event_ledger=event_ledger_repository,
     )
     token_detail_service = TokenDetailService(
         data_provider=data_provider,
         pricing_provider=pricing_service,
         cache_store=cache_store,
         cache_ttl_seconds=settings.token_detail_cache_ttl_seconds,
+        event_ledger=event_ledger_repository,
     )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
@@ -171,6 +176,7 @@ def build_container() -> AppContainer:
         wallet_notes_repository=wallet_notes_repository,
         saved_views_repository=saved_views_repository,
         snapshots_repository=snapshots_repository,
+        event_ledger_repository=event_ledger_repository,
         watchlist_service=watchlist_service,
         data_provider=data_provider,
         pricing_provider=pricing_service,

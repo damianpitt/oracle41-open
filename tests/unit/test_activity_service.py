@@ -11,11 +11,14 @@ from oracle41_open.core.models import (
     ActivityItem,
     ActivityPage,
     Chain,
+    CompletenessState,
+    DataProvenance,
     ValidationError,
 )
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.storage.cache_store import DiskCacheStore
+from oracle41_open.storage.db import EventLedgerRepository, SQLiteDatabase
 
 
 def test_activity_service_enriches_prices_and_applies_filters() -> None:
@@ -397,6 +400,111 @@ def test_activity_service_filtering_preserves_next_cursor() -> None:
 
     assert result.page.items == []
     assert result.page.next_cursor == "cursor-2"
+
+
+def test_activity_service_restores_ledger_and_resumes_after_restart(tmp_path: Path) -> None:
+    address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    database = SQLiteDatabase(file_path=tmp_path / "state.sqlite3")
+    first_provider = _MockActivityDataProvider(
+        pages={
+            None: ActivityPage(
+                items=[
+                    _activity_item(
+                        tx_hash="0xfirst",
+                        log_index="0x0",
+                        timestamp=datetime(2026, 8, 7, 9, 0, tzinfo=UTC),
+                        category=ActivityCategory.EXTERNAL,
+                        symbol="ETH",
+                        value_decimal=Decimal("1"),
+                        contract_address=None,
+                    )
+                ],
+                next_cursor="page-2",
+            )
+        }
+    )
+    first_service = ActivityService(
+        data_provider=first_provider,
+        pricing_provider=_MockPricingProvider(native_price=Decimal("1"), token_prices={}),
+        event_ledger=EventLedgerRepository(database),
+    )
+
+    initial = first_service.load_activity(address=address, chain=Chain.ETHEREUM)
+
+    second_provider = _MockActivityDataProvider(
+        pages={
+            "page-2": ActivityPage(
+                items=[
+                    _activity_item(
+                        tx_hash="0xsecond",
+                        log_index="0x0",
+                        timestamp=datetime(2026, 8, 7, 8, 0, tzinfo=UTC),
+                        category=ActivityCategory.EXTERNAL,
+                        symbol="ETH",
+                        value_decimal=Decimal("2"),
+                        contract_address=None,
+                    )
+                ],
+                next_cursor=None,
+            )
+        }
+    )
+    restarted_service = ActivityService(
+        data_provider=second_provider,
+        pricing_provider=_MockPricingProvider(native_price=Decimal("1"), token_prices={}),
+        event_ledger=EventLedgerRepository(SQLiteDatabase(file_path=database.file_path)),
+    )
+
+    restored = restarted_service.load_activity(address=address, chain=Chain.ETHEREUM)
+    completed = restarted_service.load_activity(
+        address=address,
+        chain=Chain.ETHEREUM,
+        cursor=restored.page.next_cursor,
+    )
+
+    assert initial.completeness is CompletenessState.PARTIAL
+    assert initial.is_persisted
+    assert restored.is_cached
+    assert restored.is_persisted
+    assert restored.page.next_cursor == "page-2"
+    assert second_provider.activity_requests == [("page-2", None)]
+    assert {item.tx_hash for item in completed.page.items} == {"0xfirst", "0xsecond"}
+    assert completed.completeness is CompletenessState.COMPLETE
+
+
+def test_activity_service_marks_old_completed_ledger_as_stale(tmp_path: Path) -> None:
+    address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    database = SQLiteDatabase(file_path=tmp_path / "stale.sqlite3")
+    ledger = EventLedgerRepository(database)
+    ledger.persist_page(
+        address=address,
+        chain=Chain.ETHEREUM,
+        scope="activity:from=latest",
+        page=ActivityPage(items=[], next_cursor=None),
+        provenance=DataProvenance(
+            source_provider="alchemy",
+            fetched_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+        completeness=CompletenessState.COMPLETE,
+    )
+    with database.connection() as conn:
+        conn.execute(
+            "UPDATE sync_checkpoints SET updated_at = ?",
+            (datetime(2026, 1, 1, tzinfo=UTC).isoformat(),),
+        )
+    provider = _MockActivityDataProvider(pages={})
+    service = ActivityService(
+        data_provider=provider,
+        pricing_provider=_MockPricingProvider(native_price=None, token_prices={}),
+        event_ledger=ledger,
+        ledger_stale_after_seconds=1,
+    )
+
+    result = service.load_activity(address=address, chain=Chain.ETHEREUM)
+
+    assert result.completeness is CompletenessState.STALE
+    assert result.is_persisted
+    assert provider.activity_requests == []
 
 
 class _MockActivityDataProvider:

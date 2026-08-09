@@ -18,9 +18,10 @@ The GUI depends on services. Core and provider modules must not import PySide6. 
 2. `MainWindow` creates views with the application container.
 3. A view validates user input on the GUI thread.
 4. The view submits network-backed work to `BackgroundTaskRunner`.
-5. The service loads cache data or calls a provider adapter.
-6. The result or structured error is delivered back to the GUI thread through Qt signals.
-7. The view renders the result and enables the relevant actions.
+5. The service loads cache/ledger data or calls a provider adapter.
+6. Provider results and their cursor are committed atomically to the canonical event ledger.
+7. The result or structured error is delivered back to the GUI thread through Qt signals.
+8. The view renders the result and enables the relevant actions.
 
 ## Provider Contract
 
@@ -32,9 +33,13 @@ Failover is enabled only when two live providers are configured. Demonstration p
 
 ## Persistence
 
-SQLite is used for user-created state: watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate from SQLite and is guarded by a lock for thread-safe service access.
+SQLite schema v2 stores normalized transactions, events, assets, movements, approvals, optional fees, query scopes, synchronization checkpoints, and ingestion runs. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
 
-Backup files include settings and SQLite state. Provider secrets are intentionally excluded.
+SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
+
+Activity JSON exports use `oracle41-activity` format version 2. GUI-created CSV exports carry the same format/version, completeness, provider, fetch time, queried block range, and persistence fields.
+
+Backup files include settings and the complete SQLite state, including event-ledger checkpoints. Provider secrets are intentionally excluded. A schema-v1 backup is accepted and migrated forward after restore.
 
 ## Extension Points
 

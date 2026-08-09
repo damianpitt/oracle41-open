@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from threading import get_ident
+from threading import Event, get_ident
 
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
@@ -67,3 +67,35 @@ def test_task_runner_returns_error_and_finishes(qt_application: QApplication) ->
     assert len(errors) == 1
     assert isinstance(errors[0], RuntimeError)
     assert str(errors[0]) == "provider unavailable"
+
+
+def test_task_runner_cancellation_suppresses_late_result(
+    qt_application: QApplication,
+) -> None:
+    runner = BackgroundTaskRunner()
+    started = Event()
+    release = Event()
+    results: list[object] = []
+    errors: list[object] = []
+    finished = Event()
+
+    def operation() -> object:
+        started.set()
+        release.wait(timeout=2)
+        return "late result"
+
+    runner.result.connect(results.append)
+    runner.error.connect(errors.append)
+    runner.finished.connect(finished.set)
+    runner.start(operation)
+    while not started.wait(timeout=0.01):
+        qt_application.processEvents()
+
+    runner.cancel_all()
+    release.set()
+    while not finished.wait(timeout=0.01):
+        qt_application.processEvents()
+    qt_application.processEvents()
+
+    assert results == []
+    assert errors == []

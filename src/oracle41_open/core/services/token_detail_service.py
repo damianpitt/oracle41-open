@@ -5,7 +5,17 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 
-from oracle41_open.core.models import ActivityItem, ActivityPage, Chain, ValidationError
+from oracle41_open.core.models import (
+    ActivityCategory,
+    ActivityItem,
+    ActivityPage,
+    Chain,
+    CompletenessState,
+    DataProvenance,
+    LedgerCheckpoint,
+    ValidationError,
+)
+from oracle41_open.core.services.activity_service import ActivityLedger
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.pricing_provider import PricingProvider
@@ -24,6 +34,9 @@ class TokenDetailPageResult:
     page: ActivityPage
     updated_at: datetime
     is_cached: bool
+    completeness: CompletenessState = CompletenessState.COMPLETE
+    provenance: DataProvenance | None = None
+    is_persisted: bool = False
 
 
 class TokenDetailService:
@@ -33,11 +46,15 @@ class TokenDetailService:
         pricing_provider: PricingProvider,
         cache_store: CacheStore | None = None,
         cache_ttl_seconds: int = 120,
+        event_ledger: ActivityLedger | None = None,
+        ledger_stale_after_seconds: int = 86_400,
     ) -> None:
         self._data_provider = data_provider
         self._pricing_provider = pricing_provider
         self._cache_store = cache_store
         self._cache_ttl_seconds = max(0, cache_ttl_seconds)
+        self._event_ledger = event_ledger
+        self._ledger_stale_after_seconds = max(0, ledger_stale_after_seconds)
 
     def load_token_activity(
         self,
@@ -57,6 +74,7 @@ class TokenDetailService:
         normalized_token = AddressValidator.normalized(token_address)
         if not AddressValidator.is_valid(normalized_token):
             raise ValidationError("Invalid token contract address. Expected 0x + 40 hex characters.")
+        ledger_scope = self._ledger_scope(normalized_token, include_approvals)
 
         cache_key = self._cache_key(
             address=normalized_address,
@@ -69,6 +87,14 @@ class TokenDetailService:
             cached = self._load_cached_page(cache_key)
             if cached is not None:
                 return cached
+            if cursor is None:
+                persisted = self._load_persisted_page(
+                    normalized_address,
+                    chain,
+                    ledger_scope,
+                )
+                if persisted is not None:
+                    return persisted
 
         page = self._data_provider.get_token_transfers(
             address=normalized_address,
@@ -78,13 +104,61 @@ class TokenDetailService:
             include_approvals=include_approvals,
         )
         enriched = self._enrich_prices(page, chain, normalized_token)
+        fetched_at = datetime.now(tz=UTC)
+        completeness = (
+            CompletenessState.PARTIAL if enriched.next_cursor else CompletenessState.COMPLETE
+        )
+        provenance = DataProvenance(
+            source_provider=enriched.source_provider or self._provider_name(),
+            fetched_at=fetched_at,
+            request_cursor=cursor,
+            query_from_block=enriched.query_from_block,
+            query_to_block=enriched.query_to_block,
+        )
+        is_persisted = False
+        if self._event_ledger is not None:
+            checkpoint = self._event_ledger.persist_page(
+                address=normalized_address,
+                chain=chain,
+                scope=ledger_scope,
+                page=enriched,
+                provenance=provenance,
+                completeness=completeness,
+            )
+            enriched = self._event_ledger.load_page(normalized_address, chain, ledger_scope)
+            fetched_at = checkpoint.updated_at
+            is_persisted = True
         result = TokenDetailPageResult(
             page=enriched,
-            updated_at=datetime.now(tz=UTC),
+            updated_at=fetched_at,
             is_cached=False,
+            completeness=completeness,
+            provenance=provenance,
+            is_persisted=is_persisted,
         )
         self._save_cached_page(cache_key, result.page, result.updated_at)
         return result
+
+    def _load_persisted_page(
+        self,
+        address: str,
+        chain: Chain,
+        scope: str,
+    ) -> TokenDetailPageResult | None:
+        if self._event_ledger is None:
+            return None
+        checkpoint = self._event_ledger.get_checkpoint(address, chain, scope)
+        if checkpoint is None:
+            return None
+        completeness = self._persisted_completeness(checkpoint)
+        return TokenDetailPageResult(
+            page=self._event_ledger.load_page(address, chain, scope),
+            updated_at=checkpoint.updated_at,
+            is_cached=True,
+            completeness=completeness,
+            provenance=checkpoint.provenance,
+            is_persisted=True,
+        )
 
     def clear_cached_token_activity(
         self,
@@ -129,13 +203,29 @@ class TokenDetailService:
         prices = self._pricing_provider.get_token_prices(chain=chain, contract_addresses=[token_address])
         quote = prices.get(token_address.lower())
         if quote is None:
-            return ActivityPage(items=self._dedupe_and_sort(page.items), next_cursor=page.next_cursor)
+            return ActivityPage(
+                items=self._dedupe_and_sort(page.items),
+                next_cursor=page.next_cursor,
+                source_provider=page.source_provider,
+                query_from_block=page.query_from_block,
+                query_to_block=page.query_to_block,
+            )
 
         enriched_items = [
-            item if item.value_usd is not None else item.with_value_usd(item.value_decimal * quote)
+            (
+                item
+                if item.value_usd is not None or item.category is ActivityCategory.APPROVAL
+                else item.with_value_usd(item.value_decimal * quote)
+            )
             for item in page.items
         ]
-        return ActivityPage(items=self._dedupe_and_sort(enriched_items), next_cursor=page.next_cursor)
+        return ActivityPage(
+            items=self._dedupe_and_sort(enriched_items),
+            next_cursor=page.next_cursor,
+            source_provider=page.source_provider,
+            query_from_block=page.query_from_block,
+            query_to_block=page.query_to_block,
+        )
 
     def _dedupe_and_sort(self, items: list[ActivityItem]) -> list[ActivityItem]:
         by_id: dict[str, ActivityItem] = {}
@@ -196,11 +286,34 @@ class TokenDetailService:
         self._cache_store.set(cache_key, None, ttl_seconds=1)
         return True
 
+    @staticmethod
+    def _ledger_scope(token_address: str, include_approvals: bool) -> str:
+        return f"token:{token_address}:approvals={1 if include_approvals else 0}"
+
+    def _provider_name(self) -> str:
+        name = type(self._data_provider).__name__
+        for suffix in ("DataProvider", "Provider"):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                break
+        return name.lower() or "unknown"
+
+    def _persisted_completeness(self, checkpoint: LedgerCheckpoint) -> CompletenessState:
+        if checkpoint.completeness is not CompletenessState.COMPLETE:
+            return checkpoint.completeness
+        age_seconds = (datetime.now(tz=UTC) - checkpoint.updated_at).total_seconds()
+        if age_seconds > self._ledger_stale_after_seconds:
+            return CompletenessState.STALE
+        return checkpoint.completeness
+
 
 def _encode_activity_page(page: ActivityPage) -> dict[str, object]:
     return {
         "items": [_encode_activity_item(item) for item in page.items],
         "next_cursor": page.next_cursor,
+        "source_provider": page.source_provider,
+        "query_from_block": page.query_from_block,
+        "query_to_block": page.query_to_block,
     }
 
 
@@ -226,9 +339,18 @@ def _encode_activity_item(item: ActivityItem) -> dict[str, object]:
 def _decode_activity_page(raw: dict[str, Any]) -> ActivityPage | None:
     raw_items = raw.get("items")
     raw_next_cursor = raw.get("next_cursor")
+    raw_source_provider = raw.get("source_provider")
+    raw_query_from_block = raw.get("query_from_block")
+    raw_query_to_block = raw.get("query_to_block")
     if not isinstance(raw_items, list):
         return None
     if raw_next_cursor is not None and not isinstance(raw_next_cursor, str):
+        return None
+    if raw_source_provider is not None and not isinstance(raw_source_provider, str):
+        return None
+    if raw_query_from_block is not None and not isinstance(raw_query_from_block, int):
+        return None
+    if raw_query_to_block is not None and not isinstance(raw_query_to_block, int):
         return None
 
     items: list[ActivityItem] = []
@@ -237,7 +359,13 @@ def _decode_activity_page(raw: dict[str, Any]) -> ActivityPage | None:
         if parsed is None:
             return None
         items.append(parsed)
-    return ActivityPage(items=items, next_cursor=raw_next_cursor)
+    return ActivityPage(
+        items=items,
+        next_cursor=raw_next_cursor,
+        source_provider=raw_source_provider,
+        query_from_block=raw_query_from_block,
+        query_to_block=raw_query_to_block,
+    )
 
 
 def _decode_activity_item(raw: Any) -> ActivityItem | None:

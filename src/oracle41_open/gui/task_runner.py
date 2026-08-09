@@ -6,8 +6,8 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 
 
 class _TaskSignals(QObject):
-    result = Signal(object)
-    error = Signal(object)
+    result = Signal(object, object)
+    error = Signal(object, object)
     finished = Signal(object)
 
 
@@ -16,15 +16,25 @@ class _BackgroundTask(QRunnable):
         super().__init__()
         self._operation = operation
         self.signals = _TaskSignals()
+        self._is_canceled = False
+
+    @property
+    def is_canceled(self) -> bool:
+        return self._is_canceled
+
+    def cancel(self) -> None:
+        self._is_canceled = True
 
     @Slot()
     def run(self) -> None:
         try:
+            if self._is_canceled:
+                return
             result = self._operation()
         except Exception as error:
-            self.signals.error.emit(error)
+            self.signals.error.emit(self, error)
         else:
-            self.signals.result.emit(result)
+            self.signals.result.emit(self, result)
         finally:
             self.signals.finished.emit(self)
 
@@ -50,13 +60,19 @@ class BackgroundTaskRunner(QObject):
         self._active_tasks.add(task)
         self._pool.start(task)
 
-    @Slot(object)
-    def _forward_result(self, result: object) -> None:
-        self.result.emit(result)
+    def cancel_all(self) -> None:
+        for task in self._active_tasks:
+            task.cancel()
 
-    @Slot(object)
-    def _forward_error(self, error: object) -> None:
-        self.error.emit(error)
+    @Slot(object, object)
+    def _forward_result(self, task: object, result: object) -> None:
+        if isinstance(task, _BackgroundTask) and not task.is_canceled:
+            self.result.emit(result)
+
+    @Slot(object, object)
+    def _forward_error(self, task: object, error: object) -> None:
+        if isinstance(task, _BackgroundTask) and not task.is_canceled:
+            self.error.emit(error)
 
     @Slot(object)
     def _forward_finished(self, _task: object) -> None:

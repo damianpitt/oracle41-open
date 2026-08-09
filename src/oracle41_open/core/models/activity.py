@@ -61,3 +61,6 @@ class ActivityItem:
 class ActivityPage:
     items: list[ActivityItem]
     next_cursor: str | None
+    source_provider: str | None = None
+    query_from_block: int | None = None
+    query_to_block: int | None = None

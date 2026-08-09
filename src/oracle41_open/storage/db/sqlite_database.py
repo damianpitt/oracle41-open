@@ -8,7 +8,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -71,6 +71,161 @@ CREATE TABLE IF NOT EXISTS snapshots (
 CREATE INDEX IF NOT EXISTS idx_snapshots_address_chain_time ON snapshots(address, chain, captured_at DESC);
 """
 
+_SCHEMA_V2_SQL = """
+CREATE TABLE ledger_transactions (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    block_number INTEGER,
+    timestamp TEXT NOT NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash)
+);
+CREATE INDEX idx_ledger_transactions_chain_time
+    ON ledger_transactions(chain, timestamp DESC);
+
+CREATE TABLE ledger_events (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    log_index TEXT NOT NULL,
+    block_number INTEGER,
+    timestamp TEXT NOT NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    asset_symbol TEXT NOT NULL,
+    contract_address TEXT,
+    raw_value TEXT NOT NULL,
+    value_decimal TEXT NOT NULL,
+    value_usd TEXT,
+    is_verified INTEGER,
+    category TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, event_id),
+    FOREIGN KEY(chain, tx_hash) REFERENCES ledger_transactions(chain, tx_hash)
+);
+CREATE INDEX idx_ledger_events_wallet_chain_time
+    ON ledger_events(wallet_address, chain, timestamp DESC);
+CREATE INDEX idx_ledger_events_wallet_chain_block
+    ON ledger_events(wallet_address, chain, block_number DESC);
+CREATE INDEX idx_ledger_events_contract
+    ON ledger_events(chain, contract_address, timestamp DESC);
+
+CREATE TABLE ledger_assets (
+    chain TEXT NOT NULL,
+    asset_key TEXT NOT NULL,
+    contract_address TEXT,
+    symbol TEXT NOT NULL,
+    category TEXT NOT NULL,
+    is_verified INTEGER,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    PRIMARY KEY(chain, asset_key)
+);
+
+CREATE TABLE ledger_asset_movements (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    asset_key TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    raw_value TEXT NOT NULL,
+    value_decimal TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, event_id),
+    FOREIGN KEY(wallet_address, chain, event_id)
+        REFERENCES ledger_events(wallet_address, chain, event_id) ON DELETE CASCADE,
+    FOREIGN KEY(chain, asset_key) REFERENCES ledger_assets(chain, asset_key)
+);
+CREATE INDEX idx_ledger_asset_movements_wallet
+    ON ledger_asset_movements(wallet_address, chain, asset_key);
+
+CREATE TABLE ledger_approvals (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    asset_key TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    owner_address TEXT NOT NULL,
+    spender_address TEXT NOT NULL,
+    raw_value TEXT NOT NULL,
+    value_decimal TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, event_id),
+    FOREIGN KEY(wallet_address, chain, event_id)
+        REFERENCES ledger_events(wallet_address, chain, event_id) ON DELETE CASCADE,
+    FOREIGN KEY(chain, asset_key) REFERENCES ledger_assets(chain, asset_key)
+);
+CREATE INDEX idx_ledger_approvals_wallet
+    ON ledger_approvals(wallet_address, chain, asset_key);
+
+CREATE TABLE ledger_fees (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    payer_address TEXT NOT NULL,
+    raw_value TEXT NOT NULL,
+    value_decimal TEXT NOT NULL,
+    asset_symbol TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transactions(chain, tx_hash) ON DELETE CASCADE
+);
+
+CREATE TABLE ledger_event_scopes (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, scope, event_id),
+    FOREIGN KEY(wallet_address, chain, event_id)
+        REFERENCES ledger_events(wallet_address, chain, event_id) ON DELETE CASCADE
+);
+CREATE INDEX idx_ledger_event_scopes_lookup
+    ON ledger_event_scopes(wallet_address, chain, scope);
+
+CREATE TABLE sync_checkpoints (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    next_cursor TEXT,
+    completeness TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    request_cursor TEXT,
+    query_from_block INTEGER,
+    query_to_block INTEGER,
+    fetched_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, scope)
+);
+
+CREATE TABLE ingestion_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    request_cursor TEXT,
+    started_at TEXT NOT NULL,
+    finished_at TEXT NOT NULL,
+    item_count INTEGER NOT NULL,
+    completeness TEXT NOT NULL
+);
+CREATE INDEX idx_ingestion_runs_wallet_chain_time
+    ON ingestion_runs(wallet_address, chain, finished_at DESC);
+"""
+
+_MIGRATIONS = {
+    1: _SCHEMA_V1_SQL,
+    2: _SCHEMA_V2_SQL,
+}
+
 
 @dataclass
 class SQLiteDatabase:
@@ -87,10 +242,22 @@ class SQLiteDatabase:
     def initialize(self) -> None:
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as conn:
-            conn.executescript(_SCHEMA_V1_SQL)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
             current_version = self._read_schema_version(conn)
-            if current_version < _SCHEMA_VERSION:
-                self._write_schema_version(conn, _SCHEMA_VERSION)
+            if current_version > _SCHEMA_VERSION:
+                raise RuntimeError(
+                    f"Database schema version {current_version} is newer than supported version "
+                    f"{_SCHEMA_VERSION}."
+                )
+            for target_version in range(current_version + 1, _SCHEMA_VERSION + 1):
+                self._apply_migration(conn, target_version)
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -124,12 +291,17 @@ class SQLiteDatabase:
             return 0
         return parsed
 
-    def _write_schema_version(self, conn: sqlite3.Connection, version: int) -> None:
-        conn.execute(
-            """
+    def _apply_migration(self, conn: sqlite3.Connection, target_version: int) -> None:
+        migration = _MIGRATIONS.get(target_version)
+        if migration is None:
+            raise RuntimeError(f"Missing database migration for schema version {target_version}.")
+        conn.executescript(
+            f"""
+            BEGIN IMMEDIATE;
+            {migration}
             INSERT INTO schema_meta(key, value)
-            VALUES('schema_version', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (str(version),),
+            VALUES('schema_version', '{target_version}')
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+            COMMIT;
+            """
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,13 @@ from oracle41_open.gui.task_runner import BackgroundTaskRunner
 
 if TYPE_CHECKING:
     from oracle41_open.app.bootstrap import AppContainer
+
+
+@dataclass(frozen=True)
+class _OverviewLoadPayload:
+    result: WalletOverviewResult
+    resolved_address: str
+    input_name: str | None
 
 
 class OverviewView(QWidget):
@@ -63,6 +71,7 @@ class OverviewView(QWidget):
         self._last_result: WalletOverviewResult | None = None
         self._last_loaded_address: str | None = None
         self._last_loaded_chain: Chain | None = None
+        self._last_loaded_input: str | None = None
 
         self._init_layout()
 
@@ -119,48 +128,58 @@ class OverviewView(QWidget):
         address = self._address_input.text()
         normalized = AddressValidator.normalized(address)
         validation_error = AddressValidator.validation_error(normalized)
-        if validation_error is not None:
+        if validation_error is not None and not _looks_like_ens_name(address):
             self._status_label.setText(validation_error)
             self._results.clear()
             self._last_result = None
             self._last_loaded_address = None
             self._last_loaded_chain = None
+            self._last_loaded_input = None
             return
 
         chain = self._selected_chain()
         settings = self._container.settings_store.load()
-        self._pending_load = (force_refresh, normalized, chain)
+        self._pending_load = (force_refresh, address.strip().lower(), chain)
         self._set_loading(True, status_text="Loading wallet overview...")
-        self._task_runner.start(
-            lambda: self._container.wallet_service.load_wallet_overview(
-                normalized,
+
+        def load_payload() -> object:
+            resolution = self._container.label_resolution_service.resolve_input(address, chain)
+            result = self._container.wallet_service.load_wallet_overview(
+                resolution.address,
                 chain,
                 hide_unverified=settings.hide_unverified,
                 hide_dust=settings.hide_dust,
                 dust_threshold_usd=settings.dust_threshold_usd,
                 force_refresh=force_refresh,
             )
-        )
+            return _OverviewLoadPayload(
+                result=result,
+                resolved_address=resolution.address,
+                input_name=resolution.input_name,
+            )
+
+        self._task_runner.start(load_payload)
 
     def _on_wallet_loaded(self, raw_result: object) -> None:
-        if not isinstance(raw_result, WalletOverviewResult) or self._pending_load is None:
+        if not isinstance(raw_result, _OverviewLoadPayload) or self._pending_load is None:
             self._on_wallet_load_error(RuntimeError("Wallet overview returned an invalid result."))
             return
 
-        force_refresh, normalized, chain = self._pending_load
+        force_refresh, input_value, chain = self._pending_load
         source_label = "live providers" if self._container.uses_live_providers else "local stub providers"
         action_label = "refreshed" if force_refresh else "loaded"
-        if raw_result.token_balances_truncated:
+        if raw_result.result.token_balances_truncated:
             self._status_label.setText(
                 f"Wallet {action_label} from {source_label}. "
-                f"Token scan hit page cap ({raw_result.token_balance_page_count})."
+                f"Token scan hit page cap ({raw_result.result.token_balance_page_count})."
             )
         else:
             self._status_label.setText(f"Wallet {action_label} from {source_label}.")
-        self._results.setPlainText(self._render_result(raw_result))
-        self._last_result = raw_result
-        self._last_loaded_address = normalized
+        self._results.setPlainText(self._render_result(raw_result.result))
+        self._last_result = raw_result.result
+        self._last_loaded_address = raw_result.resolved_address
         self._last_loaded_chain = chain
+        self._last_loaded_input = input_value
 
     def _on_wallet_load_error(self, error: object) -> None:
         message = str(error)
@@ -169,6 +188,7 @@ class OverviewView(QWidget):
         self._last_result = None
         self._last_loaded_address = None
         self._last_loaded_chain = None
+        self._last_loaded_input = None
 
     def _on_wallet_load_finished(self) -> None:
         self._pending_load = None
@@ -195,8 +215,13 @@ class OverviewView(QWidget):
         normalized = AddressValidator.normalized(address)
         validation_error = AddressValidator.validation_error(normalized)
         if validation_error is not None:
-            self._status_label.setText(validation_error)
-            return
+            if (
+                self._last_loaded_input != address.strip().lower()
+                or self._last_loaded_address is None
+            ):
+                self._status_label.setText("Load this ENS name before clearing its overview cache.")
+                return
+            normalized = self._last_loaded_address
 
         chain = self._selected_chain()
         cleared = self._container.wallet_service.clear_cached_overview(normalized, chain)
@@ -210,14 +235,14 @@ class OverviewView(QWidget):
             self._status_label.setText("Load wallet overview before saving a snapshot.")
             return
 
-        address = AddressValidator.normalized(self._address_input.text())
-        validation_error = AddressValidator.validation_error(address)
-        if validation_error is not None:
-            self._status_label.setText(validation_error)
+        current_input = self._address_input.text().strip().lower()
+        address = self._last_loaded_address
+        if address is None:
+            self._status_label.setText("Load wallet overview before saving a snapshot.")
             return
 
         chain = self._selected_chain()
-        if address != self._last_loaded_address or chain != self._last_loaded_chain:
+        if current_input != self._last_loaded_input or chain != self._last_loaded_chain:
             self._status_label.setText(
                 "Current form differs from last loaded wallet. Load wallet first, then save snapshot."
             )
@@ -272,3 +297,8 @@ class OverviewView(QWidget):
         if self._container.uses_live_providers:
             return "Ready. Live Alchemy providers are enabled."
         return "Ready. No Alchemy API key configured; using local stub providers."
+
+
+def _looks_like_ens_name(value: str) -> bool:
+    normalized = value.strip().lower()
+    return normalized.endswith(".eth") and " " not in normalized and len(normalized) <= 255

@@ -26,7 +26,12 @@ from PySide6.QtWidgets import (
 from oracle41_open.core.models import ActivityCategory, ActivityItem, Chain, ValidationError
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.core.services.token_detail_service import TokenDetailPageResult
-from oracle41_open.exports import ActivityExportTemplate, write_activity_csv, write_activity_json
+from oracle41_open.exports import (
+    ActivityExportContext,
+    ActivityExportTemplate,
+    write_activity_csv,
+    write_activity_json,
+)
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
 
 if TYPE_CHECKING:
@@ -37,6 +42,8 @@ if TYPE_CHECKING:
 class _TokenDetailLoadPayload:
     result: TokenDetailPageResult
     labels_by_address: dict[str, str]
+    resolved_address: str
+    input_name: str | None
 
 
 class TokenDetailView(QWidget):
@@ -50,6 +57,9 @@ class TokenDetailView(QWidget):
         self._next_cursor: str | None = None
         self._raw_items: list[ActivityItem] = []
         self._visible_items: list[ActivityItem] = []
+        self._export_context: ActivityExportContext | None = None
+        self._active_wallet_address: str | None = None
+        self._active_wallet_input: str | None = None
         self._is_loading = False
         self._retry_request: tuple[str | None, bool, bool] | None = None
         self._pending_load: tuple[str | None, bool, bool, Decimal | None] | None = None
@@ -63,7 +73,7 @@ class TokenDetailView(QWidget):
         self._token_address_input = QLineEdit(self)
         self._token_address_input.setPlaceholderText("Token contract address (0x...)")
         self._include_approvals = QCheckBox(
-            "Include recent approvals on first page (100k blocks)",
+            "Include approval history (loaded in resumable block windows)",
             self,
         )
         self._include_approvals.setChecked(True)
@@ -98,6 +108,9 @@ class TokenDetailView(QWidget):
         self._retry_button = QPushButton("Retry Last", self)
         self._retry_button.clicked.connect(self._on_retry_clicked)
         self._retry_button.setEnabled(False)
+        self._cancel_button = QPushButton("Cancel", self)
+        self._cancel_button.clicked.connect(self._on_cancel_clicked)
+        self._cancel_button.setEnabled(False)
         self._auto_refresh_checkbox = QCheckBox("Auto-refresh first page every 30s", self)
         self._auto_refresh_checkbox.toggled.connect(self._on_auto_refresh_toggled)
         self._auto_refresh_timer = QTimer(self)
@@ -149,6 +162,7 @@ class TokenDetailView(QWidget):
         button_row.addWidget(self._clear_cache_button)
         button_row.addWidget(self._next_button)
         button_row.addWidget(self._retry_button)
+        button_row.addWidget(self._cancel_button)
         button_row.addStretch(1)
         form.addRow("", button_row)
         form.addRow("", self._auto_refresh_checkbox)
@@ -259,6 +273,9 @@ class TokenDetailView(QWidget):
         self._next_cursor = None
         self._raw_items = []
         self._visible_items = []
+        self._export_context = None
+        self._active_wallet_address = None
+        self._active_wallet_input = None
         self._labels_by_address = {}
         self._items_list.clear()
         self._detail_drawer.clear()
@@ -270,6 +287,9 @@ class TokenDetailView(QWidget):
         self._next_cursor = None
         self._raw_items = []
         self._visible_items = []
+        self._export_context = None
+        self._active_wallet_address = None
+        self._active_wallet_input = None
         self._labels_by_address = {}
         self._items_list.clear()
         self._detail_drawer.clear()
@@ -291,6 +311,12 @@ class TokenDetailView(QWidget):
             return
         cursor, append, force_refresh = self._retry_request
         self._load_page(cursor=cursor, append=append, force_refresh=force_refresh)
+
+    def _on_cancel_clicked(self) -> None:
+        if not self._is_loading:
+            return
+        self._task_runner.cancel_all()
+        self._status_label.setText("Cancellation requested. Waiting for the current request to stop.")
 
     def _on_auto_refresh_toggled(self, enabled: bool) -> None:
         if enabled:
@@ -335,8 +361,11 @@ class TokenDetailView(QWidget):
 
         wallet_error = AddressValidator.validation_error(normalized_wallet)
         if wallet_error is not None:
-            self._status_label.setText(wallet_error)
-            return
+            input_key = wallet.strip().lower()
+            if self._active_wallet_input != input_key or self._active_wallet_address is None:
+                self._status_label.setText("Load this ENS name before clearing its token cache.")
+                return
+            normalized_wallet = self._active_wallet_address
         token_error = AddressValidator.validation_error(normalized_token)
         if token_error is not None:
             self._status_label.setText("Invalid token contract address. Expected 0x + 40 hex characters.")
@@ -363,7 +392,7 @@ class TokenDetailView(QWidget):
         normalized_token = AddressValidator.normalized(token_address)
 
         wallet_error = AddressValidator.validation_error(normalized_wallet)
-        if wallet_error is not None:
+        if wallet_error is not None and not _looks_like_ens_name(wallet):
             self._status_label.setText(wallet_error)
             self._set_loading(False)
             return
@@ -385,8 +414,9 @@ class TokenDetailView(QWidget):
         existing_items = list(self._raw_items)
 
         def load_payload() -> object:
+            resolution = self._container.label_resolution_service.resolve_input(wallet, chain)
             result = self._container.token_detail_service.load_token_activity(
-                address=normalized_wallet,
+                address=resolution.address,
                 token_address=normalized_token,
                 chain=chain,
                 cursor=cursor,
@@ -394,7 +424,14 @@ class TokenDetailView(QWidget):
                 force_refresh=force_refresh,
             )
             labels = self._resolve_labels_for_items(existing_items + result.page.items)
-            return _TokenDetailLoadPayload(result=result, labels_by_address=labels)
+            if resolution.input_name is not None:
+                labels[resolution.address] = resolution.input_name
+            return _TokenDetailLoadPayload(
+                result=result,
+                labels_by_address=labels,
+                resolved_address=resolution.address,
+                input_name=resolution.input_name,
+            )
 
         self._task_runner.start(load_payload)
 
@@ -407,6 +444,10 @@ class TokenDetailView(QWidget):
 
         result = raw_result.result
         self._labels_by_address = raw_result.labels_by_address
+        self._active_wallet_address = raw_result.resolved_address
+        self._active_wallet_input = (
+            raw_result.input_name or raw_result.resolved_address
+        ).lower()
         _cursor, append, _force_refresh, min_value_usd = self._pending_load
         if append:
             self._raw_items = _merge_items(self._raw_items, result.page.items)
@@ -414,13 +455,27 @@ class TokenDetailView(QWidget):
             self._raw_items = result.page.items
 
         self._next_cursor = result.page.next_cursor
+        self._export_context = ActivityExportContext(
+            completeness=result.completeness,
+            updated_at=result.updated_at,
+            provenance=result.provenance,
+            is_persisted=result.is_persisted,
+        )
         self._refresh_visible_items(min_value_usd=min_value_usd)
 
-        source = "cache" if result.is_cached else "provider"
+        if result.is_cached and result.is_persisted:
+            source = "local ledger"
+        elif result.is_cached:
+            source = "cache"
+        elif result.is_persisted:
+            source = "provider and saved to the local ledger"
+        else:
+            source = "provider"
         hidden_count = len(self._raw_items) - len(self._visible_items)
         status_parts = [
             f"Loaded {len(result.page.items)} token item(s) from {source}.",
             f"Visible: {len(self._visible_items)}.",
+            f"Completeness: {result.completeness.value}.",
         ]
         if not self._visible_items:
             status_parts.append("No token activity items match current filters.")
@@ -468,11 +523,14 @@ class TokenDetailView(QWidget):
         self._auto_refresh_checkbox.setEnabled(enabled)
         self._items_list.setEnabled(enabled)
         self._retry_button.setEnabled(enabled and self._retry_request is not None)
+        self._cancel_button.setEnabled(is_loading)
         if status_text is not None:
             self._status_label.setText(status_text)
 
     def _refresh_visible_items(self, min_value_usd: Decimal | None = None) -> None:
-        normalized_wallet = AddressValidator.normalized(self._address_input.text())
+        normalized_wallet = self._active_wallet_address or AddressValidator.normalized(
+            self._address_input.text()
+        )
         self._visible_items = self._apply_advanced_filters(
             self._raw_items,
             wallet_address=normalized_wallet,
@@ -516,7 +574,9 @@ class TokenDetailView(QWidget):
             else:
                 self._detail_drawer.clear()
             return
-        wallet_address = AddressValidator.normalized(self._address_input.text())
+        wallet_address = self._active_wallet_address or AddressValidator.normalized(
+            self._address_input.text()
+        )
         self._detail_drawer.setPlainText(
             _render_token_activity_detail(item, self._labels_by_address, wallet_address=wallet_address)
         )
@@ -614,6 +674,7 @@ class TokenDetailView(QWidget):
             self._visible_items,
             Path(file_name),
             template=self._selected_export_template(),
+            context=self._export_context,
         )
         self._status_label.setText(f"CSV export saved: {path}")
 
@@ -635,6 +696,7 @@ class TokenDetailView(QWidget):
             self._visible_items,
             Path(file_name),
             template=self._selected_export_template(),
+            context=self._export_context,
         )
         self._status_label.setText(f"JSON export saved: {path}")
 
@@ -719,3 +781,8 @@ def _format_address_with_label(address: str, labels_by_address: dict[str, str]) 
     if label.casefold() == normalized.casefold():
         return address
     return f"{label} ({address})"
+
+
+def _looks_like_ens_name(value: str) -> bool:
+    normalized = value.strip().lower()
+    return normalized.endswith(".eth") and " " not in normalized and len(normalized) <= 255

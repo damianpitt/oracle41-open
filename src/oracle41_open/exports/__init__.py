@@ -19,12 +19,18 @@ from oracle41_open.exports.json_export import (
     write_watchlist_json,
 )
 from oracle41_open.exports.templates import (
+    ACTIVITY_EXPORT_FORMAT,
+    ACTIVITY_EXPORT_FORMAT_VERSION,
+    ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
     SnapshotExportTemplate,
 )
 
 __all__ = [
+    "ACTIVITY_EXPORT_FORMAT",
+    "ACTIVITY_EXPORT_FORMAT_VERSION",
+    "ActivityExportContext",
     "ActivityExportTemplate",
     "PortfolioExportTemplate",
     "SnapshotExportTemplate",

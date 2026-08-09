@@ -29,12 +29,13 @@ The gate runs:
 - Provider tests must use deterministic HTTP fixtures or in-memory fakes.
 - Do not put real API keys in tests, fixtures, logs, or issue reports.
 - Add regression coverage for cache freshness, pagination, filtering, and provider error behavior.
+- Verify database migrations, idempotent event ingestion, checkpoint recovery, and export provenance.
 - Keep core/provider tests independent of a display server where possible.
 - GUI changes should preserve the service boundary and loading/error states.
 
 ## GUI Changes
 
-Network-backed operations must use `BackgroundTaskRunner`. Do not call provider or service methods that may perform network I/O directly from a button handler. Widget updates must happen through QObject-bound slots or signals on the GUI thread.
+Network-backed operations must use `BackgroundTaskRunner`. Do not call provider or service methods that may perform network I/O directly from a button handler. Widget updates must happen through QObject-bound slots or signals on the GUI thread. Cancellation suppresses late task results; workers are not terminated unsafely, and a ledger transaction already committed by a canceled task remains valid.
 
 When adding a new view:
 

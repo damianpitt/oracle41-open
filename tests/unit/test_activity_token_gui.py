@@ -1,0 +1,210 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from decimal import Decimal
+from pathlib import Path
+from threading import Event
+
+import pytest
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication
+
+from oracle41_open.app.bootstrap import AppContainer, build_container
+from oracle41_open.core.models import (
+    ActivityCategory,
+    ActivityItem,
+    ActivityPage,
+    Chain,
+)
+from oracle41_open.core.services import AddressResolution
+from oracle41_open.core.services.activity_service import ActivityPageResult
+from oracle41_open.gui.views.activity_view import ActivityView
+from oracle41_open.gui.views.token_detail_view import TokenDetailView
+from oracle41_open.storage.secrets import SecretStore
+
+_ADDRESS = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+_TOKEN = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+
+
+def test_activity_gui_loads_ens_paginates_and_filters(
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    container = _container(monkeypatch, tmp_path)
+    container.label_resolution_service = _FakeLabelService()  # type: ignore[assignment]
+    view = ActivityView(container)
+    view._address_input.setText("alice.eth")
+
+    view._load_button.click()
+    _wait_until_idle(view, qt_application)
+
+    assert len(view._raw_items) == 2
+    assert view._active_wallet_address == _ADDRESS
+    assert view._labels_by_address[_ADDRESS] == "alice.eth"
+    assert view._next_button.isEnabled()
+
+    inbound_index = view._direction_combo.findData("inbound")
+    view._direction_combo.setCurrentIndex(inbound_index)
+    view._apply_local_filters_button.click()
+    assert [item.category for item in view._visible_items] == [ActivityCategory.EXTERNAL]
+
+    view._next_button.click()
+    _wait_until_idle(view, qt_application)
+    assert len(view._raw_items) == 3
+    assert view._next_cursor is None
+    view.close()
+
+
+def test_token_detail_gui_loads_approval_history_and_filters(
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    container = _container(monkeypatch, tmp_path)
+    container.label_resolution_service = _FakeLabelService()  # type: ignore[assignment]
+    view = TokenDetailView(container)
+    view._address_input.setText("alice.eth")
+    view._token_address_input.setText(_TOKEN)
+
+    view._load_button.click()
+    _wait_until_idle(view, qt_application)
+
+    assert len(view._raw_items) == 2
+    assert view._active_wallet_address == _ADDRESS
+    approval_index = view._category_combo.findData(ActivityCategory.APPROVAL.value)
+    view._category_combo.setCurrentIndex(approval_index)
+    view._apply_local_filters_button.click()
+    assert [item.category for item in view._visible_items] == [ActivityCategory.APPROVAL]
+    assert view._visible_items[0].value_usd is None
+
+    view._next_button.click()
+    _wait_until_idle(view, qt_application)
+    assert len(view._raw_items) == 3
+    assert view._next_cursor is None
+    view.close()
+
+
+def test_activity_gui_cancellation_discards_late_result(
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    container = _container(monkeypatch, tmp_path)
+    container.label_resolution_service = _FakeLabelService()  # type: ignore[assignment]
+    started = Event()
+    release = Event()
+    container.activity_service = _SlowActivityService(started, release)  # type: ignore[assignment]
+    view = ActivityView(container)
+    view._address_input.setText(_ADDRESS)
+
+    view._load_button.click()
+    _wait_for_event(started, qt_application)
+    assert view._cancel_button.isEnabled()
+    view._cancel_button.click()
+    release.set()
+    _wait_until_idle(view, qt_application)
+
+    assert view._raw_items == []
+    assert "Cancellation requested" in view._status_label.text()
+    view.close()
+
+
+def _container(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> AppContainer:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.delenv("ORACLE41_ALCHEMY_API_KEY", raising=False)
+    monkeypatch.delenv("ORACLE41_ANKR_API_KEY", raising=False)
+    monkeypatch.setattr(SecretStore, "get_secret", lambda self, key: None)
+    return build_container()
+
+
+def _wait_until_idle(
+    view: ActivityView | TokenDetailView,
+    application: QApplication,
+) -> None:
+    event_loop = QEventLoop()
+    timeout = QTimer()
+    timeout.setSingleShot(True)
+    timeout.timeout.connect(event_loop.quit)
+
+    def poll() -> None:
+        if not view._is_loading:
+            event_loop.quit()
+            return
+        QTimer.singleShot(10, poll)
+
+    QTimer.singleShot(0, poll)
+    timeout.start(3_000)
+    event_loop.exec()
+    assert not view._is_loading, "GUI operation did not finish before timeout."
+
+
+def _wait_for_event(event: Event, application: QApplication) -> None:
+    _ = application
+    event_loop = QEventLoop()
+    timeout = QTimer()
+    timeout.setSingleShot(True)
+    timeout.timeout.connect(event_loop.quit)
+
+    def poll() -> None:
+        if event.is_set():
+            event_loop.quit()
+            return
+        QTimer.singleShot(10, poll)
+
+    QTimer.singleShot(0, poll)
+    timeout.start(3_000)
+    event_loop.exec()
+    assert event.is_set(), "Background operation did not start before timeout."
+
+
+class _FakeLabelService:
+    def resolve_input(self, value: str, chain: Chain) -> AddressResolution:
+        _ = chain
+        input_name = value.strip().lower() if value.strip().lower().endswith(".eth") else None
+        return AddressResolution(address=_ADDRESS, input_name=input_name)
+
+    def resolve_labels(self, addresses: list[str], chain: Chain) -> dict[str, str]:
+        _ = addresses
+        _ = chain
+        return {}
+
+
+class _SlowActivityService:
+    def __init__(self, started: Event, release: Event) -> None:
+        self._started = started
+        self._release = release
+
+    def load_activity(self, **kwargs: object) -> ActivityPageResult:
+        _ = kwargs
+        self._started.set()
+        self._release.wait(timeout=3)
+        return ActivityPageResult(
+            page=ActivityPage(items=[_activity_item()], next_cursor=None),
+            updated_at=datetime(2026, 8, 9, tzinfo=UTC),
+            is_cached=False,
+        )
+
+
+def _activity_item() -> ActivityItem:
+    return ActivityItem(
+        block_number=1,
+        tx_hash="0xlate",
+        log_index="0x0",
+        timestamp=datetime(2026, 8, 9, tzinfo=UTC),
+        from_address=_ADDRESS,
+        to_address="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        asset_symbol="ETH",
+        contract_address=None,
+        raw_value="1",
+        value_decimal=Decimal("1"),
+        value_usd=None,
+        is_verified=True,
+        category=ActivityCategory.EXTERNAL,
+        chain=Chain.ETHEREUM,
+    )

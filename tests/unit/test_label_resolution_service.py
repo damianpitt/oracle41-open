@@ -98,6 +98,48 @@ def test_resolve_labels_filters_invalid_and_deduplicates_addresses() -> None:
     assert resolver.calls == [("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Chain.ETHEREUM)]
 
 
+def test_resolve_input_preserves_ens_name_and_caches_address() -> None:
+    resolver = _SequenceNameResolver(
+        responses=["0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]
+    )
+    service = LabelResolutionService(
+        name_resolver=resolver,
+        cache_store=_MemoryCache(),
+    )
+
+    first = service.resolve_input(" Example.ETH ", Chain.ETHEREUM)
+    second = service.resolve_input("example.eth", Chain.ETHEREUM)
+
+    assert first.address == "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    assert first.input_name == "example.eth"
+    assert second == first
+    assert resolver.calls == [("example.eth", Chain.ETHEREUM)]
+
+
+def test_resolve_input_accepts_address_without_network_lookup() -> None:
+    resolver = _SequenceNameResolver(responses=[])
+    service = LabelResolutionService(name_resolver=resolver)
+
+    resolution = service.resolve_input(
+        "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        Chain.BASE,
+    )
+
+    assert resolution.address == "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    assert resolution.input_name is None
+    assert resolver.calls == []
+
+
+def test_resolve_input_rejects_unresolved_or_invalid_names() -> None:
+    resolver = _SequenceNameResolver(responses=[None])
+    service = LabelResolutionService(name_resolver=resolver)
+
+    with pytest.raises(ValidationError, match="could not be resolved"):
+        service.resolve_input("missing.eth", Chain.ETHEREUM)
+    with pytest.raises(ValidationError, match="address or a valid ENS name"):
+        service.resolve_input("not a wallet", Chain.ETHEREUM)
+
+
 class _MemoryCache:
     def __init__(self) -> None:
         self.storage: dict[str, Any] = {}
@@ -118,6 +160,21 @@ class _SequenceResolver:
 
     def resolve_label(self, address: str, chain: Chain) -> str | None:
         self.calls.append((address, chain))
+        if not self._responses:
+            return None
+        next_item = self._responses.pop(0)
+        if isinstance(next_item, Exception):
+            raise next_item
+        return next_item
+
+
+class _SequenceNameResolver:
+    def __init__(self, responses: list[str | None | Exception]) -> None:
+        self._responses = responses
+        self.calls: list[tuple[str, Chain]] = []
+
+    def resolve_address(self, name: str, chain: Chain) -> str | None:
+        self.calls.append((name, chain))
         if not self._responses:
             return None
         next_item = self._responses.pop(0)

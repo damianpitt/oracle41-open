@@ -2,7 +2,33 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.1.0] - Unreleased
+## [0.2.0a1] - Unreleased
+
+### Added
+
+- Canonical SQLite event ledger for transactions, assets, movements, approvals, optional fees, query scopes, and ingestion runs.
+- Forward-only schema-v1 to schema-v2 migration with atomic version updates.
+- Durable sync checkpoints with provider, cursor, block range, fetch time, and completeness metadata.
+- Restart-safe Activity and Token Detail synchronization with deduplicated canonical events.
+- Paginated Alchemy and Ankr approval scans that can continue back to genesis in bounded block windows.
+- Stale and partial ledger states in the GUI and versioned activity CSV/JSON provenance fields.
+- ENS wallet input in Overview, Activity, and Token Detail with preserved display context.
+- GUI cancellation and integration coverage for loading, filtering, pagination, approvals, and late-result suppression.
+
+### Changed
+
+- Activity and Token Detail now use SQLite as durable history; the JSON cache remains an optional fast path.
+- Completed transfer pagination no longer restarts while older approval windows continue.
+- Approval allowance values are no longer treated as transferred USD value.
+- Backups now preserve canonical events and resumable checkpoints.
+
+### Known Limitations
+
+- Fee storage is available, but fee population waits for receipt ingestion in M5.
+- ENS input is limited to the primary analysis views; local metadata editors use resolved addresses.
+- Provider scan throughput remains subject to API limits and chain-specific log-range policies.
+
+## [0.1.0] - 2026-08-04
 
 ### Added
 

@@ -2,14 +2,23 @@ from __future__ import annotations
 
 import sqlite3
 import zipfile
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from oracle41_open._json import dumps as json_dumps
-from oracle41_open.core.models import Chain
+from oracle41_open.core.models import (
+    ActivityCategory,
+    ActivityItem,
+    ActivityPage,
+    Chain,
+    CompletenessState,
+    DataProvenance,
+)
 from oracle41_open.storage.backup_restore import BackupRestoreError, BackupRestoreService
-from oracle41_open.storage.db import SQLiteDatabase, WatchlistRepository
+from oracle41_open.storage.db import EventLedgerRepository, SQLiteDatabase, WatchlistRepository
 from oracle41_open.storage.settings import AppSettings, SettingsStore
 
 
@@ -17,6 +26,7 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     settings_store = SettingsStore(file_path=tmp_path / "settings.json")
     sqlite_database = SQLiteDatabase(file_path=tmp_path / "state.sqlite3")
     watchlist_repository = WatchlistRepository(sqlite_database)
+    event_ledger_repository = EventLedgerRepository(sqlite_database)
     service = BackupRestoreService(settings_store=settings_store, sqlite_database=sqlite_database)
 
     source_settings = AppSettings(
@@ -35,6 +45,17 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     source_address = "0x1111111111111111111111111111111111111111"
     changed_address = "0x2222222222222222222222222222222222222222"
     watchlist_repository.upsert_entry(source_address, chain=Chain.ETHEREUM, label="source")
+    event_ledger_repository.persist_page(
+        address=source_address,
+        chain=Chain.ETHEREUM,
+        scope="activity:from=latest",
+        page=ActivityPage(items=[_ledger_item(source_address)], next_cursor="page-2"),
+        provenance=DataProvenance(
+            source_provider="alchemy",
+            fetched_at=datetime(2026, 8, 7, 10, 0, tzinfo=UTC),
+        ),
+        completeness=CompletenessState.PARTIAL,
+    )
 
     backup_path = tmp_path / "oracle41-backup.zip"
     service.export_backup(backup_path)
@@ -53,6 +74,14 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     restored_entries = watchlist_repository.list_entries()
     assert any(entry.address == source_address for entry in restored_entries)
     assert all(entry.address != changed_address for entry in restored_entries)
+    restored_ledger = EventLedgerRepository(sqlite_database)
+    restored_page = restored_ledger.load_page(
+        source_address,
+        Chain.ETHEREUM,
+        "activity:from=latest",
+    )
+    assert [item.tx_hash for item in restored_page.items] == ["0xledger"]
+    assert restored_page.next_cursor == "page-2"
 
 
 def test_export_backup_bundle_contains_manifest_and_payload_files(tmp_path: Path) -> None:
@@ -113,3 +142,22 @@ def test_restore_backup_rejects_sqlite_payload_missing_required_tables(tmp_path:
 
     with pytest.raises(BackupRestoreError, match="missing required tables"):
         service.restore_backup(invalid_bundle)
+
+
+def _ledger_item(address: str) -> ActivityItem:
+    return ActivityItem(
+        block_number=24_000_000,
+        tx_hash="0xledger",
+        log_index="0x0",
+        timestamp=datetime(2026, 8, 7, 9, 0, tzinfo=UTC),
+        from_address=address,
+        to_address="0x2222222222222222222222222222222222222222",
+        asset_symbol="ETH",
+        contract_address=None,
+        raw_value="1000000000000000000",
+        value_decimal=Decimal("1"),
+        value_usd=None,
+        is_verified=True,
+        category=ActivityCategory.EXTERNAL,
+        chain=Chain.ETHEREUM,
+    )

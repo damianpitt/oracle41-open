@@ -21,6 +21,10 @@ A key stored in the system keyring takes precedence over the corresponding envir
 
 Without a live key, the application uses local stub providers so the interface can be explored without network access.
 
+## ENS Input
+
+Overview, Activity, and Token Detail accept either a hexadecimal wallet address or an ENS name ending in `.eth`. Resolution runs outside the GUI thread and successful and unsuccessful lookups are cached. The resolved address is used for provider and ledger operations while the entered ENS name is retained for display context.
+
 ## Preferences
 
 The Settings tab controls:
@@ -45,4 +49,4 @@ The resolved paths can differ when `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, or `XDG_C
 
 ## Backup and Restore
 
-Backups contain local settings and SQLite state. They do not contain provider API keys or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.
+Backups contain local settings and all SQLite state, including canonical events and synchronization checkpoints. They do not contain provider API keys or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.

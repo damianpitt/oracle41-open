@@ -8,6 +8,9 @@ from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import ActivityItem, WatchlistEntry
 from oracle41_open.core.services.portfolio_service import PortfolioLoadResult, PortfolioWalletResult
 from oracle41_open.exports.templates import (
+    ACTIVITY_EXPORT_FORMAT,
+    ACTIVITY_EXPORT_FORMAT_VERSION,
+    ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
     SnapshotExportTemplate,
@@ -130,19 +133,35 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
     ],
 }
 
+_ACTIVITY_CONTEXT_FIELDS = [
+    "export_format",
+    "export_format_version",
+    "completeness",
+    "source_provider",
+    "fetched_at",
+    "request_cursor",
+    "query_from_block",
+    "query_to_block",
+    "ledger_updated_at",
+    "is_persisted",
+]
+
 
 def activity_csv_text(
     items: list[ActivityItem],
     template: ActivityExportTemplate | str = ActivityExportTemplate.FULL,
+    context: ActivityExportContext | None = None,
 ) -> str:
     resolved_template = _resolve_activity_template(template)
     field_names = _ACTIVITY_TEMPLATE_FIELDS[resolved_template]
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(field_names)
+    output_fields = field_names + (_ACTIVITY_CONTEXT_FIELDS if context is not None else [])
+    writer.writerow(output_fields)
+    context_row = _activity_context_row(context) if context is not None else {}
     for item in items:
-        row = _activity_row(item)
-        writer.writerow([row[field_name] for field_name in field_names])
+        row = _activity_row(item) | context_row
+        writer.writerow([row[field_name] for field_name in output_fields])
     return output.getvalue()
 
 
@@ -150,10 +169,30 @@ def write_activity_csv(
     items: list[ActivityItem],
     output_path: Path,
     template: ActivityExportTemplate | str = ActivityExportTemplate.FULL,
+    context: ActivityExportContext | None = None,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(activity_csv_text(items, template=template), encoding="utf-8")
+    output_path.write_text(
+        activity_csv_text(items, template=template, context=context),
+        encoding="utf-8",
+    )
     return output_path
+
+
+def _activity_context_row(context: ActivityExportContext) -> dict[str, object]:
+    provenance = context.provenance
+    return {
+        "export_format": ACTIVITY_EXPORT_FORMAT,
+        "export_format_version": ACTIVITY_EXPORT_FORMAT_VERSION,
+        "completeness": context.completeness.value,
+        "source_provider": provenance.source_provider if provenance is not None else "",
+        "fetched_at": provenance.fetched_at.isoformat() if provenance is not None else "",
+        "request_cursor": provenance.request_cursor if provenance is not None else "",
+        "query_from_block": provenance.query_from_block if provenance is not None else "",
+        "query_to_block": provenance.query_to_block if provenance is not None else "",
+        "ledger_updated_at": context.updated_at.isoformat(),
+        "is_persisted": context.is_persisted,
+    }
 
 
 def watchlist_csv_text(entries: list[WatchlistEntry]) -> str:

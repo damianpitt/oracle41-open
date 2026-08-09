@@ -7,6 +7,9 @@ from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import ActivityItem, WatchlistEntry
 from oracle41_open.core.services.portfolio_service import PortfolioLoadResult, PortfolioWalletResult
 from oracle41_open.exports.templates import (
+    ACTIVITY_EXPORT_FORMAT,
+    ACTIVITY_EXPORT_FORMAT_VERSION,
+    ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
     SnapshotExportTemplate,
@@ -137,14 +140,19 @@ def activity_json_bytes(
     items: list[ActivityItem],
     template: ActivityExportTemplate | str = ActivityExportTemplate.FULL,
     pretty: bool = True,
+    context: ActivityExportContext | None = None,
 ) -> bytes:
     resolved_template = _resolve_activity_template(template)
     fields = _ACTIVITY_TEMPLATE_FIELDS[resolved_template]
-    payload = {
+    payload: dict[str, object] = {
+        "format": ACTIVITY_EXPORT_FORMAT,
+        "format_version": ACTIVITY_EXPORT_FORMAT_VERSION,
         "template": resolved_template.value,
         "fields": fields,
         "items": [_select_fields(_activity_item_to_dict(item), fields) for item in items],
     }
+    if context is not None:
+        payload["context"] = _activity_context_to_dict(context)
     return json_dumps(payload, pretty=pretty)
 
 
@@ -153,10 +161,27 @@ def write_activity_json(
     output_path: Path,
     template: ActivityExportTemplate | str = ActivityExportTemplate.FULL,
     pretty: bool = True,
+    context: ActivityExportContext | None = None,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_bytes(activity_json_bytes(items, template=template, pretty=pretty))
+    output_path.write_bytes(
+        activity_json_bytes(items, template=template, pretty=pretty, context=context)
+    )
     return output_path
+
+
+def _activity_context_to_dict(context: ActivityExportContext) -> dict[str, object]:
+    provenance = context.provenance
+    return {
+        "completeness": context.completeness.value,
+        "source_provider": provenance.source_provider if provenance is not None else None,
+        "fetched_at": provenance.fetched_at.isoformat() if provenance is not None else None,
+        "request_cursor": provenance.request_cursor if provenance is not None else None,
+        "query_from_block": provenance.query_from_block if provenance is not None else None,
+        "query_to_block": provenance.query_to_block if provenance is not None else None,
+        "ledger_updated_at": context.updated_at.isoformat(),
+        "is_persisted": context.is_persisted,
+    }
 
 
 def watchlist_json_bytes(entries: list[WatchlistEntry], pretty: bool = True) -> bytes:

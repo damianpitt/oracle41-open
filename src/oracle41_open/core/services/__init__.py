@@ -1,6 +1,7 @@
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.core.services.label_resolution_service import (
+    AddressResolution,
     ENSIdeasLabelResolver,
     LabelResolutionService,
 )
@@ -27,6 +28,7 @@ from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
 
 __all__ = [
+    "AddressResolution",
     "ActivityService",
     "AddressValidator",
     "ENSIdeasLabelResolver",

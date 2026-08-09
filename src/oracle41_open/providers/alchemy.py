@@ -162,7 +162,12 @@ class AlchemyProvider(DataProvider):
 
         items = self._merge_activity_items(outgoing + incoming)
         next_cursor = self._encode_activity_cursor(next_from_cursor, next_to_cursor)
-        return ActivityPage(items=items, next_cursor=next_cursor)
+        return ActivityPage(
+            items=items,
+            next_cursor=next_cursor,
+            source_provider="alchemy",
+            query_from_block=from_block or 0,
+        )
 
     def get_token_transfers(
         self,
@@ -180,39 +185,64 @@ class AlchemyProvider(DataProvider):
             raise ProviderError("Invalid wallet address for token transfer query.")
 
         url = self._rpc_url(chain)
-        from_cursor, to_cursor = self._decode_activity_cursor(cursor)
-        outgoing, next_from_cursor = self._fetch_activity_transfers(
-            url=url,
-            chain=chain,
-            from_address=normalized_wallet,
-            to_address=None,
-            page_key=from_cursor,
-            from_block=None,
-            categories=["erc20", "erc721", "erc1155"],
-            contract_addresses=[normalized_token],
+        from_cursor, to_cursor, transfer_initialized, approval_to_block, approval_initialized = (
+            self._decode_token_cursor(cursor)
         )
-        incoming, next_to_cursor = self._fetch_activity_transfers(
-            url=url,
-            chain=chain,
-            from_address=None,
-            to_address=normalized_wallet,
-            page_key=to_cursor,
-            from_block=None,
-            categories=["erc20", "erc721", "erc1155"],
-            contract_addresses=[normalized_token],
-        )
+        outgoing: list[ActivityItem] = []
+        next_from_cursor: str | None = None
+        if not transfer_initialized or from_cursor is not None:
+            outgoing, next_from_cursor = self._fetch_activity_transfers(
+                url=url,
+                chain=chain,
+                from_address=normalized_wallet,
+                to_address=None,
+                page_key=from_cursor,
+                from_block=None,
+                categories=["erc20", "erc721", "erc1155"],
+                contract_addresses=[normalized_token],
+            )
+        incoming: list[ActivityItem] = []
+        next_to_cursor: str | None = None
+        if not transfer_initialized or to_cursor is not None:
+            incoming, next_to_cursor = self._fetch_activity_transfers(
+                url=url,
+                chain=chain,
+                from_address=None,
+                to_address=normalized_wallet,
+                page_key=to_cursor,
+                from_block=None,
+                categories=["erc20", "erc721", "erc1155"],
+                contract_addresses=[normalized_token],
+            )
         items = outgoing + incoming
-        if include_approvals and cursor is None:
-            approvals = self._fetch_approval_activity(
+        next_approval_to_block: int | None = None
+        query_from_block: int | None = None
+        query_to_block: int | None = None
+        if include_approvals and (not approval_initialized or approval_to_block is not None):
+            approvals, next_approval_to_block, query_from_block, query_to_block = (
+                self._fetch_approval_activity(
                 url=url,
                 wallet_address=normalized_wallet,
                 token_address=normalized_token,
                 chain=chain,
+                to_block=approval_to_block,
+                )
             )
             items.extend(approvals)
         items = self._merge_activity_items(items)
-        next_cursor = self._encode_activity_cursor(next_from_cursor, next_to_cursor)
-        return ActivityPage(items=items, next_cursor=next_cursor)
+        next_cursor = self._encode_token_cursor(
+            next_from_cursor,
+            next_to_cursor,
+            next_approval_to_block,
+            include_approvals=include_approvals,
+        )
+        return ActivityPage(
+            items=items,
+            next_cursor=next_cursor,
+            source_provider="alchemy",
+            query_from_block=query_from_block,
+            query_to_block=query_to_block,
+        )
 
     def _load_token_metadata(self, url: str, contract_address: str) -> dict[str, Any]:
         try:
@@ -347,36 +377,39 @@ class AlchemyProvider(DataProvider):
         wallet_address: str,
         token_address: str,
         chain: Chain,
-    ) -> list[ActivityItem]:
+        to_block: int | None,
+    ) -> tuple[list[ActivityItem], int | None, int, int]:
         metadata = self._load_token_metadata(url, token_address)
         owner_topic = _topic_address(wallet_address)
         spender_topic = _topic_address(wallet_address)
-        from_block, to_block = self._approval_block_range(url)
+        from_block_hex, to_block_hex, next_to_block, first_block, last_block = (
+            self._approval_block_range(url, to_block)
+        )
 
         raw_logs: list[dict[str, Any]] = []
         for query in (
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_ERC20_APPROVAL_EVENT_TOPIC, owner_topic],
             },
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_ERC20_APPROVAL_EVENT_TOPIC, None, spender_topic],
             },
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_APPROVAL_FOR_ALL_EVENT_TOPIC, owner_topic],
             },
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_APPROVAL_FOR_ALL_EVENT_TOPIC, None, spender_topic],
             },
         ):
@@ -393,7 +426,7 @@ class AlchemyProvider(DataProvider):
                     raw_logs.append(raw_log)
 
         if not raw_logs:
-            return []
+            return [], next_to_block, first_block, last_block
 
         block_timestamp_by_hex = self._load_block_timestamps(
             url=url,
@@ -412,15 +445,22 @@ class AlchemyProvider(DataProvider):
             )
             if parsed is not None:
                 approvals.append(parsed)
-        return approvals
+        return approvals, next_to_block, first_block, last_block
 
-    def _approval_block_range(self, url: str) -> tuple[str, str]:
-        result = self._rpc_call(url=url, method="eth_blockNumber", params=[])
-        latest_block = _parse_block_number(result)
-        if latest_block is None:
-            raise ProviderResponseError("Alchemy returned an invalid latest block number.")
-        first_block = max(0, latest_block - _APPROVAL_LOOKBACK_BLOCKS + 1)
-        return hex(first_block), hex(latest_block)
+    def _approval_block_range(
+        self,
+        url: str,
+        to_block: int | None,
+    ) -> tuple[str, str, int | None, int, int]:
+        last_block = to_block
+        if last_block is None:
+            result = self._rpc_call(url=url, method="eth_blockNumber", params=[])
+            last_block = _parse_block_number(result)
+            if last_block is None:
+                raise ProviderResponseError("Alchemy returned an invalid latest block number.")
+        first_block = max(0, last_block - _APPROVAL_LOOKBACK_BLOCKS + 1)
+        next_to_block = first_block - 1 if first_block > 0 else None
+        return hex(first_block), hex(last_block), next_to_block, first_block, last_block
 
     def _load_block_timestamps(self, url: str, block_hexes: list[Any]) -> dict[str, datetime]:
         normalized_hexes: list[str] = []
@@ -608,6 +648,50 @@ class AlchemyProvider(DataProvider):
         if from_cursor is None and to_cursor is None:
             return None
         payload = {"from": from_cursor, "to": to_cursor}
+        return json_dumps(payload, pretty=False).decode("utf-8")
+
+    def _decode_token_cursor(
+        self,
+        cursor: str | None,
+    ) -> tuple[str | None, str | None, bool, int | None, bool]:
+        from_cursor, to_cursor = self._decode_activity_cursor(cursor)
+        if cursor is None or not cursor.strip():
+            return from_cursor, to_cursor, False, None, False
+        try:
+            decoded = json_loads(cursor)
+        except ValueError:
+            return from_cursor, to_cursor, False, None, False
+        if not isinstance(decoded, dict):
+            return from_cursor, to_cursor, False, None, False
+        transfer_initialized = (
+            decoded.get("transfer_initialized") is True or "approval_to" in decoded
+        )
+        if "approval_to" not in decoded:
+            return from_cursor, to_cursor, transfer_initialized, None, False
+        raw_approval_to = decoded.get("approval_to")
+        approval_to = (
+            raw_approval_to
+            if isinstance(raw_approval_to, int) and not isinstance(raw_approval_to, bool)
+            else None
+        )
+        return from_cursor, to_cursor, transfer_initialized, approval_to, True
+
+    def _encode_token_cursor(
+        self,
+        from_cursor: str | None,
+        to_cursor: str | None,
+        approval_to_block: int | None,
+        include_approvals: bool,
+    ) -> str | None:
+        if from_cursor is None and to_cursor is None and approval_to_block is None:
+            return None
+        payload: dict[str, object] = {
+            "from": from_cursor,
+            "to": to_cursor,
+            "transfer_initialized": True,
+        }
+        if include_approvals:
+            payload["approval_to"] = approval_to_block
         return json_dumps(payload, pretty=False).decode("utf-8")
 
     def _rpc_url(self, chain: Chain) -> str:

@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from oracle41_open._json import dumps as json_dumps
+from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import (
     ActivityCategory,
     ActivityItem,
@@ -134,25 +136,46 @@ class AnkrProvider(DataProvider):
             raise ProviderError("Invalid wallet address for Ankr token transfer query.")
         if normalized_token is None:
             raise ProviderError("Invalid token address for Ankr token transfer query.")
-        page = self._load_transfers(
-            address=normalized_wallet,
-            chain=chain,
-            cursor=cursor,
-            from_block=None,
-            token_address=normalized_token,
+        transfer_cursor, transfer_initialized, approval_to_block, approval_initialized = (
+            self._decode_token_cursor(cursor)
         )
-        if include_approvals and cursor is None:
-            approvals = self._fetch_approval_activity(
+        if not transfer_initialized or transfer_cursor is not None:
+            page = self._load_transfers(
+                address=normalized_wallet,
+                chain=chain,
+                cursor=transfer_cursor,
+                from_block=None,
+                token_address=normalized_token,
+            )
+        else:
+            page = ActivityPage(items=[], next_cursor=None, source_provider="ankr")
+        next_approval_to_block: int | None = None
+        query_from_block: int | None = None
+        query_to_block: int | None = None
+        if include_approvals and (not approval_initialized or approval_to_block is not None):
+            approvals, next_approval_to_block, query_from_block, query_to_block = (
+                self._fetch_approval_activity(
                 wallet_address=normalized_wallet,
                 token_address=normalized_token,
                 chain=chain,
                 base_items=page.items,
+                to_block=approval_to_block,
+                )
             )
-            return ActivityPage(
-                items=_dedupe_and_sort(page.items + approvals),
-                next_cursor=page.next_cursor,
-            )
-        return page
+            items = _dedupe_and_sort(page.items + approvals)
+        else:
+            items = page.items
+        return ActivityPage(
+            items=items,
+            next_cursor=self._encode_token_cursor(
+                transfer_cursor=page.next_cursor,
+                approval_to_block=next_approval_to_block,
+                include_approvals=include_approvals,
+            ),
+            source_provider="ankr",
+            query_from_block=query_from_block,
+            query_to_block=query_to_block,
+        )
 
     def _load_transfers(
         self,
@@ -193,7 +216,12 @@ class AnkrProvider(DataProvider):
         deduped_sorted = _dedupe_and_sort(items)
         raw_next_page_key = result.get("nextPageToken")
         next_cursor = raw_next_page_key if isinstance(raw_next_page_key, str) and raw_next_page_key else None
-        return ActivityPage(items=deduped_sorted, next_cursor=next_cursor)
+        return ActivityPage(
+            items=deduped_sorted,
+            next_cursor=next_cursor,
+            source_provider="ankr",
+            query_from_block=from_block,
+        )
 
     def _fetch_approval_activity(
         self,
@@ -201,39 +229,42 @@ class AnkrProvider(DataProvider):
         token_address: str,
         chain: Chain,
         base_items: list[ActivityItem],
-    ) -> list[ActivityItem]:
+        to_block: int | None,
+    ) -> tuple[list[ActivityItem], int | None, int, int]:
         url = self._rpc_endpoint(chain)
         token_symbol = self._infer_token_symbol(base_items, token_address=token_address)
         token_verified = self._infer_token_verified(base_items, token_address=token_address)
         token_decimals = self._load_token_decimals(url=url, token_address=token_address)
         owner_topic = _topic_address(wallet_address)
         spender_topic = _topic_address(wallet_address)
-        from_block, to_block = self._approval_block_range(url)
+        from_block_hex, to_block_hex, next_to_block, first_block, last_block = (
+            self._approval_block_range(url, to_block)
+        )
 
         raw_logs: list[dict[str, Any]] = []
         for query in (
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_ERC20_APPROVAL_EVENT_TOPIC, owner_topic],
             },
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_ERC20_APPROVAL_EVENT_TOPIC, None, spender_topic],
             },
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_APPROVAL_FOR_ALL_EVENT_TOPIC, owner_topic],
             },
             {
                 "address": token_address,
-                "fromBlock": from_block,
-                "toBlock": to_block,
+                "fromBlock": from_block_hex,
+                "toBlock": to_block_hex,
                 "topics": [_APPROVAL_FOR_ALL_EVENT_TOPIC, None, spender_topic],
             },
         ):
@@ -250,7 +281,7 @@ class AnkrProvider(DataProvider):
                     raw_logs.append(raw_log)
 
         if not raw_logs:
-            return []
+            return [], next_to_block, first_block, last_block
 
         block_timestamp_by_hex = self._load_block_timestamps(
             url=url,
@@ -270,15 +301,59 @@ class AnkrProvider(DataProvider):
             )
             if mapped is not None:
                 approvals.append(mapped)
-        return approvals
+        return approvals, next_to_block, first_block, last_block
 
-    def _approval_block_range(self, url: str) -> tuple[str, str]:
-        result = self._rpc_call(url=url, method="eth_blockNumber", params=[])
-        latest_block = _parse_int(result)
-        if latest_block is None:
-            raise ProviderResponseError("Ankr returned an invalid latest block number.")
-        first_block = max(0, latest_block - _APPROVAL_LOOKBACK_BLOCKS + 1)
-        return hex(first_block), hex(latest_block)
+    def _approval_block_range(
+        self,
+        url: str,
+        to_block: int | None,
+    ) -> tuple[str, str, int | None, int, int]:
+        last_block = to_block
+        if last_block is None:
+            result = self._rpc_call(url=url, method="eth_blockNumber", params=[])
+            last_block = _parse_int(result)
+            if last_block is None:
+                raise ProviderResponseError("Ankr returned an invalid latest block number.")
+        first_block = max(0, last_block - _APPROVAL_LOOKBACK_BLOCKS + 1)
+        next_to_block = first_block - 1 if first_block > 0 else None
+        return hex(first_block), hex(last_block), next_to_block, first_block, last_block
+
+    def _decode_token_cursor(
+        self,
+        cursor: str | None,
+    ) -> tuple[str | None, bool, int | None, bool]:
+        if cursor is None or not cursor.strip():
+            return None, False, None, False
+        try:
+            decoded = json_loads(cursor)
+        except ValueError:
+            return cursor, False, None, False
+        if not isinstance(decoded, dict):
+            return cursor, False, None, False
+        raw_transfer = decoded.get("transfer")
+        transfer_cursor = raw_transfer if isinstance(raw_transfer, str) and raw_transfer else None
+        if "approval_to" not in decoded:
+            return transfer_cursor, False, None, False
+        raw_approval_to = decoded.get("approval_to")
+        approval_to = (
+            raw_approval_to
+            if isinstance(raw_approval_to, int) and not isinstance(raw_approval_to, bool)
+            else None
+        )
+        return transfer_cursor, True, approval_to, True
+
+    def _encode_token_cursor(
+        self,
+        transfer_cursor: str | None,
+        approval_to_block: int | None,
+        include_approvals: bool,
+    ) -> str | None:
+        if transfer_cursor is None and approval_to_block is None:
+            return None
+        if not include_approvals:
+            return transfer_cursor
+        payload = {"transfer": transfer_cursor, "approval_to": approval_to_block}
+        return json_dumps(payload, pretty=False).decode("utf-8")
 
     def _load_token_decimals(self, url: str, token_address: str) -> int:
         try:

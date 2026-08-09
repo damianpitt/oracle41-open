@@ -257,6 +257,46 @@ def test_ankr_provider_reports_incomplete_approval_history() -> None:
         )
 
 
+def test_ankr_provider_pages_approval_history_back_to_genesis() -> None:
+    rpc_client = _FakeRPCClient()
+    rpc_client.responses["ankr_getTokenTransfers"] = {
+        "transfers": [],
+        "nextPageToken": None,
+    }
+    rpc_client.responses["eth_call"] = "0x6"
+    rpc_client.responses["eth_blockNumber"] = "0x30d3f"
+    rpc_client.responses["eth_getLogs"] = [[] for _ in range(8)]
+    provider = AnkrProvider(api_key="ankr-key", rpc_client=rpc_client)
+
+    first = provider.get_token_transfers(
+        address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        token_address="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        chain=Chain.ETHEREUM,
+        include_approvals=True,
+    )
+    second = provider.get_token_transfers(
+        address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        token_address="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        chain=Chain.ETHEREUM,
+        cursor=first.next_cursor,
+        include_approvals=True,
+    )
+
+    assert first.next_cursor is not None
+    assert second.next_cursor is None
+    block_number_calls = [call for call in rpc_client.calls if call["method"] == "eth_blockNumber"]
+    assert len(block_number_calls) == 1
+    transfer_calls = [
+        call for call in rpc_client.calls if call["method"] == "ankr_getTokenTransfers"
+    ]
+    assert len(transfer_calls) == 1
+    log_calls = [call for call in rpc_client.calls if call["method"] == "eth_getLogs"]
+    assert log_calls[0]["params"][0]["fromBlock"] == "0x186a0"
+    assert log_calls[0]["params"][0]["toBlock"] == "0x30d3f"
+    assert log_calls[4]["params"][0]["fromBlock"] == "0x0"
+    assert log_calls[4]["params"][0]["toBlock"] == "0x1869f"
+
+
 def test_ankr_provider_rejects_invalid_token_address() -> None:
     provider = AnkrProvider(api_key="ankr-key", rpc_client=_FakeRPCClient())
     with pytest.raises(ProviderError):

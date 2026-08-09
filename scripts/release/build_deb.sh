@@ -33,6 +33,15 @@ pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 print(pyproject["project"]["version"])
 PY
 )}"
+DEBIAN_VERSION="$(python3 - "$VERSION" <<'PY'
+import re
+import sys
+
+version = sys.argv[1]
+match = re.fullmatch(r"(\d+(?:\.\d+)*)(a|b|rc)(\d+)", version)
+print(f"{match.group(1)}~{match.group(2)}{match.group(3)}" if match else version)
+PY
+)"
 NATIVE_ARCH="$(dpkg --print-architecture)"
 ARCH="${2:-$NATIVE_ARCH}"
 case "$ARCH" in
@@ -48,7 +57,7 @@ if [[ "$ARCH" != "$NATIVE_ARCH" ]]; then
 fi
 OUTPUT_DIR="${3:-$ROOT_DIR/dist}"
 BUILD_ROOT="$OUTPUT_DIR/deb-build"
-PKG_DIR="$BUILD_ROOT/${PACKAGE_NAME}_${VERSION}_${ARCH}"
+PKG_DIR="$BUILD_ROOT/${PACKAGE_NAME}_${DEBIAN_VERSION}_${ARCH}"
 INSTALL_DIR="$PKG_DIR/usr/lib/${PACKAGE_NAME}"
 BIN_DIR="$PKG_DIR/usr/bin"
 APP_DIR="$PKG_DIR/usr/share/applications"
@@ -56,7 +65,7 @@ APPSTREAM_DIR="$PKG_DIR/usr/share/metainfo"
 ICON_ROOT="$PKG_DIR/usr/share/icons/hicolor"
 DOC_DIR="$PKG_DIR/usr/share/doc/${PACKAGE_NAME}"
 DEBIAN_DIR="$PKG_DIR/DEBIAN"
-DEB_PATH="$OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
+DEB_PATH="$OUTPUT_DIR/${PACKAGE_NAME}_${DEBIAN_VERSION}_${ARCH}.deb"
 PYINSTALLER_DIST="$BUILD_ROOT/pyinstaller-dist"
 PYINSTALLER_WORK="$BUILD_ROOT/pyinstaller-work"
 PYINSTALLER_SPEC="$BUILD_ROOT/pyinstaller-spec"
@@ -105,7 +114,7 @@ chmod 0644 "$DOC_DIR/changelog.gz"
 
 cat > "$DEBIAN_DIR/control" <<EOF
 Package: ${PACKAGE_NAME}
-Version: ${VERSION}
+Version: ${DEBIAN_VERSION}
 Section: finance
 Priority: optional
 Architecture: ${ARCH}

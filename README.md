@@ -4,23 +4,23 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.1.0` is an alpha release. It includes wallet analytics, provider integrations, local persistence, exports, tests, and native AMD64 and ARM64 Debian packaging. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.2.0a1` is an alpha release. It adds a canonical local event ledger, resumable synchronization, complete paginated approval history, forward-only database migrations, and explicit data provenance. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
 - Wallet overview with native and ERC-20 balances
 - Portfolio pricing enrichment with cached last-known values
 - Ethereum, Optimism, Polygon, Base, and Arbitrum support
-- Activity feed with transfers, pagination, lookback, and filters
-- ERC-20, ERC-721, and ERC-1155 token detail flows with recent approval events
+- Activity feed with durable history, resumable pagination, lookback, and filters
+- ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
 - Alchemy and Ankr providers with failover support
 - Retry/backoff and structured rate-limit, timeout, and authentication errors
-- ENS and address-label resolution with caching
+- ENS wallet input and address-label resolution with caching
 - Token filtering for unverified, low-signal, and dust assets
 - Watchlists and multi-wallet portfolio aggregation
 - Notes, tags, saved views, and snapshot comparison
 - Cache telemetry, diagnostics, refresh, and clear-cache controls
-- CSV and JSON exports for activity, portfolios, watchlists, and snapshots
+- Versioned CSV and JSON exports with completeness and provider provenance
 - Backup and restore for local settings and SQLite state
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
@@ -32,7 +32,7 @@ Version `0.1.0` is an alpha release. It includes wallet analytics, provider inte
 - Provider API keys are stored through the operating-system keyring when available.
 - Settings, SQLite state, and cache data are stored locally.
 - Backups intentionally exclude provider API keys.
-- Network requests are made only to configured data and pricing providers.
+- Network requests are made only to configured data/pricing providers and the ENS resolver.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ PySide6 GUI
 Core services and models
     |                 \
     v                  v
-Provider adapters    SQLite/settings/cache storage
+Provider adapters    SQLite event ledger/settings/cache
     |
     v
 Alchemy / Ankr / local stub providers
@@ -52,6 +52,8 @@ Export services consume service results and write CSV or JSON.
 ```
 
 The GUI does not call providers directly. Service operations that may access the network run through the shared Qt background task runner so provider latency does not block the event loop.
+
+Activity and Token Detail store normalized transactions, events, asset movements, approvals, provider provenance, queried block windows, and resume checkpoints in SQLite. A partial synchronization can continue after restart without duplicating canonical events. Fee records are part of the ledger schema but remain empty until transaction-receipt ingestion is added in M5.
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -138,6 +140,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
 - The application currently targets EVM-compatible chains supported by the configured providers.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
+- ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.
 
 ## License
 

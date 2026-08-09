@@ -1,4 +1,5 @@
 from oracle41_open.core.models import WatchlistEntry
+from oracle41_open.storage.db.event_ledger_repository import EventLedgerRepository
 from oracle41_open.storage.db.models import SavedView, WalletNote, WalletSnapshot
 from oracle41_open.storage.db.notes_repository import WalletNotesRepository
 from oracle41_open.storage.db.saved_views_repository import SavedViewsRepository
@@ -7,6 +8,7 @@ from oracle41_open.storage.db.sqlite_database import SQLiteDatabase
 from oracle41_open.storage.db.watchlist_repository import WatchlistRepository
 
 __all__ = [
+    "EventLedgerRepository",
     "SavedView",
     "SavedViewsRepository",
     "SQLiteDatabase",

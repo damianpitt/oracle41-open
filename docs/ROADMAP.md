@@ -61,6 +61,8 @@ Every milestone must preserve these rules:
 
 **Release target:** `0.2.0-alpha`
 
+**Implementation status:** completed for `0.2.0a1`; live-provider and clean-install validation remains part of alpha testing.
+
 Create one durable representation of wallet history that all analytics can consume.
 
 ### Scope
@@ -73,7 +75,7 @@ Create one durable representation of wallet history that all analytics can consu
 - Route Activity and Token Detail through the ledger instead of maintaining separate cached histories.
 - Include completeness and provenance fields in CSV and JSON exports.
 - Replace the bounded approval scan with paginated, checkpointed ingestion.
-- Accept ENS names anywhere the GUI accepts a wallet address and preserve the resolved-name context.
+- Accept ENS names in Overview, Activity, and Token Detail and preserve the resolved-name context.
 - Add GUI integration tests for Activity, Token Detail, filtering, pagination, and cancellation.
 
 ### Exit Gate
@@ -288,3 +290,5 @@ Development should start with the smallest end-to-end event-ledger slice:
 6. Add migration, deduplication, interruption, and provider-fixture tests.
 
 M4.1 is complete only when an existing `0.1.0` database upgrades safely and the same activity page can be loaded from SQLite after restarting the application.
+
+M4.1 and the remaining M4 integration work are implemented in `0.2.0a1`. Receipt-derived fee population intentionally starts in M5; M4 provides the normalized fee model and repository without fabricating unavailable provider data.

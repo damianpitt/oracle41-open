@@ -11,11 +11,13 @@ from oracle41_open.core.models import (
     ActivityItem,
     ActivityPage,
     Chain,
+    CompletenessState,
     ValidationError,
 )
 from oracle41_open.core.services.token_detail_service import TokenDetailService
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.storage.cache_store import DiskCacheStore
+from oracle41_open.storage.db import EventLedgerRepository, SQLiteDatabase
 
 
 def test_token_detail_service_enriches_token_prices() -> None:
@@ -319,6 +321,81 @@ def test_token_detail_service_clear_cache_is_scoped_by_approvals_flag(tmp_path: 
     assert with_approvals.is_cached
     assert not without_approvals.is_cached
     assert data_provider.calls == [(None, True), (None, False), (None, False)]
+
+
+def test_token_detail_service_restores_ledger_and_resumes_after_restart(tmp_path: Path) -> None:
+    address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    token = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    database = SQLiteDatabase(file_path=tmp_path / "state.sqlite3")
+    first_provider = _MockTokenDataProvider(
+        pages={
+            None: ActivityPage(
+                items=[
+                    _item(
+                        tx_hash="0xapproval-new",
+                        log_index="0x0",
+                        category=ActivityCategory.APPROVAL,
+                        value_decimal=Decimal("1"),
+                    )
+                ],
+                next_cursor="older-approvals",
+            )
+        }
+    )
+    first_service = TokenDetailService(
+        data_provider=first_provider,
+        pricing_provider=_MockPricingProvider(token_prices={}),
+        event_ledger=EventLedgerRepository(database),
+    )
+
+    initial = first_service.load_token_activity(
+        address=address,
+        token_address=token,
+        chain=Chain.ETHEREUM,
+    )
+
+    resumed_provider = _MockTokenDataProvider(
+        pages={
+            "older-approvals": ActivityPage(
+                items=[
+                    _item(
+                        tx_hash="0xapproval-old",
+                        log_index="0x1",
+                        category=ActivityCategory.APPROVAL,
+                        value_decimal=Decimal("2"),
+                    )
+                ],
+                next_cursor=None,
+            )
+        }
+    )
+    resumed_service = TokenDetailService(
+        data_provider=resumed_provider,
+        pricing_provider=_MockPricingProvider(token_prices={}),
+        event_ledger=EventLedgerRepository(SQLiteDatabase(file_path=database.file_path)),
+    )
+
+    restored = resumed_service.load_token_activity(
+        address=address,
+        token_address=token,
+        chain=Chain.ETHEREUM,
+    )
+    completed = resumed_service.load_token_activity(
+        address=address,
+        token_address=token,
+        chain=Chain.ETHEREUM,
+        cursor=restored.page.next_cursor,
+    )
+
+    assert initial.completeness is CompletenessState.PARTIAL
+    assert restored.is_cached and restored.is_persisted
+    assert restored.page.next_cursor == "older-approvals"
+    assert resumed_provider.calls == [("older-approvals", True)]
+    assert {item.tx_hash for item in completed.page.items} == {
+        "0xapproval-new",
+        "0xapproval-old",
+    }
+    assert completed.completeness is CompletenessState.COMPLETE
 
 
 class _MockTokenDataProvider:
