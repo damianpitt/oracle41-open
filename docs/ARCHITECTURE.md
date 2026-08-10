@@ -25,7 +25,7 @@ The GUI depends on services. Core and provider modules must not import PySide6. 
 
 ## Provider Contract
 
-Provider adapters implement the protocols in `providers/data_provider.py` and `providers/pricing_provider.py`. This keeps services independent of a specific vendor and allows stub providers and fixture-backed tests.
+Provider adapters implement the protocols in `providers/data_provider.py`, `providers/pricing_provider.py`, and `providers/transaction_provider.py`. This keeps services independent of a specific vendor and allows stub providers and fixture-backed tests.
 
 Provider errors are normalized into domain error types. Failover is applied at the provider boundary, not in individual views.
 
@@ -33,7 +33,9 @@ Failover is enabled only when two live providers are configured. Demonstration p
 
 ## Persistence
 
-SQLite schema v2 stores normalized transactions, events, assets, movements, approvals, optional fees, query scopes, synchronization checkpoints, and ingestion runs. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
+SQLite schema v3 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, and ordered raw logs. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
+
+`TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. The GUI receives domain models rather than provider dictionaries.
 
 SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
 

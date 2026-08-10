@@ -15,9 +15,13 @@ from oracle41_open.core.models import (
     ActivityItem,
     ActivityPage,
     Chain,
+    ProviderCapabilities,
+    RawTransactionLog,
+    TransactionInspection,
 )
 from oracle41_open.core.services import AddressResolution
 from oracle41_open.core.services.activity_service import ActivityPageResult
+from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.gui.views.activity_view import ActivityView
 from oracle41_open.gui.views.token_detail_view import TokenDetailView
 from oracle41_open.storage.secrets import SecretStore
@@ -110,6 +114,33 @@ def test_activity_gui_cancellation_discards_late_result(
     view.close()
 
 
+def test_activity_gui_inspects_selected_transaction(
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    container = _container(monkeypatch, tmp_path)
+    container.label_resolution_service = _FakeLabelService()  # type: ignore[assignment]
+    container.transaction_inspection_service = _FakeTransactionInspectionService()  # type: ignore[assignment]
+    view = ActivityView(container)
+    view._address_input.setText(_ADDRESS)
+
+    view._load_button.click()
+    _wait_until_idle(view, qt_application)
+    assert view._inspect_transaction_button.isEnabled()
+
+    view._inspect_transaction_button.click()
+    _wait_until_transaction_idle(view)
+
+    detail = view._detail_drawer.toPlainText()
+    assert "Transaction Inspector" in detail
+    assert "Status: success" in detail
+    assert "Network Fee: 0.000042 ETH" in detail
+    assert "Method Selector: 0xa9059cbb" in detail
+    assert "Raw Logs: 1" in detail
+    view.close()
+
+
 def _container(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -163,6 +194,24 @@ def _wait_for_event(event: Event, application: QApplication) -> None:
     assert event.is_set(), "Background operation did not start before timeout."
 
 
+def _wait_until_transaction_idle(view: ActivityView) -> None:
+    event_loop = QEventLoop()
+    timeout = QTimer()
+    timeout.setSingleShot(True)
+    timeout.timeout.connect(event_loop.quit)
+
+    def poll() -> None:
+        if not view._is_inspecting_transaction:
+            event_loop.quit()
+            return
+        QTimer.singleShot(10, poll)
+
+    QTimer.singleShot(0, poll)
+    timeout.start(3_000)
+    event_loop.exec()
+    assert not view._is_inspecting_transaction, "Transaction inspection did not finish."
+
+
 class _FakeLabelService:
     def resolve_input(self, value: str, chain: Chain) -> AddressResolution:
         _ = chain
@@ -189,6 +238,55 @@ class _SlowActivityService:
             updated_at=datetime(2026, 8, 9, tzinfo=UTC),
             is_cached=False,
         )
+
+
+class _FakeTransactionInspectionService:
+    def capabilities(self, chain: Chain) -> ProviderCapabilities:
+        _ = chain
+        return ProviderCapabilities(transaction_lookup=True, receipts=True)
+
+    def inspect(
+        self,
+        tx_hash: str,
+        chain: Chain,
+        force_refresh: bool = False,
+    ) -> TransactionInspectionResult:
+        _ = force_refresh
+        inspection = TransactionInspection(
+            chain=chain,
+            tx_hash=tx_hash,
+            block_number=1,
+            block_hash="0x" + "cd" * 32,
+            transaction_index=0,
+            from_address=_ADDRESS,
+            to_address="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            contract_address=None,
+            nonce=1,
+            value_wei=0,
+            input_data="0xa9059cbb",
+            gas_limit=21_000,
+            gas_price=2_000_000_000,
+            max_fee_per_gas=None,
+            max_priority_fee_per_gas=None,
+            status=True,
+            gas_used=21_000,
+            cumulative_gas_used=21_000,
+            effective_gas_price=2_000_000_000,
+            transaction_type=2,
+            logs_bloom="0x" + "00" * 256,
+            logs=(
+                RawTransactionLog(
+                    log_index=0,
+                    address="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    topics=(),
+                    data="0x",
+                    removed=False,
+                ),
+            ),
+            source_provider="test-rpc",
+            fetched_at=datetime(2026, 8, 10, tzinfo=UTC),
+        )
+        return TransactionInspectionResult(inspection=inspection, is_cached=False)
 
 
 def _activity_item() -> ActivityItem:

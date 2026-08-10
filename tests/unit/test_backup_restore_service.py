@@ -16,9 +16,16 @@ from oracle41_open.core.models import (
     Chain,
     CompletenessState,
     DataProvenance,
+    RawTransactionLog,
+    TransactionInspection,
 )
 from oracle41_open.storage.backup_restore import BackupRestoreError, BackupRestoreService
-from oracle41_open.storage.db import EventLedgerRepository, SQLiteDatabase, WatchlistRepository
+from oracle41_open.storage.db import (
+    EventLedgerRepository,
+    SQLiteDatabase,
+    TransactionRepository,
+    WatchlistRepository,
+)
 from oracle41_open.storage.settings import AppSettings, SettingsStore
 
 
@@ -27,6 +34,7 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     sqlite_database = SQLiteDatabase(file_path=tmp_path / "state.sqlite3")
     watchlist_repository = WatchlistRepository(sqlite_database)
     event_ledger_repository = EventLedgerRepository(sqlite_database)
+    transaction_repository = TransactionRepository(sqlite_database)
     service = BackupRestoreService(settings_store=settings_store, sqlite_database=sqlite_database)
 
     source_settings = AppSettings(
@@ -56,6 +64,7 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         ),
         completeness=CompletenessState.PARTIAL,
     )
+    transaction_repository.save_inspection(_transaction_inspection(source_address))
 
     backup_path = tmp_path / "oracle41-backup.zip"
     service.export_backup(backup_path)
@@ -80,8 +89,15 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         Chain.ETHEREUM,
         "activity:from=latest",
     )
-    assert [item.tx_hash for item in restored_page.items] == ["0xledger"]
+    assert [item.tx_hash for item in restored_page.items] == [_LEDGER_TX_HASH]
     assert restored_page.next_cursor == "page-2"
+    restored_inspection = TransactionRepository(sqlite_database).get_inspection(
+        Chain.ETHEREUM,
+        _LEDGER_TX_HASH,
+    )
+    assert restored_inspection is not None
+    assert restored_inspection.fee_wei == 42_000_000_000_000
+    assert len(restored_inspection.logs) == 1
 
 
 def test_export_backup_bundle_contains_manifest_and_payload_files(tmp_path: Path) -> None:
@@ -144,10 +160,13 @@ def test_restore_backup_rejects_sqlite_payload_missing_required_tables(tmp_path:
         service.restore_backup(invalid_bundle)
 
 
+_LEDGER_TX_HASH = "0x" + "ab" * 32
+
+
 def _ledger_item(address: str) -> ActivityItem:
     return ActivityItem(
         block_number=24_000_000,
-        tx_hash="0xledger",
+        tx_hash=_LEDGER_TX_HASH,
         log_index="0x0",
         timestamp=datetime(2026, 8, 7, 9, 0, tzinfo=UTC),
         from_address=address,
@@ -160,4 +179,41 @@ def _ledger_item(address: str) -> ActivityItem:
         is_verified=True,
         category=ActivityCategory.EXTERNAL,
         chain=Chain.ETHEREUM,
+    )
+
+
+def _transaction_inspection(address: str) -> TransactionInspection:
+    return TransactionInspection(
+        chain=Chain.ETHEREUM,
+        tx_hash=_LEDGER_TX_HASH,
+        block_number=24_000_000,
+        block_hash="0x" + "cd" * 32,
+        transaction_index=1,
+        from_address=address,
+        to_address="0x2222222222222222222222222222222222222222",
+        contract_address=None,
+        nonce=1,
+        value_wei=1,
+        input_data="0x",
+        gas_limit=21_000,
+        gas_price=2_000_000_000,
+        max_fee_per_gas=None,
+        max_priority_fee_per_gas=None,
+        status=True,
+        gas_used=21_000,
+        cumulative_gas_used=21_000,
+        effective_gas_price=2_000_000_000,
+        transaction_type=0,
+        logs_bloom="0x" + "00" * 256,
+        logs=(
+            RawTransactionLog(
+                log_index=0,
+                address="0x2222222222222222222222222222222222222222",
+                topics=(),
+                data="0x",
+                removed=False,
+            ),
+        ),
+        source_provider="alchemy",
+        fetched_at=datetime(2026, 8, 10, 2, tzinfo=UTC),
     )

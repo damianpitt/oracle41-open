@@ -90,6 +90,8 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
+**Implementation status:** M5.1 receipt ingestion and raw transaction inspection are implemented for `0.3.0a1`; ABI/signature decoding, traces, Blockscout, and broader action normalization remain.
+
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
 ### Scope
@@ -278,17 +280,14 @@ The roadmap uses these projects as directional references, not feature-equivalen
 
 Oracle41's differentiator is the combination of these ideas behind a read-only desktop boundary, explicit completeness metadata, and a small provider-independent Python architecture.
 
-## Immediate Next Slice: M4.1
+## Immediate Next Slice: M5.2
 
-Development should start with the smallest end-to-end event-ledger slice:
+Build deterministic method and event decoding on the persisted M5.1 receipt data:
 
-1. Define `TransactionRecord`, `NormalizedEvent`, `DataProvenance`, and `CompletenessState` models.
-2. Add the first schema migration plus transaction, event, and sync-checkpoint repositories.
-3. Persist one page of provider activity atomically with its cursor and queried block range.
-4. Read persisted events back through `ActivityService` without changing the current GUI contract.
-5. Surface partial and stale status in Activity and in activity exports.
-6. Add migration, deduplication, interruption, and provider-fixture tests.
+1. Add versioned method-signature and ABI-source records with provenance and verification state.
+2. Decode standard ABI argument and event types without hiding undecodable bytes.
+3. Recognize proxies while preserving both proxy and implementation context.
+4. Display decoded methods and events beside raw calldata and logs in Transaction Inspector.
+5. Add golden fixtures for transfers, approvals, swaps, reverts, overloaded signatures, and malformed payloads.
 
-M4.1 is complete only when an existing `0.1.0` database upgrades safely and the same activity page can be loaded from SQLite after restarting the application.
-
-M4.1 and the remaining M4 integration work are implemented in `0.2.0a1`. Receipt-derived fee population intentionally starts in M5; M4 provides the normalized fee model and repository without fabricating unavailable provider data.
+M5.2 is complete only when decoded output is deterministic, every decoded field identifies its source, and unknown selectors/logs remain fully inspectable in raw form.

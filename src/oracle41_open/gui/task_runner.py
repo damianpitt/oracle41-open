@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal, Slot
 
 
 class _TaskSignals(QObject):
@@ -53,10 +53,11 @@ class BackgroundTaskRunner(QObject):
 
     def start(self, operation: Callable[[], object]) -> None:
         task = _BackgroundTask(operation)
-        task.signals.result.connect(self._forward_result)
-        task.signals.error.connect(self._forward_error)
-        task.signals.finished.connect(self._forward_finished)
-        task.signals.finished.connect(self._forget_task)
+        queued = Qt.ConnectionType.QueuedConnection
+        task.signals.result.connect(self._forward_result, queued)
+        task.signals.error.connect(self._forward_error, queued)
+        task.signals.finished.connect(self._forget_task, queued)
+        task.signals.finished.connect(self._forward_finished, queued)
         self._active_tasks.add(task)
         self._pool.start(task)
 

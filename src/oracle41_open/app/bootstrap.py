@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from oracle41_open.core.models import ProviderError
+from oracle41_open.core.models import Chain, ProviderError
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
@@ -11,11 +11,13 @@ from oracle41_open.core.services.pricing_service import PricingService
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationService
 from oracle41_open.core.services.snapshot_compare_service import SnapshotCompareService
 from oracle41_open.core.services.token_detail_service import TokenDetailService
+from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionService
 from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
 from oracle41_open.providers.alchemy import AlchemyPricingProvider, AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.data_provider import DataProvider
+from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.failover import FailoverDataProvider
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.providers.stub import (
@@ -30,6 +32,7 @@ from oracle41_open.storage.db import (
     SavedViewsRepository,
     SnapshotsRepository,
     SQLiteDatabase,
+    TransactionRepository,
     WalletNotesRepository,
     WatchlistRepository,
 )
@@ -49,12 +52,14 @@ class AppContainer:
     saved_views_repository: SavedViewsRepository
     snapshots_repository: SnapshotsRepository
     event_ledger_repository: EventLedgerRepository
+    transaction_repository: TransactionRepository
     watchlist_service: WatchlistService
     data_provider: DataProvider
     pricing_provider: PricingProvider
     wallet_service: WalletService
     activity_service: ActivityService
     token_detail_service: TokenDetailService
+    transaction_inspection_service: TransactionInspectionService
     label_resolution_service: LabelResolutionService
     provider_key_validation_service: ProviderKeyValidationService
     snapshot_compare_service: SnapshotCompareService
@@ -77,6 +82,7 @@ def build_container() -> AppContainer:
     saved_views_repository = SavedViewsRepository(sqlite_database)
     snapshots_repository = SnapshotsRepository(sqlite_database)
     event_ledger_repository = EventLedgerRepository(sqlite_database)
+    transaction_repository = TransactionRepository(sqlite_database)
     watchlist_service = WatchlistService(repository=watchlist_repository)
 
     uses_live_providers = False
@@ -158,6 +164,39 @@ def build_container() -> AppContainer:
         cache_ttl_seconds=settings.token_detail_cache_ttl_seconds,
         event_ledger=event_ledger_repository,
     )
+    transaction_providers: list[EVMJSONRPCProvider] = []
+    custom_rpc_endpoints = _load_custom_rpc_endpoints(secret_store)
+    if custom_rpc_endpoints:
+        transaction_providers.append(
+            EVMJSONRPCProvider(custom_rpc_endpoints, source_name="custom-json-rpc")
+        )
+    if alchemy_api_key:
+        transaction_providers.append(
+            EVMJSONRPCProvider(
+                {
+                    chain: (
+                        f"https://{chain.alchemy_network_path}.g.alchemy.com/v2/"
+                        f"{alchemy_api_key}"
+                    )
+                    for chain in Chain
+                },
+                source_name="alchemy",
+            )
+        )
+    if ankr_api_key:
+        transaction_providers.append(
+            EVMJSONRPCProvider(
+                {
+                    chain: f"https://rpc.ankr.com/{chain.ankr_rpc_path}/{ankr_api_key}"
+                    for chain in Chain
+                },
+                source_name="ankr",
+            )
+        )
+    transaction_inspection_service = TransactionInspectionService(
+        provider=FailoverTransactionDataProvider(transaction_providers),
+        repository=transaction_repository,
+    )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
     snapshot_compare_service = SnapshotCompareService()
@@ -177,12 +216,14 @@ def build_container() -> AppContainer:
         saved_views_repository=saved_views_repository,
         snapshots_repository=snapshots_repository,
         event_ledger_repository=event_ledger_repository,
+        transaction_repository=transaction_repository,
         watchlist_service=watchlist_service,
         data_provider=data_provider,
         pricing_provider=pricing_service,
         wallet_service=wallet_service,
         activity_service=activity_service,
         token_detail_service=token_detail_service,
+        transaction_inspection_service=transaction_inspection_service,
         label_resolution_service=label_resolution_service,
         provider_key_validation_service=provider_key_validation_service,
         snapshot_compare_service=snapshot_compare_service,
@@ -200,3 +241,16 @@ def _load_provider_key(
     if stored_value:
         return stored_value
     return os.environ.get(environment_name, "").strip()
+
+
+def _load_custom_rpc_endpoints(secret_store: SecretStore) -> dict[Chain, str]:
+    endpoints: dict[Chain, str] = {}
+    for chain in Chain:
+        environment_name = f"ORACLE41_RPC_{chain.value.upper()}_URL"
+        endpoint = (
+            secret_store.get_secret(f"rpc_url_{chain.value}")
+            or os.environ.get(environment_name, "")
+        ).strip()
+        if endpoint:
+            endpoints[chain] = endpoint
+    return endpoints

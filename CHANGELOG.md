@@ -2,6 +2,26 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
+## [0.3.0a1] - Unreleased
+
+### Added
+
+- Configurable standard EVM JSON-RPC endpoints stored in the OS keyring and selectable per chain.
+- Schema-v3 transaction details, receipts, ordered raw logs, and receipt-derived network fees.
+- Activity transaction inspector for status, calldata, method selector, gas, fees, contract creation, raw logs, and provider provenance.
+- Chain-specific transaction-provider capability reporting with custom RPC, Alchemy, and Ankr failover.
+
+### Changed
+
+- Receipt loading uses shared retry and structured provider errors without exposing endpoint URLs.
+- Transaction details, receipts, logs, and fees are committed atomically and reused from SQLite.
+
+### Known Limitations
+
+- Method selectors and log topics remain raw; ABI and signature decoding follows in M5.2.
+- Internal traces are not requested yet.
+- Only transactions already present in the canonical Activity ledger can be enriched.
+
 ## [0.2.0a1] - Unreleased
 
 ### Added

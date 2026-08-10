@@ -24,6 +24,10 @@ from oracle41_open.core.services.snapshot_compare_service import (
 )
 from oracle41_open.core.services.token_detail_service import TokenDetailService
 from oracle41_open.core.services.token_filter_service import TokenFilterService
+from oracle41_open.core.services.transaction_inspection_service import (
+    TransactionInspectionResult,
+    TransactionInspectionService,
+)
 from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
 
@@ -45,6 +49,8 @@ __all__ = [
     "SnapshotComparisonResult",
     "SnapshotTokenDelta",
     "TokenFilterService",
+    "TransactionInspectionResult",
+    "TransactionInspectionService",
     "TokenDetailService",
     "WalletService",
     "WatchlistService",

@@ -23,9 +23,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oracle41_open.core.models import ActivityCategory, ActivityItem, Chain, ValidationError
+from oracle41_open.core.models import (
+    ActivityCategory,
+    ActivityItem,
+    Chain,
+    TransactionInspection,
+    ValidationError,
+)
 from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.address_validator import AddressValidator
+from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.exports import (
     ActivityExportContext,
     ActivityExportTemplate,
@@ -46,6 +53,12 @@ class _ActivityLoadPayload:
     input_name: str | None
 
 
+@dataclass(frozen=True)
+class _TransactionInspectionPayload:
+    item_id: str
+    result: TransactionInspectionResult
+
+
 class ActivityView(QWidget):
     def __init__(self, container: AppContainer) -> None:
         super().__init__()
@@ -54,6 +67,10 @@ class ActivityView(QWidget):
         self._task_runner.result.connect(self._on_activity_loaded)
         self._task_runner.error.connect(self._on_activity_load_error)
         self._task_runner.finished.connect(self._on_activity_load_finished)
+        self._transaction_task_runner = BackgroundTaskRunner(parent=self)
+        self._transaction_task_runner.result.connect(self._on_transaction_inspected)
+        self._transaction_task_runner.error.connect(self._on_transaction_inspection_error)
+        self._transaction_task_runner.finished.connect(self._on_transaction_inspection_finished)
         self._next_cursor: str | None = None
         self._raw_items: list[ActivityItem] = []
         self._visible_items: list[ActivityItem] = []
@@ -61,6 +78,7 @@ class ActivityView(QWidget):
         self._active_wallet_address: str | None = None
         self._active_wallet_input: str | None = None
         self._is_loading = False
+        self._is_inspecting_transaction = False
         self._retry_request: tuple[str | None, bool, bool] | None = None
         self._pending_load: tuple[str | None, bool, bool] | None = None
 
@@ -133,6 +151,10 @@ class ActivityView(QWidget):
         self._items_list = QListWidget(self)
         self._items_list.itemSelectionChanged.connect(self._on_item_selection_changed)
 
+        self._inspect_transaction_button = QPushButton("Inspect Receipt", self)
+        self._inspect_transaction_button.clicked.connect(self._on_inspect_transaction_clicked)
+        self._inspect_transaction_button.setEnabled(False)
+
         self._detail_drawer = QTextEdit(self)
         self._detail_drawer.setReadOnly(True)
         self._detail_drawer.setPlaceholderText(
@@ -180,6 +202,7 @@ class ActivityView(QWidget):
         root.addWidget(controls_box)
         root.addWidget(self._status_label)
         root.addWidget(self._items_list, stretch=1)
+        root.addWidget(self._inspect_transaction_button)
         root.addWidget(self._detail_drawer, stretch=1)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.setLayout(root)
@@ -488,6 +511,58 @@ class ActivityView(QWidget):
         self._pending_load = None
         self._set_loading(False)
 
+    def _on_inspect_transaction_clicked(self) -> None:
+        if self._is_inspecting_transaction:
+            return
+        item = self._selected_item()
+        if item is None:
+            self._status_label.setText("Select an activity row before inspecting its receipt.")
+            return
+        capabilities = self._container.transaction_inspection_service.capabilities(item.chain)
+        if not capabilities.receipts:
+            self._status_label.setText(
+                "No receipt-capable JSON-RPC endpoint is configured for this chain."
+            )
+            return
+
+        self._is_inspecting_transaction = True
+        self._inspect_transaction_button.setEnabled(False)
+        self._detail_drawer.setPlainText("Loading transaction and receipt...")
+
+        def inspect_transaction() -> object:
+            result = self._container.transaction_inspection_service.inspect(
+                item.tx_hash,
+                item.chain,
+            )
+            return _TransactionInspectionPayload(item_id=item.id, result=result)
+
+        self._transaction_task_runner.start(inspect_transaction)
+
+    def _on_transaction_inspected(self, raw_result: object) -> None:
+        if not isinstance(raw_result, _TransactionInspectionPayload):
+            self._on_transaction_inspection_error(
+                RuntimeError("Transaction inspection returned an invalid result.")
+            )
+            return
+        selected = self._selected_item()
+        if selected is None or selected.id != raw_result.item_id:
+            return
+        self._detail_drawer.setPlainText(
+            _render_transaction_inspection(raw_result.result.inspection)
+        )
+        source = "local ledger" if raw_result.result.is_cached else "provider and local ledger"
+        self._status_label.setText(f"Transaction receipt loaded from {source}.")
+
+    def _on_transaction_inspection_error(self, error: object) -> None:
+        self._detail_drawer.setPlainText(f"Transaction inspection failed: {error}")
+        self._status_label.setText(f"Could not inspect transaction receipt: {error}")
+
+    def _on_transaction_inspection_finished(self) -> None:
+        self._is_inspecting_transaction = False
+        self._inspect_transaction_button.setEnabled(
+            not self._is_loading and self._selected_item() is not None
+        )
+
     def _set_loading(self, is_loading: bool, status_text: str | None = None) -> None:
         self._is_loading = is_loading
         enabled = not is_loading
@@ -509,6 +584,9 @@ class ActivityView(QWidget):
         self._verified_only_checkbox.setEnabled(enabled)
         self._auto_refresh_checkbox.setEnabled(enabled)
         self._items_list.setEnabled(enabled)
+        self._inspect_transaction_button.setEnabled(
+            enabled and not self._is_inspecting_transaction and self._selected_item() is not None
+        )
         self._retry_button.setEnabled(enabled and self._retry_request is not None)
         self._cancel_button.setEnabled(is_loading)
         if status_text is not None:
@@ -549,6 +627,9 @@ class ActivityView(QWidget):
 
     def _on_item_selection_changed(self) -> None:
         item = self._selected_item()
+        self._inspect_transaction_button.setEnabled(
+            item is not None and not self._is_loading and not self._is_inspecting_transaction
+        )
         if item is None:
             if self._visible_items:
                 self._detail_drawer.setPlainText("Select an activity row to inspect transaction details.")
@@ -728,6 +809,52 @@ def _render_activity_detail(
         f"- From: {from_display}",
         f"- To: {to_display}",
     ]
+    return "\n".join(lines)
+
+
+def _render_transaction_inspection(inspection: TransactionInspection) -> str:
+    if inspection.status is True:
+        status = "success"
+    elif inspection.status is False:
+        status = "reverted"
+    else:
+        status = "unknown"
+    selector = inspection.input_data[:10] if len(inspection.input_data) >= 10 else inspection.input_data
+    lines = [
+        "Transaction Inspector",
+        f"- Chain: {inspection.chain.display_name}",
+        f"- Tx Hash: {inspection.tx_hash}",
+        f"- Status: {status}",
+        f"- Block: {inspection.block_number}",
+        f"- Block Hash: {inspection.block_hash}",
+        f"- Transaction Index: {inspection.transaction_index}",
+        f"- From: {inspection.from_address}",
+        f"- To: {inspection.to_address or 'contract creation'}",
+        f"- Created Contract: {inspection.contract_address or 'n/a'}",
+        f"- Nonce: {inspection.nonce}",
+        f"- Native Value (wei): {inspection.value_wei}",
+        f"- Method Selector: {selector or 'n/a'}",
+        f"- Input Data: {inspection.input_data}",
+        f"- Gas Limit: {inspection.gas_limit}",
+        f"- Gas Used: {inspection.gas_used}",
+        f"- Effective Gas Price (wei): {inspection.effective_gas_price}",
+        f"- Network Fee: {inspection.fee_native} {inspection.chain.native_symbol}",
+        f"- Transaction Type: {inspection.transaction_type if inspection.transaction_type is not None else 'n/a'}",
+        f"- Raw Logs: {len(inspection.logs)}",
+        f"- Source: {inspection.source_provider}",
+        f"- Fetched At: {inspection.fetched_at.isoformat()}",
+    ]
+    for log in inspection.logs:
+        lines.extend(
+            (
+                "",
+                f"Log #{log.log_index}",
+                f"- Address: {log.address}",
+                f"- Topics: {', '.join(log.topics) if log.topics else 'none'}",
+                f"- Data: {log.data}",
+                f"- Removed: {'yes' if log.removed else 'no'}",
+            )
+        )
     return "\n".join(lines)
 
 

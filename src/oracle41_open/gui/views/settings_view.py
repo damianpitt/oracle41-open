@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from pydantic import ValidationError as PydanticValidationError
 from PySide6.QtWidgets import (
@@ -99,6 +100,16 @@ class SettingsView(QWidget):
         self._ankr_key_input.setPlaceholderText("Ankr API Key")
         self._ankr_key_input.setText(self._container.secret_store.get_secret("ankr_api_key") or "")
 
+        self._rpc_chain_combo = QComboBox(self)
+        for chain in Chain:
+            self._rpc_chain_combo.addItem(chain.display_name, chain.value)
+        self._rpc_chain_combo.currentIndexChanged.connect(self._load_selected_rpc_url)
+        self._rpc_url_input = QLineEdit(self)
+        self._rpc_url_input.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+        self._rpc_url_input.setPlaceholderText("https://your-rpc-endpoint.example")
+        self._save_rpc_url_button = QPushButton("Save RPC Endpoint", self)
+        self._save_rpc_url_button.clicked.connect(self._save_rpc_url)
+
         self._save_settings_button = QPushButton("Save Settings", self)
         self._save_settings_button.clicked.connect(self._save_settings)
 
@@ -169,6 +180,13 @@ class SettingsView(QWidget):
         keys_form.addRow("", button_row)
         keys_box.setLayout(keys_form)
 
+        rpc_box = QGroupBox("Custom JSON-RPC")
+        rpc_form = QFormLayout()
+        rpc_form.addRow("Chain", self._rpc_chain_combo)
+        rpc_form.addRow("Endpoint", self._rpc_url_input)
+        rpc_form.addRow("", self._save_rpc_url_button)
+        rpc_box.setLayout(rpc_form)
+
         backup_box = QGroupBox("Backup / Restore")
         backup_form = QFormLayout()
         backup_button_row = QHBoxLayout()
@@ -206,11 +224,13 @@ class SettingsView(QWidget):
         root = QVBoxLayout()
         root.addWidget(settings_box)
         root.addWidget(keys_box)
+        root.addWidget(rpc_box)
         root.addWidget(backup_box)
         root.addWidget(cache_box)
         root.addWidget(self._status)
         root.addStretch(1)
         self.setLayout(root)
+        self._load_selected_rpc_url()
 
     def _set_chain_selection(self, chain: Chain) -> None:
         index = self._chain_combo.findData(chain.value)
@@ -323,6 +343,34 @@ class SettingsView(QWidget):
             )
 
         self._task_runner.start(validate_keys)
+
+    def _save_rpc_url(self) -> None:
+        chain = self._selected_rpc_chain()
+        endpoint = self._rpc_url_input.text().strip()
+        if endpoint and not _is_valid_rpc_endpoint(endpoint):
+            self._status.setText("Invalid RPC endpoint. Use a complete http:// or https:// URL.")
+            return
+        if not self._save_key(f"rpc_url_{chain.value}", endpoint):
+            self._status.setText("Could not update the RPC endpoint. Check keyring access.")
+            return
+        action = "saved" if endpoint else "removed"
+        self._status.setText(
+            f"{chain.display_name} custom RPC endpoint {action}. Restart to apply it."
+        )
+
+    def _selected_rpc_chain(self) -> Chain:
+        raw = self._rpc_chain_combo.currentData()
+        if isinstance(raw, str):
+            try:
+                return Chain(raw)
+            except ValueError:
+                pass
+        return Chain.ETHEREUM
+
+    def _load_selected_rpc_url(self) -> None:
+        chain = self._selected_rpc_chain()
+        endpoint = self._container.secret_store.get_secret(f"rpc_url_{chain.value}") or ""
+        self._rpc_url_input.setText(endpoint)
 
     def _on_key_validation_result(self, raw_result: object) -> None:
         if not isinstance(raw_result, _KeyValidationPayload):
@@ -601,3 +649,8 @@ def _parse_int_input(raw: str, minimum: int, maximum: int) -> int | None:
     if parsed < minimum or parsed > maximum:
         return None
     return parsed
+
+
+def _is_valid_rpc_endpoint(endpoint: str) -> bool:
+    parsed = urlparse(endpoint)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)

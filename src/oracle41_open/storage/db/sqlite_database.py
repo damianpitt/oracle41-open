@@ -8,7 +8,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -221,9 +221,68 @@ CREATE INDEX idx_ingestion_runs_wallet_chain_time
     ON ingestion_runs(wallet_address, chain, finished_at DESC);
 """
 
+_SCHEMA_V3_SQL = """
+CREATE TABLE ledger_transaction_details (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    nonce INTEGER NOT NULL,
+    value_wei TEXT NOT NULL,
+    input_data TEXT NOT NULL,
+    gas_limit INTEGER NOT NULL,
+    gas_price TEXT,
+    max_fee_per_gas TEXT,
+    max_priority_fee_per_gas TEXT,
+    source_provider TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transactions(chain, tx_hash) ON DELETE CASCADE
+);
+
+CREATE TABLE ledger_transaction_receipts (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    block_number INTEGER NOT NULL,
+    block_hash TEXT NOT NULL,
+    transaction_index INTEGER NOT NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT,
+    contract_address TEXT,
+    status INTEGER,
+    gas_used INTEGER NOT NULL,
+    cumulative_gas_used INTEGER NOT NULL,
+    effective_gas_price TEXT NOT NULL,
+    transaction_type INTEGER,
+    logs_bloom TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transactions(chain, tx_hash) ON DELETE CASCADE
+);
+CREATE INDEX idx_ledger_receipts_chain_block
+    ON ledger_transaction_receipts(chain, block_number DESC);
+
+CREATE TABLE ledger_raw_logs (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    topics_json TEXT NOT NULL,
+    data TEXT NOT NULL,
+    removed INTEGER NOT NULL,
+    PRIMARY KEY(chain, tx_hash, log_index),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transaction_receipts(chain, tx_hash) ON DELETE CASCADE
+);
+CREATE INDEX idx_ledger_raw_logs_address
+    ON ledger_raw_logs(chain, address);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
+    3: _SCHEMA_V3_SQL,
 }
 
 
