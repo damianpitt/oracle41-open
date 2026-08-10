@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a1` is an alpha release. It adds standard JSON-RPC transaction receipt ingestion, raw logs, receipt-derived network fees, and a local transaction inspector on top of the canonical event ledger. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a2` is an alpha release. It adds standard JSON-RPC transaction receipt ingestion, raw logs, receipt-derived network fees, and a local transaction inspector on top of the canonical event ledger. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 

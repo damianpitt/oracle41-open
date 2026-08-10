@@ -2,7 +2,13 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a1] - Unreleased
+## [0.3.0a2] - Unreleased
+
+### Fixed
+
+- Qt background tasks no longer pass auto-deleted `QRunnable` wrappers through queued cross-thread signals, preventing the Python 3.11 Linux CI segmentation fault seen in `0.3.0a1`.
+
+## [0.3.0a1] - 2026-08-10
 
 ### Added
 

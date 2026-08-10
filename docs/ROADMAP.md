@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 receipt ingestion and raw transaction inspection are implemented for `0.3.0a1`; ABI/signature decoding, traces, Blockscout, and broader action normalization remain.
+**Implementation status:** M5.1 receipt ingestion and raw transaction inspection are implemented for `0.3.0a2`; ABI/signature decoding, traces, Blockscout, and broader action normalization remain.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
