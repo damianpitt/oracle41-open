@@ -27,7 +27,7 @@ The following are not priorities before `1.0`:
 - Tax filing for specific jurisdictions
 - Non-EVM chains
 - Mobile clients
-- Opaque AI-generated risk or investment recommendations
+- Opaque automated risk or investment recommendations
 
 ## Current Foundation
 

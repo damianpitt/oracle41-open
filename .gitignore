@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# Other operating-system metadata
+Thumbs.db
+Desktop.ini
+
 # Python
 __pycache__/
 .pycache/
@@ -9,14 +13,66 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.tox/
+.nox/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 
 # Virtual environments
 .venv/
 venv/
+.direnv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local application state and user exports
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-journal
+*.bak
+*.backup
+/oracle41-open-backup-*.zip
+/backups/
+/exports/
+
+# Logs, crash reports, and temporary editor files
+*.log
+*.crash
+*.dmp
+*.tmp
+*.swp
+*.swo
+*~
+
+# Local editors
+.idea/
+.vscode/
+.ipynb_checkpoints/
+
+# Source-reference material
+/swift_reference/
+/SWIFT_REFERENCE_INDEX.md
 
 # Build artifacts
 dist/
 build/
 *.egg-info/
+*.egg
+*.whl
+*.deb
+*.spec
