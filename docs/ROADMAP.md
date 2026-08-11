@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 receipt ingestion and raw transaction inspection are implemented for `0.3.0a2`; ABI/signature decoding, traces, Blockscout, and broader action normalization remain.
+**Implementation status:** M5.1 receipt ingestion and M5.2 deterministic token-standard decoding are implemented through `0.3.0a3`; verified contract ABIs, proxies, custom errors, traces, Blockscout, and broader action normalization remain.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -98,8 +98,8 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 - Add a configurable standard JSON-RPC provider for user-selected endpoints.
 - Ingest transaction receipts, logs, gas usage, status, and internal traces where available.
-- Add an ABI and signature registry with source and verification metadata.
-- Decode contract methods, events, proxy implementations, custom errors, and common token operations.
+- Add an ABI and signature registry with source and verification metadata. Initial bundled token-standard registry completed in M5.2.
+- Decode contract methods, events, proxy implementations, custom errors, and common token operations. Common ERC-20, ERC-721, and ERC-1155 operations completed in M5.2.
 - Normalize swaps, bridges, staking actions, lending actions, and contract deployments.
 - Add Blockscout as an optional decoded-data and contract-metadata source.
 - Evaluate optional TrueBlocks integration for users who want a local address index.

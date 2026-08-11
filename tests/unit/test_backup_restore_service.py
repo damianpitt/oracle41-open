@@ -19,6 +19,7 @@ from oracle41_open.core.models import (
     RawTransactionLog,
     TransactionInspection,
 )
+from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.storage.backup_restore import BackupRestoreError, BackupRestoreService
 from oracle41_open.storage.db import (
     EventLedgerRepository,
@@ -64,7 +65,14 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         ),
         completeness=CompletenessState.PARTIAL,
     )
-    transaction_repository.save_inspection(_transaction_inspection(source_address))
+    source_inspection = _transaction_inspection(source_address)
+    transaction_repository.save_inspection(source_inspection)
+    source_decoding = StandardABIDecoder().decode(source_inspection)
+    transaction_repository.save_decoding(
+        Chain.ETHEREUM,
+        _LEDGER_TX_HASH,
+        source_decoding,
+    )
 
     backup_path = tmp_path / "oracle41-backup.zip"
     service.export_backup(backup_path)
@@ -98,6 +106,11 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     assert restored_inspection is not None
     assert restored_inspection.fee_wei == 42_000_000_000_000
     assert len(restored_inspection.logs) == 1
+    restored_decoding = TransactionRepository(sqlite_database).get_decoding(
+        Chain.ETHEREUM,
+        _LEDGER_TX_HASH,
+    )
+    assert restored_decoding == source_decoding
 
 
 def test_export_backup_bundle_contains_manifest_and_payload_files(tmp_path: Path) -> None:

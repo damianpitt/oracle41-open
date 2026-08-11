@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -19,6 +20,7 @@ from oracle41_open.core.models import (
     TransactionInspection,
     ValidationError,
 )
+from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.transaction_inspection_service import (
     TransactionInspectionService,
 )
@@ -33,7 +35,7 @@ _ADDRESS = "0x1111111111111111111111111111111111111111"
 _TO = "0x2222222222222222222222222222222222222222"
 
 
-def test_v2_database_migrates_to_v3_without_losing_ledger_rows(tmp_path: Path) -> None:
+def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Path) -> None:
     database_path = tmp_path / "state.sqlite3"
     database = SQLiteDatabase(database_path)
     ledger = EventLedgerRepository(database)
@@ -47,6 +49,9 @@ def test_v2_database_migrates_to_v3_without_losing_ledger_rows(tmp_path: Path) -
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE decoded_event_logs")
+        conn.execute("DROP TABLE decoded_transaction_calls")
+        conn.execute("DROP TABLE abi_signature_sources")
         conn.execute("DROP TABLE ledger_raw_logs")
         conn.execute("DROP TABLE ledger_transaction_receipts")
         conn.execute("DROP TABLE ledger_transaction_details")
@@ -61,7 +66,7 @@ def test_v2_database_migrates_to_v3_without_losing_ledger_rows(tmp_path: Path) -
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("3",)
+    assert version == ("4",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
 
@@ -82,6 +87,25 @@ def test_transaction_repository_roundtrip_and_fee_derivation(tmp_path: Path) -> 
     assert fee["raw_value"] == "42000000000000"
     assert Decimal(fee["value_decimal"]) == Decimal("0.000042")
     assert fee["asset_symbol"] == "ETH"
+
+
+def test_transaction_decoding_repository_roundtrip(tmp_path: Path) -> None:
+    _, repository = _repository_with_transaction(tmp_path)
+    inspection = _inspection()
+    repository.save_inspection(inspection)
+    decoding = StandardABIDecoder().decode(inspection)
+
+    repository.save_decoding(Chain.ETHEREUM, _TX_HASH, decoding)
+
+    assert repository.get_decoding(Chain.ETHEREUM, _TX_HASH) == decoding
+
+
+def test_transaction_decoding_requires_raw_inspection(tmp_path: Path) -> None:
+    repository = TransactionRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    decoding = StandardABIDecoder().decode(_inspection())
+
+    with pytest.raises(ValidationError, match="Load the transaction"):
+        repository.save_decoding(Chain.ETHEREUM, _TX_HASH, decoding)
 
 
 def test_transaction_repository_requires_canonical_parent(tmp_path: Path) -> None:
@@ -116,7 +140,31 @@ def test_transaction_inspection_service_reuses_persisted_result(tmp_path: Path) 
     assert not first.is_cached
     assert second.is_cached
     assert second.inspection == first.inspection
+    assert second.decoding == first.decoding
+    assert repository.get_decoding(Chain.ETHEREUM, _TX_HASH) == first.decoding
     assert provider.calls == 1
+
+
+def test_transaction_inspection_service_redecodes_stale_cached_result(tmp_path: Path) -> None:
+    _, repository = _repository_with_transaction(tmp_path)
+    inspection = _inspection()
+    repository.save_inspection(inspection)
+    current_decoding = StandardABIDecoder().decode(inspection)
+    repository.save_decoding(
+        Chain.ETHEREUM,
+        _TX_HASH,
+        replace(current_decoding, decoder_version="0"),
+    )
+    provider = _FakeTransactionProvider(inspection)
+
+    result = TransactionInspectionService(provider, repository).inspect(
+        _TX_HASH,
+        Chain.ETHEREUM,
+    )
+
+    assert result.is_cached
+    assert result.decoding == current_decoding
+    assert provider.calls == 0
 
 
 class _FakeTransactionProvider:

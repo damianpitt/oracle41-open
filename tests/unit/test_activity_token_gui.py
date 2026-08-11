@@ -20,6 +20,7 @@ from oracle41_open.core.models import (
     TransactionInspection,
 )
 from oracle41_open.core.services import AddressResolution
+from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.gui.views.activity_view import ActivityView
@@ -137,6 +138,10 @@ def test_activity_gui_inspects_selected_transaction(
     assert "Status: success" in detail
     assert "Network Fee: 0.000042 ETH" in detail
     assert "Method Selector: 0xa9059cbb" in detail
+    assert "Decoded Call" in detail
+    assert "Decode Status: malformed" in detail
+    assert "Signature: transfer(address,uint256)" in detail
+    assert "Raw Transaction Data" in detail
     assert "Raw Logs: 1" in detail
     view.close()
 
@@ -286,7 +291,11 @@ class _FakeTransactionInspectionService:
             source_provider="test-rpc",
             fetched_at=datetime(2026, 8, 10, tzinfo=UTC),
         )
-        return TransactionInspectionResult(inspection=inspection, is_cached=False)
+        return TransactionInspectionResult(
+            inspection=inspection,
+            decoding=StandardABIDecoder().decode(inspection),
+            is_cached=False,
+        )
 
 
 def _activity_item() -> ActivityItem:

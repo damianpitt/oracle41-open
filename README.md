@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a2` is an alpha release. It adds standard JSON-RPC transaction receipt ingestion, raw logs, receipt-derived network fees, and a local transaction inspector on top of the canonical event ledger. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a3` is an alpha release. It adds deterministic ERC-20, ERC-721, and ERC-1155 calldata and event decoding with local signature provenance to the transaction inspector. Unknown and malformed payloads remain available as raw data. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -22,7 +22,8 @@ Version `0.3.0a2` is an alpha release. It adds standard JSON-RPC transaction rec
 - Cache telemetry, diagnostics, refresh, and clear-cache controls
 - Versioned CSV and JSON exports with completeness and provider provenance
 - Backup and restore for local settings and SQLite state
-- Transaction inspection with receipt status, calldata, gas, fees, raw logs, and provenance
+- Transaction inspection with receipt status, gas, fees, raw logs, and provenance
+- Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 ## Privacy and Scope
@@ -55,7 +56,7 @@ Export services consume service results and write CSV or JSON.
 
 The GUI does not call providers directly. Service operations that may access the network run through the shared Qt background task runner so provider latency does not block the event loop.
 
-Activity and Token Detail store normalized transactions, events, asset movements, approvals, provider provenance, queried block windows, and resume checkpoints in SQLite. A partial synchronization can continue after restart without duplicating canonical events. Transaction Inspector enriches those canonical transactions with receipt status, calldata, gas usage, raw logs, and receipt-derived network fees.
+Activity and Token Detail store normalized transactions, events, asset movements, approvals, provider provenance, queried block windows, and resume checkpoints in SQLite. A partial synchronization can continue after restart without duplicating canonical events. Transaction Inspector enriches those canonical transactions with receipt status, calldata, decoded calls and events, signature-source provenance, gas usage, raw logs, and receipt-derived network fees.
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -143,7 +144,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - The application currently targets EVM-compatible chains supported by the configured providers.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.
-- Method selectors and event topics remain raw until ABI/signature decoding is completed in M5.
+- Decoding currently covers bundled common token-standard signatures; unknown contract interactions remain available as raw calldata and logs.
 
 ## License
 

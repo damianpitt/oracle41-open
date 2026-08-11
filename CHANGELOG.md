@@ -2,7 +2,27 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a2] - Unreleased
+## [0.3.0a3] - Unreleased
+
+### Added
+
+- Deterministic calldata and event decoding for common ERC-20, ERC-721, and ERC-1155 operations.
+- Versioned local signature registry with verified source provenance for every recognized signature.
+- Schema-v4 persistence for decoded calls, decoded events, unknown payloads, malformed payloads, and signature sources.
+- Human-readable decoded arguments and signature trust details in Transaction Inspector while retaining all raw input and log data.
+- Golden-vector tests for overloaded token event signatures, dynamic arrays, unknown signatures, and malformed payloads.
+
+### Changed
+
+- Cached transaction inspections are re-decoded when the local decoder version changes.
+- Backup and restore now preserve schema-v4 decoding state as part of the SQLite snapshot.
+
+### Known Limitations
+
+- The local registry currently covers common token-standard calls and events; verified contract ABIs, proxies, and custom errors follow in later M5 slices.
+- Indexed dynamic event values remain topic hashes because the original value is not recoverable from an EVM log.
+
+## [0.3.0a2] - 2026-08-10
 
 ### Fixed
 
@@ -24,7 +44,7 @@ All notable changes to Oracle41 Open will be documented here.
 
 ### Known Limitations
 
-- Method selectors and log topics remain raw; ABI and signature decoding follows in M5.2.
+- Method selectors and log topics remain raw.
 - Internal traces are not requested yet.
 - Only transactions already present in the canonical Activity ledger can be enriched.
 

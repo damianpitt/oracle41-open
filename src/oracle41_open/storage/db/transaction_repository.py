@@ -7,11 +7,18 @@ from oracle41_open._json import dumps as json_dumps
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import (
     Chain,
+    DecodedArgument,
+    DecodedCall,
+    DecodedEvent,
+    DecodeStatus,
     RawTransactionLog,
+    SignatureProvenance,
+    SignatureSourceKind,
+    TransactionDecoding,
     TransactionInspection,
     ValidationError,
 )
-from oracle41_open.storage.db._helpers import parse_datetime
+from oracle41_open.storage.db._helpers import parse_datetime, utc_now_iso
 from oracle41_open.storage.db.sqlite_database import SQLiteDatabase
 
 
@@ -108,6 +115,92 @@ class TransactionRepository:
             ).fetchall()
         return self._inspection_from_rows(chain, row, log_rows)
 
+    def save_decoding(
+        self,
+        chain: Chain,
+        tx_hash: str,
+        decoding: TransactionDecoding,
+    ) -> None:
+        normalized_hash = tx_hash.lower()
+        with self._database.connection() as conn:
+            if not self._inspection_exists(conn, chain, normalized_hash):
+                raise ValidationError(
+                    "Transaction inspection is not present. Load the transaction first."
+                )
+            provenances = {
+                provenance.source_id: provenance
+                for provenance in (
+                    decoding.call.provenance,
+                    *(event.provenance for event in decoding.events),
+                )
+                if provenance is not None
+            }
+            for provenance in provenances.values():
+                self._upsert_provenance(conn, provenance)
+            decoded_at = utc_now_iso()
+            self._upsert_decoded_call(
+                conn,
+                chain,
+                normalized_hash,
+                decoding,
+                decoded_at,
+            )
+            conn.execute(
+                "DELETE FROM decoded_event_logs WHERE chain = ? AND tx_hash = ?",
+                (chain.value, normalized_hash),
+            )
+            for event in decoding.events:
+                self._insert_decoded_event(
+                    conn,
+                    chain,
+                    normalized_hash,
+                    decoding.decoder_version,
+                    event,
+                    decoded_at,
+                )
+
+    def get_decoding(
+        self,
+        chain: Chain,
+        tx_hash: str,
+    ) -> TransactionDecoding | None:
+        normalized_hash = tx_hash.lower()
+        with self._database.connection() as conn:
+            call_row = conn.execute(
+                """
+                SELECT calls.*, sources.source_name, sources.source_kind,
+                       sources.version AS source_version, sources.is_verified,
+                       sources.reference
+                FROM decoded_transaction_calls AS calls
+                LEFT JOIN abi_signature_sources AS sources
+                  ON sources.source_id = calls.source_id
+                WHERE calls.chain = ? AND calls.tx_hash = ?
+                LIMIT 1
+                """,
+                (chain.value, normalized_hash),
+            ).fetchone()
+            if call_row is None:
+                return None
+            event_rows = conn.execute(
+                """
+                SELECT events.*, sources.source_name, sources.source_kind,
+                       sources.version AS source_version, sources.is_verified,
+                       sources.reference
+                FROM decoded_event_logs AS events
+                LEFT JOIN abi_signature_sources AS sources
+                  ON sources.source_id = events.source_id
+                WHERE events.chain = ? AND events.tx_hash = ?
+                ORDER BY events.log_index
+                """,
+                (chain.value, normalized_hash),
+            ).fetchall()
+        decoder_version = str(call_row["decoder_version"])
+        return TransactionDecoding(
+            decoder_version=decoder_version,
+            call=_call_from_row(call_row),
+            events=tuple(_event_from_row(row) for row in event_rows),
+        )
+
     @staticmethod
     def _transaction_exists(
         conn: sqlite3.Connection,
@@ -119,6 +212,127 @@ class TransactionRepository:
             (chain.value, tx_hash),
         ).fetchone()
         return row is not None
+
+    @staticmethod
+    def _inspection_exists(
+        conn: sqlite3.Connection,
+        chain: Chain,
+        tx_hash: str,
+    ) -> bool:
+        row = conn.execute(
+            """
+            SELECT 1 FROM ledger_transaction_details
+            WHERE chain = ? AND tx_hash = ?
+            LIMIT 1
+            """,
+            (chain.value, tx_hash),
+        ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def _upsert_provenance(
+        conn: sqlite3.Connection,
+        provenance: SignatureProvenance,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO abi_signature_sources(
+                source_id, source_name, source_kind, version, is_verified, reference
+            )
+            VALUES(?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                source_name = excluded.source_name,
+                source_kind = excluded.source_kind,
+                version = excluded.version,
+                is_verified = excluded.is_verified,
+                reference = excluded.reference
+            """,
+            (
+                provenance.source_id,
+                provenance.source_name,
+                provenance.source_kind.value,
+                provenance.version,
+                int(provenance.is_verified),
+                provenance.reference,
+            ),
+        )
+
+    @staticmethod
+    def _upsert_decoded_call(
+        conn: sqlite3.Connection,
+        chain: Chain,
+        tx_hash: str,
+        decoding: TransactionDecoding,
+        decoded_at: str,
+    ) -> None:
+        call = decoding.call
+        conn.execute(
+            """
+            INSERT INTO decoded_transaction_calls(
+                chain, tx_hash, decoder_version, status, selector, name,
+                canonical_signature, arguments_json, source_id, error, decoded_at
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(chain, tx_hash) DO UPDATE SET
+                decoder_version = excluded.decoder_version,
+                status = excluded.status,
+                selector = excluded.selector,
+                name = excluded.name,
+                canonical_signature = excluded.canonical_signature,
+                arguments_json = excluded.arguments_json,
+                source_id = excluded.source_id,
+                error = excluded.error,
+                decoded_at = excluded.decoded_at
+            """,
+            (
+                chain.value,
+                tx_hash,
+                decoding.decoder_version,
+                call.status.value,
+                call.selector,
+                call.name,
+                call.canonical_signature,
+                _arguments_json(call.arguments),
+                call.provenance.source_id if call.provenance is not None else None,
+                call.error,
+                decoded_at,
+            ),
+        )
+
+    @staticmethod
+    def _insert_decoded_event(
+        conn: sqlite3.Connection,
+        chain: Chain,
+        tx_hash: str,
+        decoder_version: str,
+        event: DecodedEvent,
+        decoded_at: str,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO decoded_event_logs(
+                chain, tx_hash, log_index, decoder_version, status, topic0, name,
+                canonical_signature, standard, arguments_json, source_id, error,
+                decoded_at
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chain.value,
+                tx_hash,
+                event.log_index,
+                decoder_version,
+                event.status.value,
+                event.topic0,
+                event.name,
+                event.canonical_signature,
+                event.standard,
+                _arguments_json(event.arguments),
+                event.provenance.source_id if event.provenance is not None else None,
+                event.error,
+                decoded_at,
+            ),
+        )
 
     @staticmethod
     def _upsert_details(conn: sqlite3.Connection, inspection: TransactionInspection) -> None:
@@ -260,3 +474,83 @@ def _optional_int_text(value: int | None) -> str | None:
 
 def _optional_db_int(value: object) -> int | None:
     return int(str(value)) if value is not None else None
+
+
+def _arguments_json(arguments: tuple[DecodedArgument, ...]) -> str:
+    payload = [
+        {
+            "name": argument.name,
+            "abi_type": argument.abi_type,
+            "value": argument.value,
+            "indexed": argument.indexed,
+        }
+        for argument in arguments
+    ]
+    return json_dumps(payload, pretty=False).decode("utf-8")
+
+
+def _arguments_from_row(row: sqlite3.Row) -> tuple[DecodedArgument, ...]:
+    raw_arguments = json_loads(str(row["arguments_json"]))
+    if not isinstance(raw_arguments, list):
+        raise ValueError("Stored decoded arguments are invalid.")
+    arguments: list[DecodedArgument] = []
+    for raw in raw_arguments:
+        if not isinstance(raw, dict):
+            raise ValueError("Stored decoded argument is invalid.")
+        arguments.append(
+            DecodedArgument(
+                name=str(raw["name"]),
+                abi_type=str(raw["abi_type"]),
+                value=str(raw["value"]),
+                indexed=bool(raw["indexed"]),
+            )
+        )
+    return tuple(arguments)
+
+
+def _provenance_from_row(row: sqlite3.Row) -> SignatureProvenance | None:
+    source_id = row["source_id"]
+    if source_id is None:
+        return None
+    return SignatureProvenance(
+        source_id=str(source_id),
+        source_name=str(row["source_name"]),
+        source_kind=SignatureSourceKind(str(row["source_kind"])),
+        version=str(row["source_version"]),
+        is_verified=bool(row["is_verified"]),
+        reference=str(row["reference"]) if row["reference"] is not None else None,
+    )
+
+
+def _call_from_row(row: sqlite3.Row) -> DecodedCall:
+    return DecodedCall(
+        status=DecodeStatus(str(row["status"])),
+        selector=str(row["selector"]) if row["selector"] is not None else None,
+        name=str(row["name"]) if row["name"] is not None else None,
+        canonical_signature=(
+            str(row["canonical_signature"])
+            if row["canonical_signature"] is not None
+            else None
+        ),
+        arguments=_arguments_from_row(row),
+        provenance=_provenance_from_row(row),
+        error=str(row["error"]) if row["error"] is not None else None,
+    )
+
+
+def _event_from_row(row: sqlite3.Row) -> DecodedEvent:
+    return DecodedEvent(
+        status=DecodeStatus(str(row["status"])),
+        log_index=int(row["log_index"]),
+        topic0=str(row["topic0"]) if row["topic0"] is not None else None,
+        name=str(row["name"]) if row["name"] is not None else None,
+        canonical_signature=(
+            str(row["canonical_signature"])
+            if row["canonical_signature"] is not None
+            else None
+        ),
+        standard=str(row["standard"]) if row["standard"] is not None else None,
+        arguments=_arguments_from_row(row),
+        provenance=_provenance_from_row(row),
+        error=str(row["error"]) if row["error"] is not None else None,
+    )

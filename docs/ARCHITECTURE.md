@@ -33,9 +33,9 @@ Failover is enabled only when two live providers are configured. Demonstration p
 
 ## Persistence
 
-SQLite schema v3 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, and ordered raw logs. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
+SQLite schema v4 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, decoded calls/events, and signature-source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
 
-`TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. The GUI receives domain models rather than provider dictionaries.
+`TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. A deterministic decoder applies a versioned, bundled token-standard registry after the raw inspection is durable. Decoded, unknown, and malformed outcomes are persisted separately, so decoding cannot replace or discard source data. The GUI receives domain models rather than provider dictionaries.
 
 SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
 

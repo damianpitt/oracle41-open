@@ -8,7 +8,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -279,10 +279,64 @@ CREATE INDEX idx_ledger_raw_logs_address
     ON ledger_raw_logs(chain, address);
 """
 
+_SCHEMA_V4_SQL = """
+CREATE TABLE abi_signature_sources (
+    source_id TEXT PRIMARY KEY,
+    source_name TEXT NOT NULL,
+    source_kind TEXT NOT NULL,
+    version TEXT NOT NULL,
+    is_verified INTEGER NOT NULL,
+    reference TEXT
+);
+
+CREATE TABLE decoded_transaction_calls (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    decoder_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    selector TEXT,
+    name TEXT,
+    canonical_signature TEXT,
+    arguments_json TEXT NOT NULL,
+    source_id TEXT,
+    error TEXT,
+    decoded_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transaction_details(chain, tx_hash) ON DELETE CASCADE,
+    FOREIGN KEY(source_id) REFERENCES abi_signature_sources(source_id)
+);
+CREATE INDEX idx_decoded_transaction_calls_signature
+    ON decoded_transaction_calls(canonical_signature);
+
+CREATE TABLE decoded_event_logs (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
+    decoder_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    topic0 TEXT,
+    name TEXT,
+    canonical_signature TEXT,
+    standard TEXT,
+    arguments_json TEXT NOT NULL,
+    source_id TEXT,
+    error TEXT,
+    decoded_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash, log_index),
+    FOREIGN KEY(chain, tx_hash, log_index)
+        REFERENCES ledger_raw_logs(chain, tx_hash, log_index) ON DELETE CASCADE,
+    FOREIGN KEY(source_id) REFERENCES abi_signature_sources(source_id)
+);
+CREATE INDEX idx_decoded_event_logs_signature
+    ON decoded_event_logs(canonical_signature);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
     3: _SCHEMA_V3_SQL,
+    4: _SCHEMA_V4_SQL,
 }
 
 

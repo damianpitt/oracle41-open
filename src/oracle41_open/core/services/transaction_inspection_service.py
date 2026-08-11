@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from oracle41_open.core.models import Chain, ProviderCapabilities, TransactionInspection
+from oracle41_open.core.models import (
+    Chain,
+    ProviderCapabilities,
+    TransactionDecoding,
+    TransactionInspection,
+)
+from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.providers.transaction_provider import TransactionDataProvider
 
 
@@ -18,10 +24,33 @@ class TransactionInspectionStore(Protocol):
     ) -> TransactionInspection | None:
         ...
 
+    def save_decoding(
+        self,
+        chain: Chain,
+        tx_hash: str,
+        decoding: TransactionDecoding,
+    ) -> None:
+        ...
+
+    def get_decoding(
+        self,
+        chain: Chain,
+        tx_hash: str,
+    ) -> TransactionDecoding | None:
+        ...
+
+
+class TransactionDecoder(Protocol):
+    version: str
+
+    def decode(self, inspection: TransactionInspection) -> TransactionDecoding:
+        ...
+
 
 @dataclass(frozen=True)
 class TransactionInspectionResult:
     inspection: TransactionInspection
+    decoding: TransactionDecoding
     is_cached: bool
 
 
@@ -30,9 +59,11 @@ class TransactionInspectionService:
         self,
         provider: TransactionDataProvider,
         repository: TransactionInspectionStore,
+        decoder: TransactionDecoder | None = None,
     ) -> None:
         self._provider = provider
         self._repository = repository
+        self._decoder = decoder or StandardABIDecoder()
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         return self._provider.capabilities(chain)
@@ -46,8 +77,22 @@ class TransactionInspectionService:
         if not force_refresh:
             cached = self._repository.get_inspection(chain, tx_hash)
             if cached is not None:
-                return TransactionInspectionResult(inspection=cached, is_cached=True)
+                decoding = self._repository.get_decoding(chain, tx_hash)
+                if decoding is None or decoding.decoder_version != self._decoder.version:
+                    decoding = self._decoder.decode(cached)
+                    self._repository.save_decoding(chain, tx_hash, decoding)
+                return TransactionInspectionResult(
+                    inspection=cached,
+                    decoding=decoding,
+                    is_cached=True,
+                )
 
         inspection = self._provider.get_transaction_inspection(tx_hash, chain)
         self._repository.save_inspection(inspection)
-        return TransactionInspectionResult(inspection=inspection, is_cached=False)
+        decoding = self._decoder.decode(inspection)
+        self._repository.save_decoding(chain, tx_hash, decoding)
+        return TransactionInspectionResult(
+            inspection=inspection,
+            decoding=decoding,
+            is_cached=False,
+        )

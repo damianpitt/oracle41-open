@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 
 from oracle41_open.core.models import Chain, ProviderError
+from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
@@ -196,6 +197,7 @@ def build_container() -> AppContainer:
     transaction_inspection_service = TransactionInspectionService(
         provider=FailoverTransactionDataProvider(transaction_providers),
         repository=transaction_repository,
+        decoder=StandardABIDecoder(),
     )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()

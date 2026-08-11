@@ -27,6 +27,11 @@ from oracle41_open.core.models import (
     ActivityCategory,
     ActivityItem,
     Chain,
+    DecodedArgument,
+    DecodedCall,
+    DecodedEvent,
+    SignatureProvenance,
+    TransactionDecoding,
     TransactionInspection,
     ValidationError,
 )
@@ -548,7 +553,10 @@ class ActivityView(QWidget):
         if selected is None or selected.id != raw_result.item_id:
             return
         self._detail_drawer.setPlainText(
-            _render_transaction_inspection(raw_result.result.inspection)
+            _render_transaction_inspection(
+                raw_result.result.inspection,
+                raw_result.result.decoding,
+            )
         )
         source = "local ledger" if raw_result.result.is_cached else "provider and local ledger"
         self._status_label.setText(f"Transaction receipt loaded from {source}.")
@@ -812,7 +820,10 @@ def _render_activity_detail(
     return "\n".join(lines)
 
 
-def _render_transaction_inspection(inspection: TransactionInspection) -> str:
+def _render_transaction_inspection(
+    inspection: TransactionInspection,
+    decoding: TransactionDecoding,
+) -> str:
     if inspection.status is True:
         status = "success"
     elif inspection.status is False:
@@ -834,6 +845,11 @@ def _render_transaction_inspection(inspection: TransactionInspection) -> str:
         f"- Nonce: {inspection.nonce}",
         f"- Native Value (wei): {inspection.value_wei}",
         f"- Method Selector: {selector or 'n/a'}",
+        "",
+        "Decoded Call",
+        *_render_decoded_call(decoding.call),
+        "",
+        "Raw Transaction Data",
         f"- Input Data: {inspection.input_data}",
         f"- Gas Limit: {inspection.gas_limit}",
         f"- Gas Used: {inspection.gas_used}",
@@ -844,11 +860,13 @@ def _render_transaction_inspection(inspection: TransactionInspection) -> str:
         f"- Source: {inspection.source_provider}",
         f"- Fetched At: {inspection.fetched_at.isoformat()}",
     ]
+    decoded_events = {event.log_index: event for event in decoding.events}
     for log in inspection.logs:
         lines.extend(
             (
                 "",
                 f"Log #{log.log_index}",
+                *_render_decoded_event(decoded_events.get(log.log_index)),
                 f"- Address: {log.address}",
                 f"- Topics: {', '.join(log.topics) if log.topics else 'none'}",
                 f"- Data: {log.data}",
@@ -856,6 +874,48 @@ def _render_transaction_inspection(inspection: TransactionInspection) -> str:
             )
         )
     return "\n".join(lines)
+
+
+def _render_decoded_call(call: DecodedCall) -> tuple[str, ...]:
+    lines = [f"- Decode Status: {call.status.value}"]
+    if call.canonical_signature is not None:
+        lines.append(f"- Signature: {call.canonical_signature}")
+    lines.extend(_render_decoded_arguments(call.arguments))
+    lines.extend(_render_provenance(call.provenance))
+    if call.error is not None:
+        lines.append(f"- Decode Note: {call.error}")
+    return tuple(lines)
+
+
+def _render_decoded_event(event: DecodedEvent | None) -> tuple[str, ...]:
+    if event is None:
+        return ("- Decode Status: unavailable",)
+    lines = [f"- Decode Status: {event.status.value}"]
+    if event.canonical_signature is not None:
+        standard = f" ({event.standard})" if event.standard is not None else ""
+        lines.append(f"- Event: {event.canonical_signature}{standard}")
+    lines.extend(_render_decoded_arguments(event.arguments))
+    lines.extend(_render_provenance(event.provenance))
+    if event.error is not None:
+        lines.append(f"- Decode Note: {event.error}")
+    return tuple(lines)
+
+
+def _render_decoded_arguments(arguments: tuple[DecodedArgument, ...]) -> tuple[str, ...]:
+    return tuple(
+        f"- {argument.name} [{argument.abi_type}]: {argument.value}"
+        for argument in arguments
+    )
+
+
+def _render_provenance(provenance: SignatureProvenance | None) -> tuple[str, ...]:
+    if provenance is None:
+        return ()
+    verification = "verified" if provenance.is_verified else "unverified"
+    return (
+        f"- Signature Source: {provenance.source_name} v{provenance.version}",
+        f"- Signature Trust: {verification} {provenance.source_kind.value}",
+    )
 
 
 def _fmt_decimal(value: Decimal | None) -> str:
