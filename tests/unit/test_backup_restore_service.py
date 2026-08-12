@@ -1,3 +1,9 @@
+"""Test local backup and restore behavior.
+
+The cases verify settings, ledger data, transaction decoding, ABIs, manifests, and SQLite integrity checks.
+They also reject incomplete or unsupported backup bundles.
+"""
+
 from __future__ import annotations
 
 import sqlite3

@@ -33,6 +33,15 @@ The gate runs:
 - Keep core/provider tests independent of a display server where possible.
 - GUI changes should preserve the service boundary and loading/error states.
 
+## Code Documentation
+
+- Start every Python file with a short module docstring.
+- Explain what the file owns, what it does, and any important boundary or safety rule.
+- Use simple English and keep the header short enough to scan before the imports.
+- Add comments before non-obvious logic when the reason is not clear from the code.
+- Explain why a special case exists. Do not write comments that only repeat the next line.
+- Update a header when the main responsibility of its file changes.
+
 ## GUI Changes
 
 Network-backed operations must use `BackgroundTaskRunner`. Do not call provider or service methods that may perform network I/O directly from a button handler. Widget updates must happen through QObject-bound slots or signals on the GUI thread. Cancellation suppresses late task results; workers are not terminated unsafely, and a ledger transaction already committed by a canceled task remains valid.

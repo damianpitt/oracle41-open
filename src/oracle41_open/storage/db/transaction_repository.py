@@ -1,3 +1,9 @@
+"""Persist transaction inspections and decoded results.
+
+Receipt details, raw logs, fees, calls, events, reverts, and signature sources are stored without replacing canonical ledger rows.
+Decoded data requires an existing durable raw inspection.
+"""
+
 from __future__ import annotations
 
 import sqlite3

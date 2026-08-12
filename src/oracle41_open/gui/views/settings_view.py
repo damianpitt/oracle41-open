@@ -1,3 +1,9 @@
+"""Manage local preferences, provider access, ABIs, backups, and cache tools.
+
+The view validates keys and verified ABI requests in background tasks while keeping secrets in the system keyring.
+Backup files include local SQLite state but exclude credentials and private endpoint URLs.
+"""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass

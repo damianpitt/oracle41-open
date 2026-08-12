@@ -1,3 +1,9 @@
+"""Provide shared SQLite conversion and validation helpers.
+
+The functions normalize addresses, timestamps, decimals, JSON values, and row data used by several repositories.
+They contain no database connection or transaction management.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

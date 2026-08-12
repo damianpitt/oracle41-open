@@ -1,3 +1,9 @@
+"""Describe records stored in the canonical event ledger.
+
+The models cover transactions, assets, movements, approvals, fees, checkpoints, provenance, and completeness.
+They provide one provider-independent history format for storage and exports.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

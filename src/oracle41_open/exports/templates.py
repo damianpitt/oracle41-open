@@ -1,3 +1,9 @@
+"""Define selectable fields for CSV and JSON exports.
+
+Templates give the GUI stable names, labels, defaults, and field order for each report type.
+They contain no file-system or provider logic.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

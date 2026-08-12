@@ -1,3 +1,9 @@
+"""Build the main Oracle41 Open window.
+
+This module creates the application tabs, shared window actions, and top-level navigation.
+Each tab receives the same dependency container and owns its own widgets.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

@@ -1,3 +1,9 @@
+"""Test provider adapters against recorded HTTP fixtures.
+
+The cases verify real response shapes without making live network requests.
+Fixture tests protect pagination and response mapping across provider changes.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal

@@ -1,3 +1,9 @@
+"""Store disposable JSON cache entries and telemetry on disk.
+
+The cache supports expiry, size limits, prefix removal, hit and miss counters, and thread-safe file access.
+Durable wallet history belongs in SQLite rather than this cache.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

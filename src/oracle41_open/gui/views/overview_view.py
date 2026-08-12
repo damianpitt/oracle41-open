@@ -1,3 +1,9 @@
+"""Present a wallet balance overview.
+
+The view resolves wallet input, starts background loading, and displays native and token totals with cache status.
+It does not call pricing or blockchain providers directly.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

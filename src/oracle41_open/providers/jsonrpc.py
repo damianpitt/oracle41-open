@@ -1,3 +1,9 @@
+"""Send and validate JSON-RPC 2.0 requests.
+
+The client checks HTTP and JSON-RPC envelopes and preserves structured remote error codes and data.
+It does not apply provider-specific retry or error policy.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

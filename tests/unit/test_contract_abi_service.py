@@ -1,3 +1,9 @@
+"""Test contract ABI parsing and source handling.
+
+The cases cover tuples, calls, events, custom errors, user imports, verified imports, and invalid payloads.
+They confirm source trust and content hashes remain deterministic.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

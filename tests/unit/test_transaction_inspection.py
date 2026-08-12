@@ -1,3 +1,9 @@
+"""Test transaction inspection, decoding persistence, and schema migration.
+
+The cases cover receipts, fees, cached re-decoding, ABIs, proxies, custom reverts, and raw-data requirements.
+They protect the full M5 transaction enrichment path.
+"""
+
 from __future__ import annotations
 
 import sqlite3

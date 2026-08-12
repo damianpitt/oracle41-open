@@ -1,3 +1,9 @@
+"""Build a wallet balance overview.
+
+The service loads native and token balances, applies pricing and filtering, and records cache and completeness details.
+Provider failures stay visible and are not replaced with demonstration data.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

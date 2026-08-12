@@ -1,3 +1,9 @@
+"""Manage read-only wallet watchlist entries.
+
+The service validates addresses and labels before using the watchlist repository.
+It stores public analysis targets only and never wallet credentials.
+"""
+
 from __future__ import annotations
 
 from typing import Protocol

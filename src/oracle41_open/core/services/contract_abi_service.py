@@ -1,3 +1,9 @@
+"""Import, validate, and retrieve contract ABIs.
+
+This service parses functions, events, tuple types, and custom errors while recording user or verified source details.
+Only valid ABI entries are stored, and verification requires an attributed external source.
+"""
+
 from __future__ import annotations
 
 import hashlib

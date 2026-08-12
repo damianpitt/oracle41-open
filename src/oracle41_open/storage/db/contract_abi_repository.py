@@ -1,3 +1,9 @@
+"""Store contract ABIs and historical proxy resolutions.
+
+ABI records keep source provenance, while proxy results are keyed by chain, address, and block number.
+Replacing an ABI updates the active record without deleting raw transaction data.
+"""
+
 from __future__ import annotations
 
 import sqlite3

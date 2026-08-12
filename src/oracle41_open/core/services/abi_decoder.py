@@ -1,3 +1,9 @@
+"""Decode EVM calls, logs, and revert data in a deterministic way.
+
+The decoder combines bundled standards with address-specific ABIs and records the source of each signature.
+Unknown and malformed payloads keep their selectors and raw bytes for later inspection.
+"""
+
 from __future__ import annotations
 
 import hashlib

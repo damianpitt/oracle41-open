@@ -1,3 +1,9 @@
+"""Test canonical event ledger persistence and migration.
+
+The cases cover schema upgrades, atomic writes, checkpoints, completeness, deduplication, and query scopes.
+They protect durable history during interrupted synchronization.
+"""
+
 from __future__ import annotations
 
 import sqlite3

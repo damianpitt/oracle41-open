@@ -1,3 +1,9 @@
+"""Store wallet notes and tags in SQLite.
+
+The repository saves one note per wallet and chain and keeps tag updates consistent with the note record.
+Text and tag normalization happens before data is returned to views.
+"""
+
 from __future__ import annotations
 
 import sqlite3

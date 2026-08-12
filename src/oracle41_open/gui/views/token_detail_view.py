@@ -1,3 +1,9 @@
+"""Present token-specific transfers and approval history.
+
+The view supports wallet and token input, pagination, quick filters, background loading, and activity exports.
+Historical completeness and approval scan progress remain visible.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

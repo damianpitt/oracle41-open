@@ -1,3 +1,9 @@
+"""Smoke-test the desktop interface offscreen.
+
+The test creates the main window and verifies that all expected tabs can be constructed.
+It catches missing runtime wiring without opening a visible window.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

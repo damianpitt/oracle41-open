@@ -1,3 +1,9 @@
+"""Load, filter, cache, and persist wallet activity.
+
+This service coordinates provider pagination with the canonical ledger and resumable sync checkpoints.
+It reports stale or partial results instead of presenting incomplete history as complete.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

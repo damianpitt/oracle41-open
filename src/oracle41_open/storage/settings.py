@@ -1,3 +1,9 @@
+"""Load and validate local application preferences.
+
+Settings are stored as JSON in the platform configuration directory with safe defaults for missing files.
+Provider keys and private RPC URLs are not part of this settings file.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

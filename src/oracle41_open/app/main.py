@@ -1,3 +1,9 @@
+"""Start Oracle41 Open from the command line.
+
+This module handles version and smoke-test options before creating the Qt application and main window.
+Importing it does not start the interface automatically.
+"""
+
 from __future__ import annotations
 
 import sys

@@ -1,3 +1,9 @@
+"""Capture, compare, and export wallet snapshots.
+
+The view stores point-in-time balance summaries and presents changes between two selected snapshots.
+Snapshot comparison uses saved data and does not refresh providers automatically.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

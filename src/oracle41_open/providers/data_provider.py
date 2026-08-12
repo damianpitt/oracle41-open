@@ -1,3 +1,9 @@
+"""Define the main blockchain data provider contract.
+
+The protocol covers wallet balances, token pages, activity pages, and token-specific history.
+Core services use this interface without depending on Alchemy or Ankr classes.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal

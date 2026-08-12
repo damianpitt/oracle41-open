@@ -1,3 +1,9 @@
+"""Compare two saved wallet snapshots.
+
+The service calculates native, token, and total-value changes with added and removed asset details.
+It works only from stored snapshot data and does not call providers.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

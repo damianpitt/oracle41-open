@@ -1,3 +1,9 @@
+"""Build the complete application dependency container.
+
+This module creates settings, storage, providers, failover chains, and core services in one place.
+Views receive the finished container and do not construct providers directly.
+"""
+
 from __future__ import annotations
 
 import os

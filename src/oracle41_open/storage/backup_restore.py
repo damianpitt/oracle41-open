@@ -1,3 +1,9 @@
+"""Export and restore local Oracle41 Open state.
+
+Backups contain validated settings and a consistent SQLite snapshot inside a versioned zip bundle.
+Provider keys, private endpoint URLs, and disposable cache data are excluded.
+"""
+
 from __future__ import annotations
 
 import os

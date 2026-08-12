@@ -1,3 +1,9 @@
+"""Test watchlist validation and service behavior.
+
+The cases cover add, update, list, remove, labels, duplicate wallets, and invalid addresses.
+They confirm watchlists remain read-only public wallet records.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

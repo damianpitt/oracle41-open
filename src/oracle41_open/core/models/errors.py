@@ -1,3 +1,9 @@
+"""Define application and provider error types.
+
+Structured errors let services and views distinguish validation, authentication, rate-limit, timeout, network, and response failures.
+Messages must not reveal API keys or private endpoint URLs.
+"""
+
 from __future__ import annotations
 
 

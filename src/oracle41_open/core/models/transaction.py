@@ -1,3 +1,9 @@
+"""Describe raw transaction and receipt inspection data.
+
+The models preserve calldata, logs, gas fields, status, provider source, and optional provider capabilities.
+ABI decoding is stored separately so raw blockchain data is never replaced.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

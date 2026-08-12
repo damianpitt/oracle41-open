@@ -1,3 +1,9 @@
+"""Test command-line startup options.
+
+The cases verify version output and smoke-test behavior without starting an interactive session.
+They protect the packaged command entry point.
+"""
+
 from oracle41_open.app.main import main
 
 

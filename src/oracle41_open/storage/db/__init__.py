@@ -1,3 +1,9 @@
+"""Expose SQLite database and repository classes.
+
+This module provides one import surface for bootstrap code and tests.
+Each repository still owns a focused group of tables and queries.
+"""
+
 from oracle41_open.core.models import WatchlistEntry
 from oracle41_open.storage.db.contract_abi_repository import ContractABIRepository
 from oracle41_open.storage.db.event_ledger_repository import EventLedgerRepository

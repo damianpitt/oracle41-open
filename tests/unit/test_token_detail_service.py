@@ -1,3 +1,9 @@
+"""Test token-specific history and approval loading.
+
+The cases cover pagination, bounded scans, cache behavior, ledger reuse, and partial completeness.
+They ensure approval values are not treated as token transfers.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

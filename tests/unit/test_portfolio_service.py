@@ -1,3 +1,9 @@
+"""Test multi-wallet portfolio aggregation.
+
+The cases cover token and chain grouping, totals, duplicate assets, and partial wallet failures.
+They ensure one failed wallet does not discard other results.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

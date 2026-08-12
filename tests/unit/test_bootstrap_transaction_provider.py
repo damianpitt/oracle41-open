@@ -1,3 +1,9 @@
+"""Test transaction provider setup in the application container.
+
+The cases verify custom RPC priority and Alchemy or Ankr endpoint construction.
+They ensure private endpoint values are handled through the secret store.
+"""
+
 from pathlib import Path
 
 import pytest

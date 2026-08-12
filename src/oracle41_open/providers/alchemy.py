@@ -1,3 +1,9 @@
+"""Load wallet, token, activity, approval, and price data from Alchemy.
+
+The adapter handles pagination, bounded log scans, retries, response validation, and conversion to core models.
+Remote failures are mapped to safe structured provider errors.
+"""
+
 from __future__ import annotations
 
 import time

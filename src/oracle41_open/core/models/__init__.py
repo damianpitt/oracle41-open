@@ -1,3 +1,9 @@
+"""Expose the public domain models and errors.
+
+This module provides a stable import surface for services, providers, storage, and views.
+Model implementations remain split into small files by subject.
+"""
+
 from oracle41_open.core.models.activity import ActivityCategory, ActivityItem, ActivityPage
 from oracle41_open.core.models.chain import Chain
 from oracle41_open.core.models.decoding import (

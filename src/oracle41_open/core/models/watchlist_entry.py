@@ -1,3 +1,9 @@
+"""Describe a saved watchlist wallet.
+
+Each entry keeps an address, chain, optional label, and creation time.
+Watchlists are read-only analysis targets and never contain private keys.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

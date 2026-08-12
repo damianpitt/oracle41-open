@@ -1,3 +1,9 @@
+"""Write structured JSON reports and export metadata.
+
+The module serializes activity, portfolios, watchlists, and snapshots into versioned public formats.
+Decimal values and timestamps are converted without losing their meaning.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

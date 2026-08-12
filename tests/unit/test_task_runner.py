@@ -1,3 +1,9 @@
+"""Test safe Qt background task delivery.
+
+The cases cover results, errors, cancellation generations, and worker cleanup across threads.
+They protect against stale results and Qt object lifetime crashes.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

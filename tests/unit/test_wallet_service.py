@@ -1,3 +1,9 @@
+"""Test wallet overview loading.
+
+The cases cover native and token balances, pricing, filtering, pagination, cache states, and provider failures.
+They confirm live failures are not replaced with demonstration data.
+"""
+
 from __future__ import annotations
 
 import time

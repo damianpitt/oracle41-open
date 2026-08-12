@@ -1,3 +1,9 @@
+"""Test the main Activity, Token Detail, and ABI management workflows.
+
+The cases drive offscreen Qt widgets through loading, filtering, pagination, transaction inspection, and ABI changes.
+They also protect cancellation from showing late results.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

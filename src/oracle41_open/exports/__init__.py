@@ -1,3 +1,9 @@
+"""Expose the supported export functions and templates.
+
+Activity, portfolio, watchlist, and snapshot reports share this public import surface.
+Serialization details remain outside GUI views and core services.
+"""
+
 from oracle41_open.exports.csv_export import (
     activity_csv_text,
     portfolio_csv_text,

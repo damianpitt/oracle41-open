@@ -1,3 +1,9 @@
+"""Store reusable filter views in SQLite.
+
+Each named view keeps its chain, filter JSON, and creation and update times.
+The repository validates stored JSON before returning it to the interface.
+"""
+
 from __future__ import annotations
 
 import sqlite3

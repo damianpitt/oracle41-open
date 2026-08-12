@@ -1,3 +1,9 @@
+"""Define the token pricing provider contract.
+
+Pricing services use this protocol to request current values without knowing the vendor implementation.
+Cache and stale-price policy remain in the core pricing service.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal

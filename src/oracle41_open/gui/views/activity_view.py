@@ -1,3 +1,9 @@
+"""Present wallet activity and transaction inspection.
+
+The view handles address input, filters, pagination, exports, background loading, and detailed receipt display.
+Provider and decoding work is delegated to core services.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

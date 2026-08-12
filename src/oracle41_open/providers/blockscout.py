@@ -1,3 +1,9 @@
+"""Retrieve verified contract ABIs from Blockscout API v2.
+
+The provider uses official chain explorers, confirms verification state, and returns attributed ABI source details.
+Requests are user-initiated and retry only temporary network or rate-limit failures.
+"""
+
 from __future__ import annotations
 
 import json

@@ -1,3 +1,9 @@
+"""Test verified ABI retrieval from Blockscout.
+
+The cases cover verified and unverified responses, string ABIs, attribution, retries, and safe errors.
+No request reaches the public Blockscout service.
+"""
+
 from __future__ import annotations
 
 import json

@@ -1,3 +1,9 @@
+"""Build a combined portfolio from saved wallets.
+
+The service loads each watchlist entry, groups balances by token and chain, and records wallet-level failures.
+One failed wallet does not hide successful portfolio results from other wallets.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

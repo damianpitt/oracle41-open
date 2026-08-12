@@ -1,3 +1,9 @@
+"""Choose between primary and fallback blockchain data providers.
+
+The adapter retries supported operations on the fallback only after an expected provider failure.
+Programming errors are allowed to surface instead of being hidden as failover events.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

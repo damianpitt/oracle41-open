@@ -1,3 +1,9 @@
+"""Describe token balances and paginated balance results.
+
+The models preserve raw integer values while also exposing decimal and optional price information.
+Pagination details remain available so services can report incomplete results.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

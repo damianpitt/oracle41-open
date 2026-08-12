@@ -1,3 +1,9 @@
+"""Persist and query the canonical wallet event ledger.
+
+The repository writes transactions, events, assets, movements, approvals, scopes, runs, and checkpoints atomically.
+Repeat ingestion is deduplicated and interrupted syncs keep the last valid checkpoint.
+"""
+
 from __future__ import annotations
 
 import sqlite3

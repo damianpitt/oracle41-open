@@ -1,3 +1,9 @@
+"""Describe records used by SQLite repositories and local views.
+
+These models cover notes, tags, saved views, and wallet snapshots.
+They are separate from remote provider payloads and canonical ledger models.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

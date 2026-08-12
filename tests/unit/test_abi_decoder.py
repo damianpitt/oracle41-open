@@ -1,3 +1,9 @@
+"""Test deterministic ABI decoding.
+
+The cases cover token calls, overloaded events, arrays, unknown signatures, and malformed payloads.
+They confirm raw data and signature provenance are preserved.
+"""
+
 from eth_abi.abi import encode as abi_encode
 
 from oracle41_open.core.models import RawTransactionLog

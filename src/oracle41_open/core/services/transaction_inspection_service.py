@@ -1,3 +1,9 @@
+"""Enrich canonical transactions with receipts and decoded details.
+
+The service reuses durable raw data, resolves proxy implementations, loads matching ABIs, and decodes calls, logs, and reverts.
+Decoder fingerprints trigger safe re-decoding when an ABI changes.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Mapping

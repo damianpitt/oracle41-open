@@ -1,3 +1,9 @@
+"""Store read-only wallet watchlist entries in SQLite.
+
+The repository supports ordered listing, upsert, label changes, and removal by wallet and chain.
+It never stores wallet secrets or signing information.
+"""
+
 from __future__ import annotations
 
 import sqlite3

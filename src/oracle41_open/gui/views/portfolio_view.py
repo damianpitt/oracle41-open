@@ -1,3 +1,9 @@
+"""Present the combined watchlist portfolio.
+
+The view loads wallet aggregates, shows chain and token totals, and offers portfolio CSV or JSON exports.
+Partial wallet failures remain visible to the user.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation

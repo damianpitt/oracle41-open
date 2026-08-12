@@ -1,3 +1,9 @@
+"""Validate and normalize EVM wallet and contract addresses.
+
+The helpers accept hexadecimal addresses, apply checksum rules where needed, and return consistent lowercase storage values.
+No network lookup takes place in this module.
+"""
+
 from __future__ import annotations
 
 

@@ -1,3 +1,9 @@
+"""Expose the public core service classes.
+
+This module gives the application bootstrap and tests one stable service import surface.
+Individual service implementations remain separated by responsibility.
+"""
+
 from oracle41_open.core.services.abi_decoder import SignatureRegistry, StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.address_validator import AddressValidator

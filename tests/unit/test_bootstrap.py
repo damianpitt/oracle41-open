@@ -1,3 +1,9 @@
+"""Test application dependency construction.
+
+The cases verify provider selection, settings, repositories, services, and live-versus-stub behavior.
+Environment and keyring values are isolated for each test.
+"""
+
 from oracle41_open.app.bootstrap import _load_provider_key
 
 

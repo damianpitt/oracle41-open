@@ -1,3 +1,9 @@
+"""Store provider credentials through the operating-system keyring.
+
+The adapter reads, writes, and deletes keys under the Oracle41 Open service name.
+Secrets are kept outside settings, SQLite, exports, and backups.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

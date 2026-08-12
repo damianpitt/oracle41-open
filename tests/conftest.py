@@ -1,3 +1,9 @@
+"""Provide shared pytest setup.
+
+The fixtures create one offscreen Qt application for GUI tests.
+Tests can reuse it without starting multiple QApplication instances.
+"""
+
 from __future__ import annotations
 
 import os

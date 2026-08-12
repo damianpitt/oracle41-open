@@ -1,3 +1,9 @@
+"""Manage saved wallet addresses and labels.
+
+The view adds, edits, removes, and exports read-only watchlist entries.
+Address validation and storage are delegated to the watchlist service.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

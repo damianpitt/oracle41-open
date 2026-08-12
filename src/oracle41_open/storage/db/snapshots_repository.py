@@ -1,3 +1,9 @@
+"""Store point-in-time wallet snapshots in SQLite.
+
+The repository preserves summary values and the full token payload used for later comparison and export.
+Snapshots are immutable records ordered by capture time.
+"""
+
 from __future__ import annotations
 
 import sqlite3

@@ -1,3 +1,9 @@
+"""Test EVM address validation and normalization.
+
+The cases cover valid, invalid, mixed-case, and checksum address inputs.
+They keep storage and user-input behavior consistent.
+"""
+
 from oracle41_open.core.services.address_validator import AddressValidator
 
 

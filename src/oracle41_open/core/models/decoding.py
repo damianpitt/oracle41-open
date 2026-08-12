@@ -1,3 +1,9 @@
+"""Describe ABI signatures and decoded transaction data.
+
+These immutable models keep calls, events, reverts, proxy context, and source provenance together.
+Unknown or malformed data remains explicit instead of being dropped.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

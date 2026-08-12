@@ -1,3 +1,9 @@
+"""Test low-signal and dust token filtering.
+
+The cases cover verification, metadata quality, suspicious symbols, balances, prices, and reason messages.
+They keep filtering predictable and explainable.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal

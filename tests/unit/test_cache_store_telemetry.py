@@ -1,3 +1,9 @@
+"""Test disk cache behavior and diagnostics.
+
+The cases cover hit and miss counters, expiry, size limits, prefix removal, and concurrent access.
+They keep disposable cache state observable and bounded.
+"""
+
 from __future__ import annotations
 
 import time

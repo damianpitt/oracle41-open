@@ -1,3 +1,9 @@
+"""Describe the result of loading a wallet overview.
+
+The result joins native balance, token balances, prices, totals, cache state, and freshness information.
+It is ready for presentation without exposing provider response dictionaries.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

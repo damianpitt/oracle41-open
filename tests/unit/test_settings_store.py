@@ -1,3 +1,9 @@
+"""Test local settings persistence.
+
+The cases cover defaults, round trips, invalid files, and supported preference bounds.
+They confirm secrets are not part of the settings model.
+"""
+
 from pathlib import Path
 
 from oracle41_open._json import dumps as json_dumps

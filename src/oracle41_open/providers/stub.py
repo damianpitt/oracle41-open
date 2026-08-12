@@ -1,3 +1,9 @@
+"""Provide local demonstration and unavailable-provider implementations.
+
+Stub data lets the interface start without live keys, while unavailable pricing keeps missing live capability explicit.
+Failed live requests never fall back to demonstration data.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

@@ -1,3 +1,9 @@
+"""Write user-selected data to CSV reports.
+
+The module supports field templates for activity, portfolios, watchlists, and snapshots with stable column order.
+Export metadata keeps chain, provider, completeness, and format details where applicable.
+"""
+
 from __future__ import annotations
 
 import csv

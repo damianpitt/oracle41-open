@@ -1,3 +1,9 @@
+"""Define the EVM networks supported by Oracle41 Open.
+
+Each chain provides display, native-asset, Alchemy, and Ankr identifiers used throughout the application.
+Adding a chain here also requires provider and release validation work.
+"""
+
 from __future__ import annotations
 
 from enum import Enum

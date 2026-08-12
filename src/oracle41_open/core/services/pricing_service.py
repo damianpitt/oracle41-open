@@ -1,3 +1,9 @@
+"""Load token prices with cache and stale-value support.
+
+Fresh provider prices are cached, while recent saved prices can be returned when a provider is temporarily unavailable.
+The result states whether a value is live, cached, stale, or missing.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

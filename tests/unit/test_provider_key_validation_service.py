@@ -1,3 +1,9 @@
+"""Test provider credential validation.
+
+The cases cover accepted keys, authentication failures, and safe user-facing messages.
+No live credentials or network calls are used.
+"""
+
 from __future__ import annotations
 
 from oracle41_open.core.models import ProviderAuthError, ProviderError

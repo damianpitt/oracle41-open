@@ -1,3 +1,9 @@
+"""Test safe HTTP transport failures.
+
+The case confirms network exceptions do not expose request URLs or embedded API keys.
+Provider-specific response handling is tested in provider modules.
+"""
+
 import httpx
 import pytest
 

@@ -1,3 +1,9 @@
+"""Create and migrate the local SQLite database.
+
+Forward-only schema migrations run in order and update the schema version only after successful SQL execution.
+Connections enable foreign keys and roll back failed repository operations.
+"""
+
 from __future__ import annotations
 
 import sqlite3

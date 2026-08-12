@@ -1,3 +1,9 @@
+"""Test Ankr response mapping and provider parity.
+
+The cases cover balances, activity, approvals, pagination, retries, and malformed responses.
+They ensure Ankr can replace or back up the primary provider safely.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal

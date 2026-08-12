@@ -42,24 +42,19 @@ Version `0.3.0a4` is an alpha release. It adds local and Blockscout-verified con
 
 ## Architecture
 
-```text
-PySide6 GUI
-    |
-    v
-Core services and models
-    |                 \
-    v                  v
-Provider adapters    SQLite event ledger/settings/cache
-    |
-    v
-Alchemy / Ankr / local stub providers
+| Part | Purpose |
+| --- | --- |
+| Desktop interface | PySide6 screens for viewing wallets, activity, tokens, and settings. |
+| Core | Business rules, data models, validation, filtering, and analysis. |
+| Providers | Connections to Alchemy, Ankr, JSON-RPC endpoints, Blockscout, and ENS. |
+| Local storage | SQLite data, settings, cache files, notes, saved views, and backups. |
+| Exports | CSV and JSON files created from the data shown by the application. |
 
-Export services consume service results and write CSV or JSON.
-```
+The desktop interface asks the core services for data. The core services decide whether to use saved data or contact a provider. This keeps provider-specific code out of the interface and makes each part easier to test or replace.
 
-The GUI does not call providers directly. Service operations that may access the network run through the shared Qt background task runner so provider latency does not block the event loop.
+Network work runs in the background. The interface stays responsive while Oracle41 Open loads wallet activity, prices, transaction details, or verified contract information.
 
-Activity and Token Detail store normalized transactions, events, asset movements, approvals, provider provenance, queried block windows, and resume checkpoints in SQLite. A partial synchronization can continue after restart without duplicating canonical events. Transaction Inspector enriches those canonical transactions with receipt status, calldata, decoded calls, events, reverts, ABI provenance, proxy implementation context, gas usage, raw logs, and receipt-derived network fees.
+Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, decoded calls, event logs, revert reasons, and proxy details while keeping the original raw data available.
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

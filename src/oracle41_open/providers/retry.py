@@ -1,3 +1,9 @@
+"""Apply bounded retry and exponential backoff.
+
+Callers decide which errors are temporary and supply timing settings for the operation.
+Permanent errors return immediately and the final temporary error is preserved.
+"""
+
 from __future__ import annotations
 
 import time

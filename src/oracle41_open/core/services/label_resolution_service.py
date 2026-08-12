@@ -1,3 +1,9 @@
+"""Resolve ENS names and human-readable address labels.
+
+The service validates input, caches successful and failed lookups, and keeps network resolution behind a small interface.
+A label never changes the normalized address used for provider and storage operations.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

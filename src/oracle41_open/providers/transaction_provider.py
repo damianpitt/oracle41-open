@@ -1,3 +1,9 @@
+"""Define the transaction inspection provider contract.
+
+The protocol covers receipts, proxy resolution, revert replay, and chain-specific capability reporting.
+Transaction services remain independent of the JSON-RPC implementation.
+"""
+
 from __future__ import annotations
 
 from typing import Protocol

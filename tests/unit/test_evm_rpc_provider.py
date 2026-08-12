@@ -1,3 +1,9 @@
+"""Test standard EVM JSON-RPC transaction inspection.
+
+The cases cover receipts, fees, proxy resolution, revert replay, failover, capabilities, and safe error mapping.
+All RPC responses are local fixtures.
+"""
+
 from __future__ import annotations
 
 from typing import Any

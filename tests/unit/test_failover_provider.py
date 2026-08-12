@@ -1,3 +1,9 @@
+"""Test provider failover rules.
+
+The cases verify fallback after expected provider failures and no fallback after programming errors.
+They keep partial availability from hiding real defects.
+"""
+
 from decimal import Decimal
 
 import pytest

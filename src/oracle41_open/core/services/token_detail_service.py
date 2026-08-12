@@ -1,3 +1,9 @@
+"""Load token-specific wallet history and approval activity.
+
+The service coordinates provider pages, historical approval windows, caching, filters, and canonical ledger checkpoints.
+Approval allowances are not treated as transferred value or USD activity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

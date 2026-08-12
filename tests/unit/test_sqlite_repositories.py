@@ -1,3 +1,9 @@
+"""Test notes, saved views, snapshots, and watchlist repositories.
+
+The cases cover normal CRUD behavior, uniqueness, ordering, validation, and related records.
+They protect the local metadata schema used by the desktop views.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

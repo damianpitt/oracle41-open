@@ -1,3 +1,9 @@
+"""Test Alchemy response mapping and pagination.
+
+The cases cover balances, transfers, approvals, metadata, pricing, retries, and malformed responses.
+All tests use local fake transports and expose no live credentials.
+"""
+
 from __future__ import annotations
 
 import json

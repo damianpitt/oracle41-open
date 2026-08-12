@@ -1,3 +1,9 @@
+"""Inspect transactions through standard EVM JSON-RPC endpoints.
+
+The provider loads receipts, resolves common proxy forms, replays reverted calls, and supports endpoint failover.
+Raw RPC failures are converted to structured errors without exposing endpoint secrets.
+"""
+
 from __future__ import annotations
 
 import re

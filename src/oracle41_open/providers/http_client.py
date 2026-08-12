@@ -1,3 +1,9 @@
+"""Provide the shared synchronous HTTP transport.
+
+The wrapper normalizes responses and converts timeout or network exceptions into URL-safe transport errors.
+Provider modules remain responsible for interpreting HTTP status codes and payloads.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

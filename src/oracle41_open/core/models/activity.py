@@ -1,3 +1,9 @@
+"""Describe normalized wallet activity.
+
+The models represent transfers, approvals, external calls, and paginated activity results across providers.
+Provider-specific response fields must be converted before reaching this layer.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

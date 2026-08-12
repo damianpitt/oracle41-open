@@ -1,3 +1,9 @@
+"""Test wallet activity loading and synchronization.
+
+The cases cover cache behavior, pagination, filtering, ledger checkpoints, cancellation, and partial results.
+They protect restart-safe and duplicate-free history.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

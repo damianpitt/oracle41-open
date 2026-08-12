@@ -1,3 +1,9 @@
+"""Run slow work without blocking the Qt event loop.
+
+The runner moves callable work to the shared thread pool and returns results or errors through signals.
+Signal payloads avoid passing Qt auto-deleted worker objects across threads.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

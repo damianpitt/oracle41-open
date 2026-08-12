@@ -1,3 +1,9 @@
+"""Load wallet, token, activity, and approval data from Ankr.
+
+The adapter provides behavior compatible with the Alchemy path while preserving Ankr pagination and response rules.
+Remote failures are mapped to safe structured provider errors.
+"""
+
 from __future__ import annotations
 
 import time

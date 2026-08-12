@@ -1,3 +1,9 @@
+"""Test SQLite contract ABI and proxy storage.
+
+The cases cover ABI replacement, listing, deletion, provenance, and block-specific proxy lookup.
+They protect the schema-v5 persistence contract.
+"""
+
 from datetime import UTC, datetime
 from pathlib import Path
 

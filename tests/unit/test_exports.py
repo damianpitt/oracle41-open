@@ -1,3 +1,9 @@
+"""Test CSV and JSON export formats.
+
+The cases cover activity, portfolio, watchlist, snapshot, field templates, metadata, and stable versions.
+They protect public file compatibility and value formatting.
+"""
+
 from __future__ import annotations
 
 import csv

@@ -1,3 +1,9 @@
+"""Manage wallet notes, tags, and saved filter views.
+
+The view edits local metadata and lets users reuse filter settings across analysis screens.
+All records are stored through SQLite repositories in the application container.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

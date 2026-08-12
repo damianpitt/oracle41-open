@@ -1,3 +1,9 @@
+"""Test wallet snapshot comparison.
+
+The cases cover native, token, total-value, added-asset, and removed-asset changes.
+They verify comparisons are deterministic from stored data.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

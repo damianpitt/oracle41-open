@@ -1,3 +1,9 @@
+"""Test price loading and stale-cache policy.
+
+The cases cover fresh prices, cache reuse, stale fallback, expiry, and provider errors.
+They keep price quality visible to calling services.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

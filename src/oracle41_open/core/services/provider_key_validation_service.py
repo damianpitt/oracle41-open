@@ -1,3 +1,9 @@
+"""Check Alchemy and Ankr credentials before saving them.
+
+Small provider requests confirm authentication and return a clear validation result for the Settings view.
+Credential values are never included in error messages.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

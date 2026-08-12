@@ -1,3 +1,9 @@
+"""Classify and filter low-signal token balances.
+
+Rules cover verification state, missing metadata, suspicious symbols, empty balances, and user dust thresholds.
+The service returns reasons so hidden assets can still be explained.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

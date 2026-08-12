@@ -1,3 +1,9 @@
+"""Test ENS and address label resolution.
+
+The cases cover normalization, cache hits, negative caching, expiry, and resolver failures.
+They keep labels separate from the canonical wallet address.
+"""
+
 from __future__ import annotations
 
 from typing import Any

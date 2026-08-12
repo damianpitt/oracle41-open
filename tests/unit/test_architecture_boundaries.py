@@ -1,3 +1,9 @@
+"""Test source-layer dependency boundaries.
+
+The check prevents core and provider modules from importing PySide6.
+This keeps business and network logic reusable outside the desktop interface.
+"""
+
 from pathlib import Path
 
 

@@ -1,3 +1,9 @@
+"""Provide one JSON interface for the application.
+
+This module uses the fast orjson library when it is available and keeps consistent byte and object behavior.
+Callers do not need to know which JSON implementation is active.
+"""
+
 from __future__ import annotations
 
 from typing import Any
