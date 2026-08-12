@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from eth_abi.abi import decode as abi_decode
 from eth_abi.exceptions import DecodingError
@@ -15,7 +16,9 @@ from oracle41_open.core.models.decoding import (
     DecodedArgument,
     DecodedCall,
     DecodedEvent,
+    DecodedRevert,
     DecodeStatus,
+    ErrorSignatureDefinition,
     EventSignatureDefinition,
     FunctionSignatureDefinition,
     SignatureProvenance,
@@ -23,7 +26,9 @@ from oracle41_open.core.models.decoding import (
     TransactionDecoding,
 )
 
-DECODER_VERSION = "1"
+DECODER_VERSION = "2"
+
+_Definition = TypeVar("_Definition")
 
 _BUNDLED_SOURCE = SignatureProvenance(
     source_id="oracle41.bundled.evm-standards",
@@ -34,11 +39,41 @@ _BUNDLED_SOURCE = SignatureProvenance(
     reference="https://eips.ethereum.org/",
 )
 
+_SOLIDITY_SOURCE = SignatureProvenance(
+    source_id="solidity.builtin.errors",
+    source_name="Solidity built-in errors",
+    source_kind=SignatureSourceKind.BUNDLED_STANDARD,
+    version="1",
+    is_verified=True,
+    reference="https://docs.soliditylang.org/en/latest/control-structures.html#error-handling-assert-require-revert-and-exceptions",
+)
+
 
 @dataclass(frozen=True)
 class SignatureRegistry:
     functions_by_selector: dict[str, tuple[FunctionSignatureDefinition, ...]]
     events_by_topic: dict[str, tuple[EventSignatureDefinition, ...]]
+    errors_by_selector: dict[str, tuple[ErrorSignatureDefinition, ...]]
+
+    @property
+    def fingerprint(self) -> str:
+        signatures = sorted(
+            (
+                type(definition).__name__,
+                definition.canonical_signature,
+                definition.provenance.source_id,
+                definition.provenance.version,
+            )
+            for definitions_by_key in (
+                self.functions_by_selector,
+                self.events_by_topic,
+                self.errors_by_selector,
+            )
+            for definitions in definitions_by_key.values()
+            for definition in definitions
+        )
+        payload = repr(signatures).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
     @classmethod
     def bundled(cls) -> SignatureRegistry:
@@ -71,9 +106,38 @@ class SignatureRegistry:
                 )
             )
 
+        errors: defaultdict[str, list[ErrorSignatureDefinition]] = defaultdict(list)
+        for name, inputs in _BUILTIN_ERRORS:
+            signature = _canonical_signature(name, inputs)
+            selector = "0x" + keccak(text=signature)[:4].hex()
+            errors[selector].append(
+                ErrorSignatureDefinition(
+                    selector=selector,
+                    name=name,
+                    canonical_signature=signature,
+                    inputs=inputs,
+                    provenance=_SOLIDITY_SOURCE,
+                )
+            )
+
         return cls(
             functions_by_selector={key: tuple(value) for key, value in functions.items()},
             events_by_topic={key: tuple(value) for key, value in events.items()},
+            errors_by_selector={key: tuple(value) for key, value in errors.items()},
+        )
+
+    @classmethod
+    def combine(cls, *registries: SignatureRegistry) -> SignatureRegistry:
+        return cls(
+            functions_by_selector=_combine_definition_maps(
+                *(registry.functions_by_selector for registry in registries)
+            ),
+            events_by_topic=_combine_definition_maps(
+                *(registry.events_by_topic for registry in registries)
+            ),
+            errors_by_selector=_combine_definition_maps(
+                *(registry.errors_by_selector for registry in registries)
+            ),
         )
 
 
@@ -83,14 +147,51 @@ class StandardABIDecoder:
     def __init__(self, registry: SignatureRegistry | None = None) -> None:
         self._registry = registry or SignatureRegistry.bundled()
 
-    def decode(self, inspection: TransactionInspection) -> TransactionDecoding:
+    def version_for(
+        self,
+        registries_by_address: Mapping[str, SignatureRegistry] | None = None,
+    ) -> str:
+        fingerprints = sorted(
+            (address.lower(), registry.fingerprint)
+            for address, registry in (registries_by_address or {}).items()
+        )
+        if not fingerprints:
+            return DECODER_VERSION
+        digest = hashlib.sha256(repr(fingerprints).encode("utf-8")).hexdigest()[:16]
+        return f"{DECODER_VERSION}:{digest}"
+
+    def decode(
+        self,
+        inspection: TransactionInspection,
+        registries_by_address: Mapping[str, SignatureRegistry] | None = None,
+        revert_data: str | None = None,
+        implementation_address: str | None = None,
+    ) -> TransactionDecoding:
+        registries = {
+            address.lower(): registry
+            for address, registry in (registries_by_address or {}).items()
+        }
+        target_address = inspection.to_address
+        target_registry = registries.get((target_address or "").lower())
+        if target_registry is None and implementation_address is not None:
+            target_registry = registries.get(implementation_address.lower())
         return TransactionDecoding(
-            decoder_version=DECODER_VERSION,
-            call=self.decode_call(inspection.input_data),
-            events=tuple(self.decode_event(log) for log in inspection.logs),
+            decoder_version=self.version_for(registries),
+            call=self.decode_call(inspection.input_data, target_registry),
+            events=tuple(
+                self.decode_event(log, registries.get(log.address.lower()))
+                for log in inspection.logs
+            ),
+            contract_address=target_address,
+            implementation_address=implementation_address,
+            revert=self.decode_revert(revert_data, target_registry) if revert_data else None,
         )
 
-    def decode_call(self, input_data: str) -> DecodedCall:
+    def decode_call(
+        self,
+        input_data: str,
+        registry: SignatureRegistry | None = None,
+    ) -> DecodedCall:
         normalized = input_data.strip().lower()
         if len(normalized) < 10 or not normalized.startswith("0x"):
             return DecodedCall(
@@ -103,7 +204,11 @@ class StandardABIDecoder:
                 error="No complete method selector is present.",
             )
         selector = normalized[:10]
-        definitions = self._registry.functions_by_selector.get(selector, ())
+        definitions = _definitions_for(
+            selector,
+            registry.functions_by_selector if registry is not None else None,
+            self._registry.functions_by_selector,
+        )
         if not definitions:
             return DecodedCall(
                 status=DecodeStatus.UNKNOWN,
@@ -137,11 +242,19 @@ class StandardABIDecoder:
             )
         return _malformed_call(definitions[0], selector)
 
-    def decode_event(self, log: RawTransactionLog) -> DecodedEvent:
+    def decode_event(
+        self,
+        log: RawTransactionLog,
+        registry: SignatureRegistry | None = None,
+    ) -> DecodedEvent:
         if not log.topics:
             return _unknown_event(log, None, "Event has no signature topic.")
         topic0 = log.topics[0].lower()
-        definitions = self._registry.events_by_topic.get(topic0, ())
+        definitions = _definitions_for(
+            topic0,
+            registry.events_by_topic if registry is not None else None,
+            self._registry.events_by_topic,
+        )
         if not definitions:
             return _unknown_event(
                 log,
@@ -172,6 +285,63 @@ class StandardABIDecoder:
                 provenance=definition.provenance,
             )
         return _malformed_event(log, matching_shape[0], topic0)
+
+    def decode_revert(
+        self,
+        revert_data: str,
+        registry: SignatureRegistry | None = None,
+    ) -> DecodedRevert:
+        normalized = revert_data.strip().lower()
+        if len(normalized) < 10 or not normalized.startswith("0x"):
+            return DecodedRevert(
+                status=DecodeStatus.UNKNOWN,
+                raw_data=normalized,
+                selector=None,
+                name=None,
+                canonical_signature=None,
+                arguments=(),
+                provenance=None,
+                error="No complete error selector is present.",
+            )
+        selector = normalized[:10]
+        definitions = _definitions_for(
+            selector,
+            registry.errors_by_selector if registry is not None else None,
+            self._registry.errors_by_selector,
+        )
+        if not definitions:
+            return DecodedRevert(
+                status=DecodeStatus.UNKNOWN,
+                raw_data=normalized,
+                selector=selector,
+                name=None,
+                canonical_signature=None,
+                arguments=(),
+                provenance=None,
+                error="Error selector is not in the applicable ABI registry.",
+            )
+        try:
+            payload = _hex_bytes(normalized[10:])
+        except ValueError:
+            return _malformed_revert(normalized, selector, definitions[0])
+        for definition in definitions:
+            try:
+                values = _decode_values(
+                    tuple(item.abi_type for item in definition.inputs),
+                    payload,
+                )
+            except DecodingError:
+                continue
+            return DecodedRevert(
+                status=DecodeStatus.DECODED,
+                raw_data=normalized,
+                selector=selector,
+                name=definition.name,
+                canonical_signature=definition.canonical_signature,
+                arguments=_decoded_arguments(definition.inputs, values),
+                provenance=definition.provenance,
+            )
+        return _malformed_revert(normalized, selector, definitions[0])
 
 
 def _decode_event_arguments(
@@ -317,6 +487,57 @@ def _malformed_event(
     )
 
 
+def _malformed_revert(
+    raw_data: str,
+    selector: str,
+    definition: ErrorSignatureDefinition,
+) -> DecodedRevert:
+    return DecodedRevert(
+        status=DecodeStatus.MALFORMED,
+        raw_data=raw_data,
+        selector=selector,
+        name=definition.name,
+        canonical_signature=definition.canonical_signature,
+        arguments=(),
+        provenance=definition.provenance,
+        error="Revert data does not match the registered error signature.",
+    )
+
+
+def _definitions_for(
+    key: str,
+    preferred: Mapping[str, tuple[_Definition, ...]] | None,
+    fallback: Mapping[str, tuple[_Definition, ...]],
+) -> tuple[_Definition, ...]:
+    return _unique_definitions(
+        *((preferred.get(key, ()) if preferred is not None else ()), fallback.get(key, ()))
+    )
+
+
+def _combine_definition_maps(
+    *maps: Mapping[str, tuple[_Definition, ...]],
+) -> dict[str, tuple[_Definition, ...]]:
+    keys = {key for definitions_by_key in maps for key in definitions_by_key}
+    return {
+        key: _unique_definitions(*(definitions_by_key.get(key, ()) for definitions_by_key in maps))
+        for key in keys
+    }
+
+
+def _unique_definitions(
+    *groups: tuple[_Definition, ...],
+) -> tuple[_Definition, ...]:
+    definitions: list[_Definition] = []
+    seen: set[str] = set()
+    for definition in (item for group in groups for item in group):
+        marker = repr(definition)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        definitions.append(definition)
+    return tuple(definitions)
+
+
 _BUNDLED_FUNCTIONS: tuple[tuple[str, tuple[ABIArgumentDefinition, ...]], ...] = (
     ("transfer", (_argument("to", "address"), _argument("value", "uint256"))),
     ("approve", (_argument("spender", "address"), _argument("value", "uint256"))),
@@ -369,6 +590,11 @@ _BUNDLED_FUNCTIONS: tuple[tuple[str, tuple[ABIArgumentDefinition, ...]], ...] = 
             _argument("data", "bytes"),
         ),
     ),
+)
+
+_BUILTIN_ERRORS: tuple[tuple[str, tuple[ABIArgumentDefinition, ...]], ...] = (
+    ("Error", (_argument("reason", "string"),)),
+    ("Panic", (_argument("code", "uint256"),)),
 )
 
 _BUNDLED_EVENTS: tuple[

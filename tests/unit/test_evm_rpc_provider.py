@@ -8,9 +8,11 @@ from oracle41_open.core.models import (
     Chain,
     ProviderAuthError,
     ProviderResponseError,
+    ProxyKind,
+    ProxyResolutionStatus,
 )
-from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider
-from oracle41_open.providers.jsonrpc import JSONRPCHTTPError
+from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
+from oracle41_open.providers.jsonrpc import JSONRPCHTTPError, JSONRPCRemoteError
 
 _TX_HASH = "0x" + "ab" * 32
 _BLOCK_HASH = "0x" + "cd" * 32
@@ -97,11 +99,98 @@ def test_evm_rpc_capabilities_are_chain_specific() -> None:
     assert not provider.capabilities(Chain.ETHEREUM).receipts
 
 
+def test_evm_rpc_provider_resolves_eip1167_minimal_proxy() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = (
+        "0x363d3d373d3d3d363d73" + _LOG_ADDRESS[2:] + "5af43d82803e903d91602b57fd5bf3"
+    )
+    provider = EVMJSONRPCProvider({Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc)
+
+    result = provider.resolve_proxy(_TO, Chain.ETHEREUM, 24_000_000)
+
+    assert result.status is ProxyResolutionStatus.RESOLVED
+    assert result.proxy_kind is ProxyKind.EIP_1167
+    assert result.implementation_address == _LOG_ADDRESS
+    assert [call[0] for call in rpc.calls] == ["eth_getCode"]
+
+
+def test_evm_rpc_provider_resolves_eip1967_storage_proxy() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = "0x6000"
+    rpc.responses_by_method["eth_getStorageAt"] = "0x" + "00" * 12 + _LOG_ADDRESS[2:]
+    provider = EVMJSONRPCProvider({Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc)
+
+    result = provider.resolve_proxy(_TO, Chain.ETHEREUM, 24_000_000)
+
+    assert result.status is ProxyResolutionStatus.RESOLVED
+    assert result.proxy_kind is ProxyKind.EIP_1967
+    assert result.implementation_address == _LOG_ADDRESS
+    assert [call[0] for call in rpc.calls] == ["eth_getCode", "eth_getStorageAt"]
+
+
+def test_evm_rpc_provider_marks_plain_contract_as_not_proxy() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = "0x6000"
+    rpc.responses_by_method["eth_getStorageAt"] = "0x" + "00" * 32
+    provider = EVMJSONRPCProvider({Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc)
+
+    result = provider.resolve_proxy(_TO, Chain.ETHEREUM, 24_000_000)
+
+    assert result.status is ProxyResolutionStatus.NOT_PROXY
+    assert result.proxy_kind is ProxyKind.NONE
+    assert result.implementation_address is None
+
+
+def test_evm_rpc_provider_extracts_revert_data_from_historical_call() -> None:
+    receipt = _receipt_payload()
+    receipt["status"] = "0x0"
+    rpc = _FakeRPCClient(_transaction_payload(), receipt)
+    provider = EVMJSONRPCProvider({Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc)
+    inspection = provider.get_transaction_inspection(_TX_HASH, Chain.ETHEREUM)
+    revert_data = "0x08c379a0" + "00" * 32
+    rpc.errors_by_method["eth_call"] = JSONRPCRemoteError(
+        "execution reverted",
+        code=3,
+        data={"data": revert_data},
+    )
+
+    assert provider.get_revert_data(inspection) == revert_data
+
+
+def test_revert_failover_continues_when_first_provider_returns_no_data() -> None:
+    receipt = _receipt_payload()
+    receipt["status"] = "0x0"
+    first_rpc = _FakeRPCClient(_transaction_payload(), receipt)
+    first_rpc.responses_by_method["eth_call"] = None
+    second_rpc = _FakeRPCClient(_transaction_payload(), receipt)
+    revert_data = "0x4e487b71" + "00" * 32
+    second_rpc.errors_by_method["eth_call"] = JSONRPCRemoteError(
+        "execution reverted",
+        code=3,
+        data=revert_data,
+    )
+    first = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://first.example"}, rpc_client=first_rpc
+    )
+    second = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://second.example"}, rpc_client=second_rpc
+    )
+    inspection = first.get_transaction_inspection(_TX_HASH, Chain.ETHEREUM)
+
+    result = FailoverTransactionDataProvider([first, second]).get_revert_data(inspection)
+
+    assert result == revert_data
+    assert [call[0] for call in first_rpc.calls].count("eth_call") == 1
+    assert [call[0] for call in second_rpc.calls].count("eth_call") == 1
+
+
 class _FakeRPCClient:
     def __init__(self, transaction: object, receipt: object) -> None:
         self.transaction = transaction
         self.receipt = receipt
         self.error: Exception | None = None
+        self.errors_by_method: dict[str, Exception] = {}
+        self.responses_by_method: dict[str, object] = {}
         self.calls: list[tuple[str, list[Any]]] = []
 
     def call(self, url: str, method: str, params: list[Any] | None = None) -> object:
@@ -110,6 +199,10 @@ class _FakeRPCClient:
         self.calls.append((method, safe_params))
         if self.error is not None:
             raise self.error
+        if method in self.errors_by_method:
+            raise self.errors_by_method[method]
+        if method in self.responses_by_method:
+            return self.responses_by_method[method]
         if method == "eth_getTransactionByHash":
             return self.transaction
         if method == "eth_getTransactionReceipt":

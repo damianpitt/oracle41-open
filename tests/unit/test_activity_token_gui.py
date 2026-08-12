@@ -7,7 +7,7 @@ from threading import Event
 
 import pytest
 from PySide6.QtCore import QEventLoop, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from oracle41_open.app.bootstrap import AppContainer, build_container
 from oracle41_open.core.models import (
@@ -24,6 +24,7 @@ from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.gui.views.activity_view import ActivityView
+from oracle41_open.gui.views.settings_view import SettingsView
 from oracle41_open.gui.views.token_detail_view import TokenDetailView
 from oracle41_open.storage.secrets import SecretStore
 
@@ -143,6 +144,49 @@ def test_activity_gui_inspects_selected_transaction(
     assert "Signature: transfer(address,uint256)" in detail
     assert "Raw Transaction Data" in detail
     assert "Raw Logs: 1" in detail
+    view.close()
+
+
+def test_settings_gui_imports_and_removes_contract_abi(
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ = qt_application
+    container = _container(monkeypatch, tmp_path)
+    abi_path = tmp_path / "vault.json"
+    abi_path.write_text(
+        '[{"type":"error","name":"Denied","inputs":[{"name":"caller","type":"address"}]}]',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        lambda *args, **kwargs: (str(abi_path), "JSON Files (*.json)"),
+    )
+    view = SettingsView(container)
+    contract_address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    view._abi_address_input.setText(contract_address)
+    view._abi_name_input.setText("Vault")
+
+    view._import_abi_button.click()
+
+    record = container.contract_abi_repository.get_contract_abi(
+        Chain.ETHEREUM, contract_address
+    )
+    assert record is not None
+    assert record.contract_name == "Vault"
+    assert not record.provenance.is_verified
+    assert view._contract_abi_list.count() == 1
+    assert "Imported unverified ABI" in view._status.text()
+
+    view._contract_abi_list.setCurrentRow(0)
+    view._remove_abi_button.click()
+
+    assert container.contract_abi_repository.get_contract_abi(
+        Chain.ETHEREUM, contract_address
+    ) is None
+    assert view._contract_abi_list.count() == 0
     view.close()
 
 

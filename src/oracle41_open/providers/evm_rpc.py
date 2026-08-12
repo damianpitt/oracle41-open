@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from oracle41_open.core.models import (
     Chain,
@@ -14,6 +15,9 @@ from oracle41_open.core.models import (
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
+    ProxyKind,
+    ProxyResolution,
+    ProxyResolutionStatus,
     RawTransactionLog,
     TransactionInspection,
 )
@@ -28,6 +32,15 @@ from oracle41_open.providers.jsonrpc import (
     JSONRPCTimeoutError,
 )
 from oracle41_open.providers.retry import retry_with_backoff
+
+_EIP_1967_IMPLEMENTATION_SLOT = (
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+)
+_EIP_1167_PATTERN = re.compile(
+    r"363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3"
+)
+
+_Result = TypeVar("_Result")
 
 
 class EVMJSONRPCProvider:
@@ -62,6 +75,8 @@ class EVMJSONRPCProvider:
             receipts=configured,
             traces=None,
             archive_queries=None,
+            proxy_resolution=configured,
+            revert_replay=configured,
         )
 
     def get_transaction_inspection(
@@ -93,6 +108,100 @@ class EVMJSONRPCProvider:
         if not isinstance(raw_transaction, dict) or not isinstance(raw_receipt, dict):
             raise ProviderResponseError("JSON-RPC returned an invalid transaction receipt payload.")
         return self._map_inspection(chain, normalized_hash, raw_transaction, raw_receipt)
+
+    def resolve_proxy(
+        self,
+        contract_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ProxyResolution:
+        address = _require_address(contract_address, "contract")
+        endpoint = self._endpoint_for(chain)
+        block_tag = hex(block_number)
+        raw_code = self._rpc_call(endpoint, "eth_getCode", [address, block_tag])
+        code = _require_hex_data(raw_code, "contract code")
+        minimal_match = _EIP_1167_PATTERN.search(code.removeprefix("0x"))
+        if minimal_match is not None:
+            return self._proxy_resolution(
+                chain,
+                address,
+                block_number,
+                ProxyKind.EIP_1167,
+                "0x" + minimal_match.group(1),
+            )
+
+        raw_slot = self._rpc_call(
+            endpoint,
+            "eth_getStorageAt",
+            [address, _EIP_1967_IMPLEMENTATION_SLOT, block_tag],
+        )
+        slot = _require_fixed_hex_data(raw_slot, "EIP-1967 implementation slot", 32)
+        implementation = "0x" + slot[-40:]
+        if implementation != "0x" + "00" * 20:
+            return self._proxy_resolution(
+                chain,
+                address,
+                block_number,
+                ProxyKind.EIP_1967,
+                implementation,
+            )
+        return ProxyResolution(
+            chain=chain,
+            proxy_address=address,
+            status=ProxyResolutionStatus.NOT_PROXY,
+            proxy_kind=ProxyKind.NONE,
+            implementation_address=None,
+            block_number=block_number,
+            source_provider=self._source_name,
+            resolved_at=datetime.now(tz=UTC),
+        )
+
+    def get_revert_data(self, inspection: TransactionInspection) -> str | None:
+        if inspection.status is not False or inspection.to_address is None:
+            return None
+        endpoint = self._endpoint_for(inspection.chain)
+        call = {
+            "from": inspection.from_address,
+            "to": inspection.to_address,
+            "data": inspection.input_data,
+            "value": hex(inspection.value_wei),
+            "gas": hex(inspection.gas_limit),
+        }
+        try:
+            self._rpc_call(endpoint, "eth_call", [call, hex(inspection.block_number)])
+        except ProviderResponseError as error:
+            cause = error.__cause__
+            if isinstance(cause, JSONRPCRemoteError):
+                return _extract_revert_data(cause.data)
+            raise
+        return None
+
+    def _endpoint_for(self, chain: Chain) -> str:
+        endpoint = self._endpoints.get(chain)
+        if endpoint is None:
+            raise ProviderResponseError(
+                f"{self._source_name} has no configured endpoint for {chain.display_name}."
+            )
+        return endpoint
+
+    def _proxy_resolution(
+        self,
+        chain: Chain,
+        proxy_address: str,
+        block_number: int,
+        proxy_kind: ProxyKind,
+        implementation_address: str,
+    ) -> ProxyResolution:
+        return ProxyResolution(
+            chain=chain,
+            proxy_address=proxy_address,
+            status=ProxyResolutionStatus.RESOLVED,
+            proxy_kind=proxy_kind,
+            implementation_address=_require_address(implementation_address, "implementation"),
+            block_number=block_number,
+            source_provider=self._source_name,
+            resolved_at=datetime.now(tz=UTC),
+        )
 
     def _map_inspection(
         self,
@@ -182,6 +291,10 @@ class FailoverTransactionDataProvider:
             archive_queries=_merge_optional_capability(
                 item.archive_queries for item in available
             ),
+            proxy_resolution=_merge_optional_capability(
+                item.proxy_resolution for item in available
+            ),
+            revert_replay=_merge_optional_capability(item.revert_replay for item in available),
         )
 
     def get_transaction_inspection(
@@ -202,6 +315,66 @@ class FailoverTransactionDataProvider:
                 f"No transaction receipt provider is configured for {chain.display_name}."
             )
         raise ProviderError("All transaction receipt providers failed: " + "; ".join(errors))
+
+    def resolve_proxy(
+        self,
+        contract_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ProxyResolution:
+        return self._first_success(
+            chain,
+            "proxy resolution",
+            lambda provider: provider.resolve_proxy(contract_address, chain, block_number),
+            capability="proxy_resolution",
+        )
+
+    def get_revert_data(self, inspection: TransactionInspection) -> str | None:
+        if inspection.status is not False:
+            return None
+        errors: list[str] = []
+        attempted = False
+        successful_replay = False
+        for provider in self._providers:
+            if provider.capabilities(inspection.chain).revert_replay is not True:
+                continue
+            attempted = True
+            try:
+                revert_data = provider.get_revert_data(inspection)
+            except ProviderError as error:
+                errors.append(str(error))
+                continue
+            successful_replay = True
+            if revert_data is not None:
+                return revert_data
+        if successful_replay:
+            return None
+        if not attempted:
+            raise ProviderResponseError(
+                f"No revert replay provider is configured for {inspection.chain.display_name}."
+            )
+        raise ProviderError("All revert replay providers failed: " + "; ".join(errors))
+
+    def _first_success(
+        self,
+        chain: Chain,
+        operation_name: str,
+        operation: Callable[[EVMJSONRPCProvider], _Result],
+        capability: str = "receipts",
+    ) -> _Result:
+        errors: list[str] = []
+        for provider in self._providers:
+            if getattr(provider.capabilities(chain), capability) is not True:
+                continue
+            try:
+                return operation(provider)
+            except ProviderError as error:
+                errors.append(str(error))
+        if not errors:
+            raise ProviderResponseError(
+                f"No {operation_name} provider is configured for {chain.display_name}."
+            )
+        raise ProviderError(f"All {operation_name} providers failed: " + "; ".join(errors))
 
 
 def _map_log(raw_log: object) -> RawTransactionLog:
@@ -284,6 +457,28 @@ def _require_hex_data(value: object, field: str) -> str:
     except ValueError as error:
         raise ProviderResponseError(f"JSON-RPC {field} is invalid hexadecimal data.") from error
     return normalized
+
+
+def _require_fixed_hex_data(value: object, field: str, byte_length: int) -> str:
+    normalized = _require_hex_data(value, field)
+    if len(normalized) != 2 + byte_length * 2:
+        raise ProviderResponseError(f"JSON-RPC {field} has an invalid length.")
+    return normalized
+
+
+def _extract_revert_data(value: object) -> str | None:
+    if isinstance(value, str):
+        try:
+            normalized = _require_hex_data(value, "revert data")
+        except ProviderResponseError:
+            return None
+        return normalized if len(normalized) >= 10 else None
+    if isinstance(value, dict):
+        for key in ("data", "result", "return"):
+            nested = _extract_revert_data(value.get(key))
+            if nested is not None:
+                return nested
+    return None
 
 
 def _map_rpc_error(source_name: str, method: str, error: Exception) -> ProviderError:

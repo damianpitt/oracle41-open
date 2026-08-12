@@ -16,14 +16,16 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QPushButton,
+    QScrollArea,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from oracle41_open._json import dumps as json_dumps
-from oracle41_open.core.models import Chain
+from oracle41_open.core.models import Chain, ContractABIRecord, ValidationError
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationResult
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
 from oracle41_open.storage.backup_restore import BackupMetadata
@@ -52,6 +54,11 @@ class _BackupRestorePayload:
     settings: AppSettings
 
 
+@dataclass(frozen=True)
+class _VerifiedABIPayload:
+    record: ContractABIRecord | None
+
+
 class SettingsView(QWidget):
     def __init__(self, container: AppContainer) -> None:
         super().__init__()
@@ -66,6 +73,11 @@ class SettingsView(QWidget):
         self._backup_task_runner.error.connect(self._on_backup_error)
         self._backup_task_runner.finished.connect(self._on_backup_finished)
         self._backup_operation: str | None = None
+        self._abi_task_runner = BackgroundTaskRunner(parent=self)
+        self._abi_task_runner.result.connect(self._on_verified_abi_result)
+        self._abi_task_runner.error.connect(self._on_verified_abi_error)
+        self._abi_task_runner.finished.connect(self._on_verified_abi_finished)
+        self._abi_fetch_in_progress = False
         self._settings = self._container.settings_store.load()
 
         self._chain_combo = QComboBox(self)
@@ -109,6 +121,23 @@ class SettingsView(QWidget):
         self._rpc_url_input.setPlaceholderText("https://your-rpc-endpoint.example")
         self._save_rpc_url_button = QPushButton("Save RPC Endpoint", self)
         self._save_rpc_url_button.clicked.connect(self._save_rpc_url)
+
+        self._abi_chain_combo = QComboBox(self)
+        for chain in Chain:
+            self._abi_chain_combo.addItem(chain.display_name, chain.value)
+        self._abi_chain_combo.currentIndexChanged.connect(self._refresh_contract_abis)
+        self._abi_address_input = QLineEdit(self)
+        self._abi_address_input.setPlaceholderText("0x contract or proxy address")
+        self._abi_name_input = QLineEdit(self)
+        self._abi_name_input.setPlaceholderText("Optional contract name")
+        self._contract_abi_list = QListWidget(self)
+        self._contract_abi_list.setMinimumHeight(110)
+        self._import_abi_button = QPushButton("Import ABI JSON", self)
+        self._import_abi_button.clicked.connect(self._import_contract_abi)
+        self._fetch_verified_abi_button = QPushButton("Fetch Verified ABI", self)
+        self._fetch_verified_abi_button.clicked.connect(self._fetch_verified_contract_abi)
+        self._remove_abi_button = QPushButton("Remove Selected ABI", self)
+        self._remove_abi_button.clicked.connect(self._remove_selected_contract_abi)
 
         self._save_settings_button = QPushButton("Save Settings", self)
         self._save_settings_button.clicked.connect(self._save_settings)
@@ -187,6 +216,27 @@ class SettingsView(QWidget):
         rpc_form.addRow("", self._save_rpc_url_button)
         rpc_box.setLayout(rpc_form)
 
+        abi_box = QGroupBox("Contract ABIs")
+        abi_form = QFormLayout()
+        abi_form.addRow("Chain", self._abi_chain_combo)
+        abi_form.addRow("Contract Address", self._abi_address_input)
+        abi_form.addRow("Contract Name", self._abi_name_input)
+        abi_form.addRow("Local ABIs", self._contract_abi_list)
+        abi_buttons = QHBoxLayout()
+        abi_buttons.addWidget(self._import_abi_button)
+        abi_buttons.addWidget(self._fetch_verified_abi_button)
+        abi_buttons.addWidget(self._remove_abi_button)
+        abi_buttons.addStretch(1)
+        abi_form.addRow("", abi_buttons)
+        abi_note = QLabel(
+            "Imported files are stored locally and marked unverified. "
+            "They decode matching transaction calls, logs, and custom errors.",
+            self,
+        )
+        abi_note.setWordWrap(True)
+        abi_form.addRow("", abi_note)
+        abi_box.setLayout(abi_form)
+
         backup_box = QGroupBox("Backup / Restore")
         backup_form = QFormLayout()
         backup_button_row = QHBoxLayout()
@@ -225,12 +275,22 @@ class SettingsView(QWidget):
         root.addWidget(settings_box)
         root.addWidget(keys_box)
         root.addWidget(rpc_box)
+        root.addWidget(abi_box)
         root.addWidget(backup_box)
         root.addWidget(cache_box)
         root.addWidget(self._status)
         root.addStretch(1)
-        self.setLayout(root)
+        content = QWidget(self)
+        content.setLayout(root)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content)
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+        self.setLayout(outer)
         self._load_selected_rpc_url()
+        self._refresh_contract_abis()
 
     def _set_chain_selection(self, chain: Chain) -> None:
         index = self._chain_combo.findData(chain.value)
@@ -371,6 +431,126 @@ class SettingsView(QWidget):
         chain = self._selected_rpc_chain()
         endpoint = self._container.secret_store.get_secret(f"rpc_url_{chain.value}") or ""
         self._rpc_url_input.setText(endpoint)
+
+    def _selected_abi_chain(self) -> Chain:
+        raw = self._abi_chain_combo.currentData()
+        if isinstance(raw, str):
+            try:
+                return Chain(raw)
+            except ValueError:
+                pass
+        return Chain.ETHEREUM
+
+    def _refresh_contract_abis(self) -> None:
+        records = self._container.contract_abi_service.list_contract_abis(
+            self._selected_abi_chain()
+        )
+        self._contract_abi_list.clear()
+        for record in records:
+            label = record.contract_name or "Unnamed contract"
+            self._contract_abi_list.addItem(
+                f"{label} | {record.contract_address} | "
+                f"{record.content_hash[:12]} | {record.provenance.source_kind.value}"
+            )
+            item = self._contract_abi_list.item(self._contract_abi_list.count() - 1)
+            item.setData(256, record.contract_address)
+
+    def _import_contract_abi(self) -> None:
+        contract_address = self._abi_address_input.text().strip()
+        if not contract_address:
+            self._status.setText("Enter the contract or proxy address before importing an ABI.")
+            return
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Contract ABI",
+            "",
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if not file_name:
+            return
+        try:
+            abi_json = Path(file_name).read_text(encoding="utf-8")
+            record = self._container.contract_abi_service.import_user_abi(
+                chain=self._selected_abi_chain(),
+                contract_address=contract_address,
+                abi_json=abi_json,
+                imported_at=datetime.now(tz=UTC),
+                contract_name=self._abi_name_input.text().strip() or None,
+                reference=Path(file_name).name,
+            )
+        except (OSError, ValidationError) as error:
+            self._status.setText(f"Could not import contract ABI: {error}")
+            return
+        self._refresh_contract_abis()
+        self._status.setText(
+            f"Imported unverified ABI for {record.contract_address}. "
+            "Reload a transaction to apply it."
+        )
+
+    def _fetch_verified_contract_abi(self) -> None:
+        if self._abi_fetch_in_progress:
+            return
+        contract_address = self._abi_address_input.text().strip()
+        if not contract_address:
+            self._status.setText("Enter the contract or proxy address before fetching an ABI.")
+            return
+        chain = self._selected_abi_chain()
+        self._set_abi_fetch_loading(True)
+        self._abi_task_runner.start(
+            lambda: _VerifiedABIPayload(
+                self._container.contract_abi_service.fetch_verified_abi(
+                    chain,
+                    contract_address,
+                    datetime.now(tz=UTC),
+                )
+            )
+        )
+
+    def _on_verified_abi_result(self, result: object) -> None:
+        if not isinstance(result, _VerifiedABIPayload):
+            self._status.setText("Verified ABI lookup returned an invalid result.")
+            return
+        if result.record is None:
+            self._status.setText("Blockscout has no verified ABI for this contract and chain.")
+            return
+        self._refresh_contract_abis()
+        self._status.setText(
+            f"Stored verified ABI for {result.record.contract_address} from "
+            f"{result.record.provenance.source_name}."
+        )
+
+    def _on_verified_abi_error(self, error: object) -> None:
+        self._status.setText(f"Could not fetch verified contract ABI: {error}")
+
+    def _on_verified_abi_finished(self) -> None:
+        self._set_abi_fetch_loading(False)
+
+    def _set_abi_fetch_loading(self, is_loading: bool) -> None:
+        self._abi_fetch_in_progress = is_loading
+        self._abi_chain_combo.setEnabled(not is_loading)
+        self._abi_address_input.setEnabled(not is_loading)
+        self._import_abi_button.setEnabled(not is_loading)
+        self._fetch_verified_abi_button.setEnabled(not is_loading)
+        self._remove_abi_button.setEnabled(not is_loading)
+        if is_loading:
+            self._status.setText("Fetching verified contract ABI from Blockscout...")
+
+    def _remove_selected_contract_abi(self) -> None:
+        selected = self._contract_abi_list.currentItem()
+        if selected is None:
+            self._status.setText("Select a contract ABI to remove.")
+            return
+        address = selected.data(256)
+        if not isinstance(address, str):
+            self._status.setText("The selected contract ABI is invalid.")
+            return
+        removed = self._container.contract_abi_service.delete_contract_abi(
+            self._selected_abi_chain(), address
+        )
+        self._refresh_contract_abis()
+        self._status.setText(
+            f"Removed contract ABI for {address}." if removed else "Contract ABI was not found."
+        )
 
     def _on_key_validation_result(self, raw_result: object) -> None:
         if not isinstance(raw_result, _KeyValidationPayload):

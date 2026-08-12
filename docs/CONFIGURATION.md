@@ -37,6 +37,14 @@ A keyring endpoint takes precedence over its environment variable. Treat endpoin
 
 Without a live key, the application uses local stub providers so the interface can be explored without network access.
 
+## Contract ABIs
+
+The Contract ABIs section in Settings accepts a chain, contract or proxy address, optional name, and ABI JSON file. Local files are stored in SQLite and explicitly marked as unverified. A saved ABI is used only for matching addresses.
+
+The Fetch Verified ABI action queries the public Blockscout API v2 instance for the selected chain. A result is stored only when Blockscout marks the contract verified, and its explorer reference is retained as signature provenance. This lookup is user-initiated; it is not performed automatically while browsing transactions.
+
+ABI replacement changes the decoder fingerprint. The next transaction inspection re-decodes cached raw data with the new ABI. Removing an ABI does not delete raw transaction, receipt, log, or revert bytes.
+
 ## ENS Input
 
 Overview, Activity, and Token Detail accept either a hexadecimal wallet address or an ENS name ending in `.eth`. Resolution runs outside the GUI thread and successful and unsuccessful lookups are cached. The resolved address is used for provider and ledger operations while the entered ENS name is retained for display context.
@@ -65,4 +73,4 @@ The resolved paths can differ when `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, or `XDG_C
 
 ## Backup and Restore
 
-Backups contain local settings and all SQLite state, including canonical events, transaction receipts, raw logs, decoded calls and events, signature provenance, fees, and synchronization checkpoints. They do not contain provider API keys, custom RPC URLs, or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.
+Backups contain local settings and all SQLite state, including canonical events, transaction receipts, raw logs, decoded calls/events/reverts, contract ABIs, proxy resolutions, signature provenance, fees, and synchronization checkpoints. They do not contain provider API keys, custom RPC URLs, or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.

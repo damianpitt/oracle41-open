@@ -10,6 +10,7 @@ from oracle41_open.core.models import (
     DecodedArgument,
     DecodedCall,
     DecodedEvent,
+    DecodedRevert,
     DecodeStatus,
     RawTransactionLog,
     SignatureProvenance,
@@ -132,6 +133,7 @@ class TransactionRepository:
                 for provenance in (
                     decoding.call.provenance,
                     *(event.provenance for event in decoding.events),
+                    decoding.revert.provenance if decoding.revert is not None else None,
                 )
                 if provenance is not None
             }
@@ -170,10 +172,17 @@ class TransactionRepository:
                 """
                 SELECT calls.*, sources.source_name, sources.source_kind,
                        sources.version AS source_version, sources.is_verified,
-                       sources.reference
+                       sources.reference,
+                       revert_sources.source_name AS revert_source_name,
+                       revert_sources.source_kind AS revert_source_kind,
+                       revert_sources.version AS revert_source_version,
+                       revert_sources.is_verified AS revert_is_verified,
+                       revert_sources.reference AS revert_reference
                 FROM decoded_transaction_calls AS calls
                 LEFT JOIN abi_signature_sources AS sources
                   ON sources.source_id = calls.source_id
+                LEFT JOIN abi_signature_sources AS revert_sources
+                  ON revert_sources.source_id = calls.revert_source_id
                 WHERE calls.chain = ? AND calls.tx_hash = ?
                 LIMIT 1
                 """,
@@ -199,6 +208,17 @@ class TransactionRepository:
             decoder_version=decoder_version,
             call=_call_from_row(call_row),
             events=tuple(_event_from_row(row) for row in event_rows),
+            contract_address=(
+                str(call_row["contract_address"])
+                if call_row["contract_address"] is not None
+                else None
+            ),
+            implementation_address=(
+                str(call_row["implementation_address"])
+                if call_row["implementation_address"] is not None
+                else None
+            ),
+            revert=_revert_from_row(call_row),
         )
 
     @staticmethod
@@ -270,9 +290,12 @@ class TransactionRepository:
             """
             INSERT INTO decoded_transaction_calls(
                 chain, tx_hash, decoder_version, status, selector, name,
-                canonical_signature, arguments_json, source_id, error, decoded_at
+                canonical_signature, arguments_json, source_id, error, decoded_at,
+                contract_address, implementation_address, revert_status, revert_data,
+                revert_selector, revert_name, revert_signature, revert_arguments_json,
+                revert_source_id, revert_error
             )
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(chain, tx_hash) DO UPDATE SET
                 decoder_version = excluded.decoder_version,
                 status = excluded.status,
@@ -282,7 +305,17 @@ class TransactionRepository:
                 arguments_json = excluded.arguments_json,
                 source_id = excluded.source_id,
                 error = excluded.error,
-                decoded_at = excluded.decoded_at
+                decoded_at = excluded.decoded_at,
+                contract_address = excluded.contract_address,
+                implementation_address = excluded.implementation_address,
+                revert_status = excluded.revert_status,
+                revert_data = excluded.revert_data,
+                revert_selector = excluded.revert_selector,
+                revert_name = excluded.revert_name,
+                revert_signature = excluded.revert_signature,
+                revert_arguments_json = excluded.revert_arguments_json,
+                revert_source_id = excluded.revert_source_id,
+                revert_error = excluded.revert_error
             """,
             (
                 chain.value,
@@ -296,6 +329,29 @@ class TransactionRepository:
                 call.provenance.source_id if call.provenance is not None else None,
                 call.error,
                 decoded_at,
+                decoding.contract_address,
+                decoding.implementation_address,
+                decoding.revert.status.value if decoding.revert is not None else None,
+                decoding.revert.raw_data if decoding.revert is not None else None,
+                decoding.revert.selector if decoding.revert is not None else None,
+                decoding.revert.name if decoding.revert is not None else None,
+                (
+                    decoding.revert.canonical_signature
+                    if decoding.revert is not None
+                    else None
+                ),
+                (
+                    _arguments_json(decoding.revert.arguments)
+                    if decoding.revert is not None
+                    else None
+                ),
+                (
+                    decoding.revert.provenance.source_id
+                    if decoding.revert is not None
+                    and decoding.revert.provenance is not None
+                    else None
+                ),
+                decoding.revert.error if decoding.revert is not None else None,
             ),
         )
 
@@ -490,7 +546,11 @@ def _arguments_json(arguments: tuple[DecodedArgument, ...]) -> str:
 
 
 def _arguments_from_row(row: sqlite3.Row) -> tuple[DecodedArgument, ...]:
-    raw_arguments = json_loads(str(row["arguments_json"]))
+    return _arguments_from_json(str(row["arguments_json"]))
+
+
+def _arguments_from_json(raw_json: str) -> tuple[DecodedArgument, ...]:
+    raw_arguments = json_loads(raw_json)
     if not isinstance(raw_arguments, list):
         raise ValueError("Stored decoded arguments are invalid.")
     arguments: list[DecodedArgument] = []
@@ -553,4 +613,42 @@ def _event_from_row(row: sqlite3.Row) -> DecodedEvent:
         arguments=_arguments_from_row(row),
         provenance=_provenance_from_row(row),
         error=str(row["error"]) if row["error"] is not None else None,
+    )
+
+
+def _revert_from_row(row: sqlite3.Row) -> DecodedRevert | None:
+    if row["revert_status"] is None or row["revert_data"] is None:
+        return None
+    source_id = row["revert_source_id"]
+    provenance = None
+    if source_id is not None:
+        provenance = SignatureProvenance(
+            source_id=str(source_id),
+            source_name=str(row["revert_source_name"]),
+            source_kind=SignatureSourceKind(str(row["revert_source_kind"])),
+            version=str(row["revert_source_version"]),
+            is_verified=bool(row["revert_is_verified"]),
+            reference=(
+                str(row["revert_reference"])
+                if row["revert_reference"] is not None
+                else None
+            ),
+        )
+    raw_arguments = row["revert_arguments_json"]
+    arguments: tuple[DecodedArgument, ...] = ()
+    if raw_arguments is not None:
+        arguments = _arguments_from_json(str(raw_arguments))
+    return DecodedRevert(
+        status=DecodeStatus(str(row["revert_status"])),
+        raw_data=str(row["revert_data"]),
+        selector=(str(row["revert_selector"]) if row["revert_selector"] is not None else None),
+        name=str(row["revert_name"]) if row["revert_name"] is not None else None,
+        canonical_signature=(
+            str(row["revert_signature"])
+            if row["revert_signature"] is not None
+            else None
+        ),
+        arguments=arguments,
+        provenance=provenance,
+        error=str(row["revert_error"]) if row["revert_error"] is not None else None,
     )

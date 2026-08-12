@@ -13,6 +13,8 @@ class ProviderCapabilities:
     receipts: bool
     traces: bool | None = None
     archive_queries: bool | None = None
+    proxy_resolution: bool | None = None
+    revert_replay: bool | None = None
 
 
 @dataclass(frozen=True)

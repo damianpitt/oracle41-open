@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from oracle41_open.core.models import Chain, ProviderError
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
+from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
 from oracle41_open.core.services.pricing_service import PricingService
@@ -17,6 +18,7 @@ from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
 from oracle41_open.providers.alchemy import AlchemyPricingProvider, AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
+from oracle41_open.providers.blockscout import BlockscoutABIProvider
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.failover import FailoverDataProvider
@@ -29,6 +31,7 @@ from oracle41_open.providers.stub import (
 from oracle41_open.storage.backup_restore import BackupRestoreService
 from oracle41_open.storage.cache_store import DiskCacheStore
 from oracle41_open.storage.db import (
+    ContractABIRepository,
     EventLedgerRepository,
     SavedViewsRepository,
     SnapshotsRepository,
@@ -54,6 +57,7 @@ class AppContainer:
     snapshots_repository: SnapshotsRepository
     event_ledger_repository: EventLedgerRepository
     transaction_repository: TransactionRepository
+    contract_abi_repository: ContractABIRepository
     watchlist_service: WatchlistService
     data_provider: DataProvider
     pricing_provider: PricingProvider
@@ -61,6 +65,7 @@ class AppContainer:
     activity_service: ActivityService
     token_detail_service: TokenDetailService
     transaction_inspection_service: TransactionInspectionService
+    contract_abi_service: ContractABIService
     label_resolution_service: LabelResolutionService
     provider_key_validation_service: ProviderKeyValidationService
     snapshot_compare_service: SnapshotCompareService
@@ -84,6 +89,11 @@ def build_container() -> AppContainer:
     snapshots_repository = SnapshotsRepository(sqlite_database)
     event_ledger_repository = EventLedgerRepository(sqlite_database)
     transaction_repository = TransactionRepository(sqlite_database)
+    contract_abi_repository = ContractABIRepository(sqlite_database)
+    contract_abi_service = ContractABIService(
+        contract_abi_repository,
+        verified_abi_provider=BlockscoutABIProvider(),
+    )
     watchlist_service = WatchlistService(repository=watchlist_repository)
 
     uses_live_providers = False
@@ -198,6 +208,8 @@ def build_container() -> AppContainer:
         provider=FailoverTransactionDataProvider(transaction_providers),
         repository=transaction_repository,
         decoder=StandardABIDecoder(),
+        abi_registry_provider=contract_abi_service,
+        proxy_repository=contract_abi_repository,
     )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
@@ -219,6 +231,7 @@ def build_container() -> AppContainer:
         snapshots_repository=snapshots_repository,
         event_ledger_repository=event_ledger_repository,
         transaction_repository=transaction_repository,
+        contract_abi_repository=contract_abi_repository,
         watchlist_service=watchlist_service,
         data_provider=data_provider,
         pricing_provider=pricing_service,
@@ -226,6 +239,7 @@ def build_container() -> AppContainer:
         activity_service=activity_service,
         token_detail_service=token_detail_service,
         transaction_inspection_service=transaction_inspection_service,
+        contract_abi_service=contract_abi_service,
         label_resolution_service=label_resolution_service,
         provider_key_validation_service=provider_key_validation_service,
         snapshot_compare_service=snapshot_compare_service,

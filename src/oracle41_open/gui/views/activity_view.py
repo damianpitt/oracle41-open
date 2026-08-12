@@ -30,6 +30,8 @@ from oracle41_open.core.models import (
     DecodedArgument,
     DecodedCall,
     DecodedEvent,
+    DecodedRevert,
+    ProxyResolution,
     SignatureProvenance,
     TransactionDecoding,
     TransactionInspection,
@@ -556,6 +558,7 @@ class ActivityView(QWidget):
             _render_transaction_inspection(
                 raw_result.result.inspection,
                 raw_result.result.decoding,
+                raw_result.result.proxy_resolution,
             )
         )
         source = "local ledger" if raw_result.result.is_cached else "provider and local ledger"
@@ -823,6 +826,7 @@ def _render_activity_detail(
 def _render_transaction_inspection(
     inspection: TransactionInspection,
     decoding: TransactionDecoding,
+    proxy_resolution: ProxyResolution | None = None,
 ) -> str:
     if inspection.status is True:
         status = "success"
@@ -849,6 +853,12 @@ def _render_transaction_inspection(
         "Decoded Call",
         *_render_decoded_call(decoding.call),
         "",
+        "Contract Context",
+        *_render_contract_context(decoding, proxy_resolution),
+        "",
+        "Revert Details",
+        *_render_decoded_revert(decoding.revert, inspection.status),
+        "",
         "Raw Transaction Data",
         f"- Input Data: {inspection.input_data}",
         f"- Gas Limit: {inspection.gas_limit}",
@@ -874,6 +884,47 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_contract_context(
+    decoding: TransactionDecoding,
+    proxy_resolution: ProxyResolution | None,
+) -> tuple[str, ...]:
+    lines = [f"- Decode Address: {decoding.contract_address or 'n/a'}"]
+    if proxy_resolution is None:
+        lines.append("- Proxy Resolution: unavailable")
+        return tuple(lines)
+    lines.extend(
+        (
+            f"- Proxy Resolution: {proxy_resolution.status.value}",
+            f"- Proxy Type: {proxy_resolution.proxy_kind.value}",
+            f"- Proxy Address: {proxy_resolution.proxy_address}",
+            f"- Implementation: {proxy_resolution.implementation_address or 'n/a'}",
+            f"- Resolution Block: {proxy_resolution.block_number}",
+            f"- Resolution Source: {proxy_resolution.source_provider}",
+        )
+    )
+    if proxy_resolution.error is not None:
+        lines.append(f"- Resolution Note: {proxy_resolution.error}")
+    return tuple(lines)
+
+
+def _render_decoded_revert(
+    revert: DecodedRevert | None,
+    transaction_status: bool | None,
+) -> tuple[str, ...]:
+    if revert is None:
+        message = "not applicable" if transaction_status is not False else "unavailable"
+        return (f"- Decode Status: {message}",)
+    lines = [f"- Decode Status: {revert.status.value}"]
+    if revert.canonical_signature is not None:
+        lines.append(f"- Error: {revert.canonical_signature}")
+    lines.extend(_render_decoded_arguments(revert.arguments))
+    lines.extend(_render_provenance(revert.provenance))
+    if revert.error is not None:
+        lines.append(f"- Decode Note: {revert.error}")
+    lines.append(f"- Raw Revert Data: {revert.raw_data}")
+    return tuple(lines)
 
 
 def _render_decoded_call(call: DecodedCall) -> tuple[str, ...]:

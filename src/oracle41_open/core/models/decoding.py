@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+
+from oracle41_open.core.models.chain import Chain
 
 
 class DecodeStatus(str, Enum):
@@ -16,6 +19,18 @@ class SignatureSourceKind(str, Enum):
     USER_ABI = "user_abi"
     REMOTE_REGISTRY = "remote_registry"
     INFERRED = "inferred"
+
+
+class ProxyKind(str, Enum):
+    NONE = "none"
+    EIP_1967 = "eip_1967"
+    EIP_1167 = "eip_1167"
+
+
+class ProxyResolutionStatus(str, Enum):
+    RESOLVED = "resolved"
+    NOT_PROXY = "not_proxy"
+    UNAVAILABLE = "unavailable"
 
 
 @dataclass(frozen=True)
@@ -55,6 +70,15 @@ class EventSignatureDefinition:
 
 
 @dataclass(frozen=True)
+class ErrorSignatureDefinition:
+    selector: str
+    name: str
+    canonical_signature: str
+    inputs: tuple[ABIArgumentDefinition, ...]
+    provenance: SignatureProvenance
+
+
+@dataclass(frozen=True)
 class DecodedArgument:
     name: str
     abi_type: str
@@ -87,7 +111,46 @@ class DecodedEvent:
 
 
 @dataclass(frozen=True)
+class DecodedRevert:
+    status: DecodeStatus
+    raw_data: str
+    selector: str | None
+    name: str | None
+    canonical_signature: str | None
+    arguments: tuple[DecodedArgument, ...]
+    provenance: SignatureProvenance | None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class ContractABIRecord:
+    chain: Chain
+    contract_address: str
+    contract_name: str | None
+    abi_json: str
+    content_hash: str
+    provenance: SignatureProvenance
+    imported_at: datetime
+
+
+@dataclass(frozen=True)
+class ProxyResolution:
+    chain: Chain
+    proxy_address: str
+    status: ProxyResolutionStatus
+    proxy_kind: ProxyKind
+    implementation_address: str | None
+    block_number: int
+    source_provider: str
+    resolved_at: datetime
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class TransactionDecoding:
     decoder_version: str
     call: DecodedCall
     events: tuple[DecodedEvent, ...]
+    contract_address: str | None = None
+    implementation_address: str | None = None
+    revert: DecodedRevert | None = None

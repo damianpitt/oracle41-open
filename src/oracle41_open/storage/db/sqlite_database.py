@@ -8,7 +8,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -332,11 +332,51 @@ CREATE INDEX idx_decoded_event_logs_signature
     ON decoded_event_logs(canonical_signature);
 """
 
+_SCHEMA_V5_SQL = """
+CREATE TABLE contract_abis (
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    contract_name TEXT,
+    abi_json TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    imported_at TEXT NOT NULL,
+    PRIMARY KEY(chain, contract_address),
+    FOREIGN KEY(source_id) REFERENCES abi_signature_sources(source_id)
+);
+CREATE INDEX idx_contract_abis_content_hash ON contract_abis(content_hash);
+
+CREATE TABLE proxy_resolutions (
+    chain TEXT NOT NULL,
+    proxy_address TEXT NOT NULL,
+    block_number INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    proxy_kind TEXT NOT NULL,
+    implementation_address TEXT,
+    source_provider TEXT NOT NULL,
+    resolved_at TEXT NOT NULL,
+    error TEXT,
+    PRIMARY KEY(chain, proxy_address, block_number)
+);
+
+ALTER TABLE decoded_transaction_calls ADD COLUMN contract_address TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN implementation_address TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_status TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_data TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_selector TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_name TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_signature TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_arguments_json TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_source_id TEXT;
+ALTER TABLE decoded_transaction_calls ADD COLUMN revert_error TEXT;
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
     3: _SCHEMA_V3_SQL,
     4: _SCHEMA_V4_SQL,
+    5: _SCHEMA_V5_SQL,
 }
 
 

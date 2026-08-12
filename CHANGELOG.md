@@ -2,7 +2,30 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a3] - Unreleased
+## [0.3.0a4] - Unreleased
+
+### Added
+
+- Schema-v5 storage for contract ABIs, source provenance, block-specific proxy resolutions, implementation context, and decoded revert data.
+- User ABI import, listing, and removal from Settings with local unverified-source labeling.
+- Optional verified ABI retrieval from Blockscout API v2 for every supported chain.
+- Historical EIP-1967 and EIP-1167 proxy resolution through standard JSON-RPC endpoints.
+- Deterministic custom-error decoding plus Solidity `Error(string)` and `Panic(uint256)` decoding.
+- Transaction Inspector sections for proxy context, implementation address, revert arguments, provenance, and raw revert bytes.
+
+### Changed
+
+- Decoder cache versions include the exact address-to-ABI registry fingerprint, so replacing an ABI re-decodes persisted transactions.
+- Reverted transactions use best-effort historical `eth_call` replay while preserving the raw provider response.
+- Backup and restore preserve contract ABIs, proxy resolutions, and revert decoding as part of SQLite state.
+
+### Known Limitations
+
+- Historical `eth_call` replay uses end-of-block state and may not reproduce every transaction-index-specific revert.
+- Proxy discovery currently covers EIP-1967 implementation slots and standard EIP-1167 minimal proxies; beacon, diamond, and non-standard proxies remain raw.
+- Verified ABI availability depends on the selected chain's public Blockscout instance and its verification coverage.
+
+## [0.3.0a3] - 2026-08-11
 
 ### Added
 
@@ -19,7 +42,7 @@ All notable changes to Oracle41 Open will be documented here.
 
 ### Known Limitations
 
-- The local registry currently covers common token-standard calls and events; verified contract ABIs, proxies, and custom errors follow in later M5 slices.
+- The local registry covers common token-standard calls and events; contract-specific ABIs and proxy resolution follow in M5.3.
 - Indexed dynamic event values remain topic hashes because the original value is not recoverable from an EVM log.
 
 ## [0.3.0a2] - 2026-08-10

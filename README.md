@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a3` is an alpha release. It adds deterministic ERC-20, ERC-721, and ERC-1155 calldata and event decoding with local signature provenance to the transaction inspector. Unknown and malformed payloads remain available as raw data. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a4` is an alpha release. It adds local and Blockscout-verified contract ABIs, EIP-1967/EIP-1167 proxy resolution, and deterministic custom-error decoding to Transaction Inspector. Unknown, malformed, and raw provider payloads remain available. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -24,6 +24,9 @@ Version `0.3.0a3` is an alpha release. It adds deterministic ERC-20, ERC-721, an
 - Backup and restore for local settings and SQLite state
 - Transaction inspection with receipt status, gas, fees, raw logs, and provenance
 - Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
+- Local user ABI management and optional verified ABI retrieval from Blockscout
+- EIP-1967 and EIP-1167 implementation resolution with block-specific caching
+- Custom and Solidity built-in revert decoding with raw-byte preservation
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 ## Privacy and Scope
@@ -35,7 +38,7 @@ Version `0.3.0a3` is an alpha release. It adds deterministic ERC-20, ERC-721, an
 - Settings, SQLite state, and cache data are stored locally.
 - Backups intentionally exclude provider API keys.
 - Custom JSON-RPC endpoint URLs are stored in the keyring and excluded from backups.
-- Network requests are made only to configured data/pricing providers and the ENS resolver.
+- Network requests are made only to configured data/pricing providers, the ENS resolver, and Blockscout when a user requests a verified ABI.
 
 ## Architecture
 
@@ -56,7 +59,7 @@ Export services consume service results and write CSV or JSON.
 
 The GUI does not call providers directly. Service operations that may access the network run through the shared Qt background task runner so provider latency does not block the event loop.
 
-Activity and Token Detail store normalized transactions, events, asset movements, approvals, provider provenance, queried block windows, and resume checkpoints in SQLite. A partial synchronization can continue after restart without duplicating canonical events. Transaction Inspector enriches those canonical transactions with receipt status, calldata, decoded calls and events, signature-source provenance, gas usage, raw logs, and receipt-derived network fees.
+Activity and Token Detail store normalized transactions, events, asset movements, approvals, provider provenance, queried block windows, and resume checkpoints in SQLite. A partial synchronization can continue after restart without duplicating canonical events. Transaction Inspector enriches those canonical transactions with receipt status, calldata, decoded calls, events, reverts, ABI provenance, proxy implementation context, gas usage, raw logs, and receipt-derived network fees.
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -83,7 +86,7 @@ Run the application:
 oracle41-open
 ```
 
-Provider keys and optional per-chain JSON-RPC endpoints can be configured from the Settings tab.
+Provider keys, optional per-chain JSON-RPC endpoints, and contract ABIs can be configured from the Settings tab.
 
 ## Install the Debian Package
 

@@ -15,13 +15,17 @@ from oracle41_open.core.models import (
     ActivityPage,
     Chain,
     CompletenessState,
+    ContractABIRecord,
     DataProvenance,
     RawTransactionLog,
+    SignatureProvenance,
+    SignatureSourceKind,
     TransactionInspection,
 )
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.storage.backup_restore import BackupRestoreError, BackupRestoreService
 from oracle41_open.storage.db import (
+    ContractABIRepository,
     EventLedgerRepository,
     SQLiteDatabase,
     TransactionRepository,
@@ -36,6 +40,7 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     watchlist_repository = WatchlistRepository(sqlite_database)
     event_ledger_repository = EventLedgerRepository(sqlite_database)
     transaction_repository = TransactionRepository(sqlite_database)
+    contract_abi_repository = ContractABIRepository(sqlite_database)
     service = BackupRestoreService(settings_store=settings_store, sqlite_database=sqlite_database)
 
     source_settings = AppSettings(
@@ -73,6 +78,22 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         _LEDGER_TX_HASH,
         source_decoding,
     )
+    source_abi = ContractABIRecord(
+        chain=Chain.ETHEREUM,
+        contract_address="0x2222222222222222222222222222222222222222",
+        contract_name="Backup fixture",
+        abi_json='[{"inputs":[],"name":"ping","type":"function"}]',
+        content_hash="a" * 64,
+        provenance=SignatureProvenance(
+            source_id="backup:test-abi",
+            source_name="Backup test ABI",
+            source_kind=SignatureSourceKind.USER_ABI,
+            version="1",
+            is_verified=False,
+        ),
+        imported_at=datetime(2026, 8, 12, tzinfo=UTC),
+    )
+    contract_abi_repository.upsert_contract_abi(source_abi)
 
     backup_path = tmp_path / "oracle41-backup.zip"
     service.export_backup(backup_path)
@@ -111,6 +132,10 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         _LEDGER_TX_HASH,
     )
     assert restored_decoding == source_decoding
+    assert ContractABIRepository(sqlite_database).get_contract_abi(
+        Chain.ETHEREUM,
+        source_abi.contract_address,
+    ) == source_abi
 
 
 def test_export_backup_bundle_contains_manifest_and_payload_files(tmp_path: Path) -> None:

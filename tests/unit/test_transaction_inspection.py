@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from eth_abi.abi import encode as abi_encode
 
 from oracle41_open.core.models import (
     ActivityCategory,
@@ -16,15 +17,20 @@ from oracle41_open.core.models import (
     CompletenessState,
     DataProvenance,
     ProviderCapabilities,
+    ProxyKind,
+    ProxyResolution,
+    ProxyResolutionStatus,
     RawTransactionLog,
     TransactionInspection,
     ValidationError,
 )
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
+from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.transaction_inspection_service import (
     TransactionInspectionService,
 )
 from oracle41_open.storage.db import (
+    ContractABIRepository,
     EventLedgerRepository,
     SQLiteDatabase,
     TransactionRepository,
@@ -33,6 +39,13 @@ from oracle41_open.storage.db import (
 _TX_HASH = "0x" + "ab" * 32
 _ADDRESS = "0x1111111111111111111111111111111111111111"
 _TO = "0x2222222222222222222222222222222222222222"
+_IMPLEMENTATION = "0x3333333333333333333333333333333333333333"
+_CUSTOM_ABI = """
+[
+  {"type":"function","name":"execute","inputs":[{"name":"amount","type":"uint256"}]},
+  {"type":"error","name":"LimitExceeded","inputs":[{"name":"limit","type":"uint256"}]}
+]
+"""
 
 
 def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Path) -> None:
@@ -49,6 +62,8 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE proxy_resolutions")
+        conn.execute("DROP TABLE contract_abis")
         conn.execute("DROP TABLE decoded_event_logs")
         conn.execute("DROP TABLE decoded_transaction_calls")
         conn.execute("DROP TABLE abi_signature_sources")
@@ -66,7 +81,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("4",)
+    assert version == ("5",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
 
@@ -167,6 +182,70 @@ def test_transaction_inspection_service_redecodes_stale_cached_result(tmp_path: 
     assert provider.calls == 0
 
 
+def test_transaction_inspection_resolves_proxy_and_decodes_custom_revert(
+    tmp_path: Path,
+) -> None:
+    database, repository = _repository_with_transaction(tmp_path)
+    abi_repository = ContractABIRepository(database)
+    abi_service = ContractABIService(abi_repository)
+    abi_service.import_verified_abi(
+        Chain.ETHEREUM,
+        _IMPLEMENTATION,
+        _CUSTOM_ABI,
+        datetime(2026, 8, 12, tzinfo=UTC),
+        source_name="Verified test source",
+        reference="https://example.invalid/contracts/implementation",
+        source_version="1",
+        contract_name="Executor",
+    )
+    registry = abi_service.registry_for(Chain.ETHEREUM, _IMPLEMENTATION)
+    assert registry is not None
+    call_definition = next(iter(registry.functions_by_selector.values()))[0]
+    error_definition = next(iter(registry.errors_by_selector.values()))[0]
+    inspection = replace(
+        _inspection(),
+        status=False,
+        input_data=call_definition.selector + abi_encode(("uint256",), (25,)).hex(),
+    )
+    revert_data = error_definition.selector + abi_encode(("uint256",), (10,)).hex()
+    resolution = ProxyResolution(
+        chain=Chain.ETHEREUM,
+        proxy_address=_TO,
+        status=ProxyResolutionStatus.RESOLVED,
+        proxy_kind=ProxyKind.EIP_1967,
+        implementation_address=_IMPLEMENTATION,
+        block_number=inspection.block_number,
+        source_provider="test-rpc",
+        resolved_at=datetime(2026, 8, 12, tzinfo=UTC),
+    )
+    provider = _ContextTransactionProvider(inspection, resolution, revert_data)
+    service = TransactionInspectionService(
+        provider,
+        repository,
+        abi_registry_provider=abi_service,
+        proxy_repository=abi_repository,
+    )
+
+    first = service.inspect(_TX_HASH, Chain.ETHEREUM)
+    second = service.inspect(_TX_HASH, Chain.ETHEREUM)
+
+    assert first.proxy_resolution == resolution
+    assert first.decoding.call.canonical_signature == "execute(uint256)"
+    assert first.decoding.call.arguments[0].value == "25"
+    assert first.decoding.implementation_address == _IMPLEMENTATION
+    assert first.decoding.revert is not None
+    assert first.decoding.revert.canonical_signature == "LimitExceeded(uint256)"
+    assert first.decoding.revert.arguments[0].value == "10"
+    assert first.decoding.revert.raw_data == revert_data
+    assert first.decoding.revert.provenance is not None
+    assert first.decoding.revert.provenance.is_verified
+    assert second.is_cached
+    assert second.decoding == first.decoding
+    assert provider.inspection_calls == 1
+    assert provider.proxy_calls == 1
+    assert provider.revert_calls == 1
+
+
 class _FakeTransactionProvider:
     def __init__(self, inspection: TransactionInspection) -> None:
         self.inspection = inspection
@@ -185,6 +264,54 @@ class _FakeTransactionProvider:
         _ = chain
         self.calls += 1
         return self.inspection
+
+
+class _ContextTransactionProvider:
+    def __init__(
+        self,
+        inspection: TransactionInspection,
+        resolution: ProxyResolution,
+        revert_data: str,
+    ) -> None:
+        self.inspection = inspection
+        self.resolution = resolution
+        self.revert_data = revert_data
+        self.inspection_calls = 0
+        self.proxy_calls = 0
+        self.revert_calls = 0
+
+    def capabilities(self, chain: Chain) -> ProviderCapabilities:
+        _ = chain
+        return ProviderCapabilities(
+            transaction_lookup=True,
+            receipts=True,
+            proxy_resolution=True,
+            revert_replay=True,
+        )
+
+    def get_transaction_inspection(
+        self,
+        tx_hash: str,
+        chain: Chain,
+    ) -> TransactionInspection:
+        _ = tx_hash, chain
+        self.inspection_calls += 1
+        return self.inspection
+
+    def resolve_proxy(
+        self,
+        contract_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ProxyResolution:
+        _ = contract_address, chain, block_number
+        self.proxy_calls += 1
+        return self.resolution
+
+    def get_revert_data(self, inspection: TransactionInspection) -> str | None:
+        _ = inspection
+        self.revert_calls += 1
+        return self.revert_data
 
 
 def _repository_with_transaction(tmp_path: Path) -> tuple[SQLiteDatabase, TransactionRepository]:

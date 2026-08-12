@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 receipt ingestion and M5.2 deterministic token-standard decoding are implemented through `0.3.0a3`; verified contract ABIs, proxies, custom errors, traces, Blockscout, and broader action normalization remain.
+**Implementation status:** M5.1 receipt ingestion, M5.2 deterministic token-standard decoding, and M5.3 contract ABI/proxy/revert decoding are implemented through `0.3.0a4`; internal traces, broader Blockscout data, action normalization, and wider proxy coverage remain.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -98,8 +98,8 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 - Add a configurable standard JSON-RPC provider for user-selected endpoints.
 - Ingest transaction receipts, logs, gas usage, status, and internal traces where available.
-- Add an ABI and signature registry with source and verification metadata. Initial bundled token-standard registry completed in M5.2.
-- Decode contract methods, events, proxy implementations, custom errors, and common token operations. Common ERC-20, ERC-721, and ERC-1155 operations completed in M5.2.
+- Add an ABI and signature registry with source and verification metadata. Bundled token standards completed in M5.2; user and Blockscout-verified contract ABIs completed in M5.3.
+- Decode contract methods, events, proxy implementations, custom errors, and common token operations. Token standards completed in M5.2; EIP-1967/EIP-1167 and custom errors completed in M5.3.
 - Normalize swaps, bridges, staking actions, lending actions, and contract deployments.
 - Add Blockscout as an optional decoded-data and contract-metadata source.
 - Evaluate optional TrueBlocks integration for users who want a local address index.
@@ -280,14 +280,14 @@ The roadmap uses these projects as directional references, not feature-equivalen
 
 Oracle41's differentiator is the combination of these ideas behind a read-only desktop boundary, explicit completeness metadata, and a small provider-independent Python architecture.
 
-## Immediate Next Slice: M5.2
+## Immediate Next Slice: M5.4
 
-Build deterministic method and event decoding on the persisted M5.1 receipt data:
+Add internal execution visibility and explicit provider capability states:
 
-1. Add versioned method-signature and ABI-source records with provenance and verification state.
-2. Decode standard ABI argument and event types without hiding undecodable bytes.
-3. Recognize proxies while preserving both proxy and implementation context.
-4. Display decoded methods and events beside raw calldata and logs in Transaction Inspector.
-5. Add golden fixtures for transfers, approvals, swaps, reverts, overloaded signatures, and malformed payloads.
+1. Add normalized internal-call and trace models without coupling them to one trace RPC dialect.
+2. Discover `debug_traceTransaction` and `trace_transaction` support per configured endpoint.
+3. Map call trees, contract creations, native internal transfers, and nested revert locations.
+4. Persist trace completeness and provider capability gaps beside the canonical transaction.
+5. Display an expandable execution tree while preserving raw trace payloads for unsupported frames.
 
-M5.2 is complete only when decoded output is deterministic, every decoded field identifies its source, and unknown selectors/logs remain fully inspectable in raw form.
+M5.4 is complete only when trace-capable endpoints produce deterministic internal actions, unsupported endpoints report an explicit capability gap, and a partial trace cannot be mistaken for complete execution history.

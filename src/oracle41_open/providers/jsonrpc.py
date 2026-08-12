@@ -31,9 +31,15 @@ class JSONRPCHTTPError(JSONRPCClientError):
 
 
 class JSONRPCRemoteError(JSONRPCClientError):
-    def __init__(self, message: str, code: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        code: int | None = None,
+        data: object | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
+        self.data = data
 
 
 class JSONRPCPayloadError(JSONRPCClientError):
@@ -86,7 +92,9 @@ class JSONRPCClient:
                 raw_message = rpc_error.get("message")
                 if isinstance(raw_message, str) and raw_message.strip():
                     message = raw_message.strip()
+                error_data = rpc_error.get("data")
             else:
                 message = str(rpc_error)
-            raise JSONRPCRemoteError(message=message, code=code)
+                error_data = None
+            raise JSONRPCRemoteError(message=message, code=code, data=error_data)
         return decoded.get("result")
