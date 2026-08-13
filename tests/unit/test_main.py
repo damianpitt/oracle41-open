@@ -12,4 +12,4 @@ def test_version_command_exits_without_starting_gui(capsys: object) -> None:
 
     assert result == 0
     output = capsys.readouterr().out  # type: ignore[attr-defined]
-    assert output == "Oracle41 Open 0.3.0a4\n"
+    assert output == "Oracle41 Open 0.3.0a5\n"

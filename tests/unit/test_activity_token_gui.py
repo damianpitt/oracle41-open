@@ -21,9 +21,13 @@ from oracle41_open.core.models import (
     ActivityItem,
     ActivityPage,
     Chain,
+    InternalCall,
     ProviderCapabilities,
     RawTransactionLog,
+    TraceDialect,
+    TraceStatus,
     TransactionInspection,
+    TransactionTrace,
 )
 from oracle41_open.core.services import AddressResolution
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
@@ -150,6 +154,12 @@ def test_activity_gui_inspects_selected_transaction(
     assert "Signature: transfer(address,uint256)" in detail
     assert "Raw Transaction Data" in detail
     assert "Raw Logs: 1" in detail
+    assert "Internal Execution" in detail
+    assert "Completeness: complete" in detail
+    assert "CALL" in detail
+    assert not view._trace_tree.isHidden()
+    assert view._trace_tree.topLevelItemCount() == 1
+    assert view._trace_tree.topLevelItem(0).text(0) == "CALL"
     view.close()
 
 
@@ -345,6 +355,30 @@ class _FakeTransactionInspectionService:
             inspection=inspection,
             decoding=StandardABIDecoder().decode(inspection),
             is_cached=False,
+            trace=TransactionTrace(
+                chain=chain,
+                tx_hash=tx_hash,
+                status=TraceStatus.COMPLETE,
+                calls=(
+                    InternalCall(
+                        trace_address=(),
+                        depth=0,
+                        call_type="CALL",
+                        from_address=_ADDRESS,
+                        to_address="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        created_contract=None,
+                        value_wei=0,
+                        gas_limit=21_000,
+                        gas_used=20_000,
+                        input_data="0xa9059cbb",
+                        output_data="0x",
+                    ),
+                ),
+                raw_json='{"type":"CALL"}',
+                source_provider="test-rpc",
+                fetched_at=datetime(2026, 8, 13, tzinfo=UTC),
+                dialect=TraceDialect.DEBUG_CALL_TRACER,
+            ),
         )
 
 

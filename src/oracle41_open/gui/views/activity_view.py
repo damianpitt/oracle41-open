@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -37,10 +39,12 @@ from oracle41_open.core.models import (
     DecodedCall,
     DecodedEvent,
     DecodedRevert,
+    InternalCall,
     ProxyResolution,
     SignatureProvenance,
     TransactionDecoding,
     TransactionInspection,
+    TransactionTrace,
     ValidationError,
 )
 from oracle41_open.core.services.activity_service import ActivityPageResult
@@ -173,6 +177,12 @@ class ActivityView(QWidget):
         self._detail_drawer.setPlaceholderText(
             "Transaction detail drawer. Select an activity row to inspect details."
         )
+        self._trace_tree = QTreeWidget(self)
+        self._trace_tree.setHeaderLabels(
+            ("Internal Call", "From", "To", "Value (wei)", "Gas Used", "Result")
+        )
+        self._trace_tree.setAlternatingRowColors(True)
+        self._trace_tree.setVisible(False)
 
         self._init_layout()
         self._apply_default_chain()
@@ -217,6 +227,7 @@ class ActivityView(QWidget):
         root.addWidget(self._items_list, stretch=1)
         root.addWidget(self._inspect_transaction_button)
         root.addWidget(self._detail_drawer, stretch=1)
+        root.addWidget(self._trace_tree, stretch=1)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.setLayout(root)
 
@@ -540,6 +551,8 @@ class ActivityView(QWidget):
 
         self._is_inspecting_transaction = True
         self._inspect_transaction_button.setEnabled(False)
+        self._trace_tree.clear()
+        self._trace_tree.setVisible(False)
         self._detail_drawer.setPlainText("Loading transaction and receipt...")
 
         def inspect_transaction() -> object:
@@ -565,12 +578,23 @@ class ActivityView(QWidget):
                 raw_result.result.inspection,
                 raw_result.result.decoding,
                 raw_result.result.proxy_resolution,
+                raw_result.result.trace,
             )
         )
+        _populate_trace_tree(self._trace_tree, raw_result.result.trace)
         source = "local ledger" if raw_result.result.is_cached else "provider and local ledger"
-        self._status_label.setText(f"Transaction receipt loaded from {source}.")
+        trace_status = (
+            raw_result.result.trace.status.value
+            if raw_result.result.trace is not None
+            else "unavailable"
+        )
+        self._status_label.setText(
+            f"Transaction receipt loaded from {source}. Internal trace: {trace_status}."
+        )
 
     def _on_transaction_inspection_error(self, error: object) -> None:
+        self._trace_tree.clear()
+        self._trace_tree.setVisible(False)
         self._detail_drawer.setPlainText(f"Transaction inspection failed: {error}")
         self._status_label.setText(f"Could not inspect transaction receipt: {error}")
 
@@ -644,6 +668,8 @@ class ActivityView(QWidget):
 
     def _on_item_selection_changed(self) -> None:
         item = self._selected_item()
+        self._trace_tree.clear()
+        self._trace_tree.setVisible(False)
         self._inspect_transaction_button.setEnabled(
             item is not None and not self._is_loading and not self._is_inspecting_transaction
         )
@@ -833,6 +859,7 @@ def _render_transaction_inspection(
     inspection: TransactionInspection,
     decoding: TransactionDecoding,
     proxy_resolution: ProxyResolution | None = None,
+    trace: TransactionTrace | None = None,
 ) -> str:
     if inspection.status is True:
         status = "success"
@@ -865,6 +892,9 @@ def _render_transaction_inspection(
         "Revert Details",
         *_render_decoded_revert(decoding.revert, inspection.status),
         "",
+        "Internal Execution",
+        *_render_transaction_trace(trace),
+        "",
         "Raw Transaction Data",
         f"- Input Data: {inspection.input_data}",
         f"- Gas Limit: {inspection.gas_limit}",
@@ -890,6 +920,77 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_transaction_trace(trace: TransactionTrace | None) -> tuple[str, ...]:
+    if trace is None:
+        return ("- Completeness: unavailable", "- Note: No trace result was loaded.")
+    lines = [
+        f"- Completeness: {trace.status.value}",
+        f"- Trace Method: {trace.dialect.value if trace.dialect is not None else 'none'}",
+        f"- Trace Source: {trace.source_provider}",
+        f"- Internal Calls: {len(trace.calls)}",
+    ]
+    if trace.error is not None:
+        lines.append(f"- Trace Note: {trace.error}")
+    lines.extend(_render_internal_call(call) for call in trace.calls)
+    if trace.raw_json is not None:
+        preview_limit = 20_000
+        preview = trace.raw_json[:preview_limit]
+        suffix = " (preview truncated; full payload is stored locally)" if len(trace.raw_json) > preview_limit else ""
+        lines.append(f"- Raw Trace JSON{suffix}: {preview}")
+    return tuple(lines)
+
+
+def _render_internal_call(call: InternalCall) -> str:
+    indent = "  " * call.depth
+    target = call.created_contract or call.to_address or "unknown target"
+    parts = [
+        f"{indent}- {call.call_type} {call.from_address or 'unknown sender'} -> {target}",
+        f"value={call.value_wei} wei",
+        f"gas={call.gas_used if call.gas_used is not None else 'n/a'}",
+    ]
+    if call.error is not None:
+        parts.append(f"error={call.error}")
+    if call.revert_reason is not None:
+        parts.append(f"reason={call.revert_reason}")
+    return " | ".join(parts)
+
+
+def _populate_trace_tree(
+    tree: QTreeWidget,
+    trace: TransactionTrace | None,
+) -> None:
+    tree.clear()
+    if trace is None or not trace.calls:
+        tree.setVisible(False)
+        return
+
+    items_by_address: dict[tuple[int, ...], QTreeWidgetItem] = {}
+    for call in trace.calls:
+        target = call.created_contract or call.to_address or "unknown"
+        result = call.error or call.revert_reason or "success"
+        item = QTreeWidgetItem(
+            (
+                call.call_type,
+                call.from_address or "unknown",
+                target,
+                str(call.value_wei),
+                str(call.gas_used) if call.gas_used is not None else "n/a",
+                result,
+            )
+        )
+        parent = items_by_address.get(call.trace_address[:-1])
+        # Partial traces can omit a parent frame, so those calls remain visible at the root.
+        if call.trace_address and parent is not None:
+            parent.addChild(item)
+        else:
+            tree.addTopLevelItem(item)
+        items_by_address[call.trace_address] = item
+
+    tree.expandAll()
+    tree.resizeColumnToContents(0)
+    tree.setVisible(True)
 
 
 def _render_contract_context(

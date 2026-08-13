@@ -1,7 +1,7 @@
-"""Enrich canonical transactions with receipts and decoded details.
+"""Enrich canonical transactions with receipts, traces, and decoded details.
 
-The service reuses durable raw data, resolves proxy implementations, loads matching ABIs, and decodes calls, logs, and reverts.
-Decoder fingerprints trigger safe re-decoding when an ABI changes.
+The service reuses durable raw data, retries temporary trace failures, resolves proxy implementations, and loads matching ABIs.
+Decoder fingerprints trigger safe re-decoding of calls, logs, and reverts when an ABI changes.
 """
 
 from __future__ import annotations
@@ -18,8 +18,10 @@ from oracle41_open.core.models import (
     ProxyKind,
     ProxyResolution,
     ProxyResolutionStatus,
+    TraceStatus,
     TransactionDecoding,
     TransactionInspection,
+    TransactionTrace,
 )
 from oracle41_open.core.services.abi_decoder import SignatureRegistry, StandardABIDecoder
 from oracle41_open.providers.transaction_provider import TransactionDataProvider
@@ -49,6 +51,12 @@ class TransactionInspectionStore(Protocol):
         chain: Chain,
         tx_hash: str,
     ) -> TransactionDecoding | None:
+        ...
+
+    def save_trace(self, trace: TransactionTrace) -> None:
+        ...
+
+    def get_trace(self, chain: Chain, tx_hash: str) -> TransactionTrace | None:
         ...
 
 
@@ -99,6 +107,7 @@ class TransactionInspectionResult:
     decoding: TransactionDecoding
     is_cached: bool
     proxy_resolution: ProxyResolution | None = None
+    trace: TransactionTrace | None = None
 
 
 class TransactionInspectionService:
@@ -135,6 +144,7 @@ class TransactionInspectionService:
             self._repository.save_inspection(inspection)
 
         registries, proxy_resolution = self._load_contract_context(inspection)
+        trace = self._load_trace(inspection, force_refresh)
         expected_decoder_version = self._decoder.version_for(registries)
         stored_decoding = self._repository.get_decoding(chain, tx_hash) if is_cached else None
         if (
@@ -146,6 +156,7 @@ class TransactionInspectionService:
                 decoding=stored_decoding,
                 is_cached=True,
                 proxy_resolution=proxy_resolution,
+                trace=trace,
             )
 
         revert_data = None
@@ -174,7 +185,38 @@ class TransactionInspectionService:
             decoding=decoding,
             is_cached=is_cached,
             proxy_resolution=proxy_resolution,
+            trace=trace,
         )
+
+    def _load_trace(
+        self,
+        inspection: TransactionInspection,
+        force_refresh: bool,
+    ) -> TransactionTrace:
+        stored = None if force_refresh else self._repository.get_trace(
+            inspection.chain, inspection.tx_hash
+        )
+        # Temporary failures are diagnostic records, not durable capability results.
+        if stored is not None and stored.status is not TraceStatus.UNAVAILABLE:
+            return stored
+        try:
+            trace = self._provider.get_transaction_trace(
+                inspection.tx_hash,
+                inspection.chain,
+            )
+        except ProviderError as error:
+            trace = TransactionTrace(
+                chain=inspection.chain,
+                tx_hash=inspection.tx_hash,
+                status=TraceStatus.UNAVAILABLE,
+                calls=(),
+                raw_json=None,
+                source_provider="unavailable",
+                fetched_at=datetime.now(tz=UTC),
+                error=str(error),
+            )
+        self._repository.save_trace(trace)
+        return trace
 
     def _load_contract_context(
         self,

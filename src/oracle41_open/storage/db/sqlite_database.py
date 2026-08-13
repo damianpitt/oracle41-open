@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 5
+_SCHEMA_VERSION = 6
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -377,12 +377,53 @@ ALTER TABLE decoded_transaction_calls ADD COLUMN revert_source_id TEXT;
 ALTER TABLE decoded_transaction_calls ADD COLUMN revert_error TEXT;
 """
 
+_SCHEMA_V6_SQL = """
+CREATE TABLE transaction_traces (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    dialect TEXT,
+    raw_json TEXT,
+    source_provider TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    error TEXT,
+    PRIMARY KEY(chain, tx_hash),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transaction_receipts(chain, tx_hash) ON DELETE CASCADE
+);
+
+CREATE TABLE transaction_trace_calls (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    ordinal INTEGER NOT NULL,
+    trace_address_json TEXT NOT NULL,
+    depth INTEGER NOT NULL,
+    call_type TEXT NOT NULL,
+    from_address TEXT,
+    to_address TEXT,
+    created_contract TEXT,
+    value_wei TEXT NOT NULL,
+    gas_limit INTEGER,
+    gas_used INTEGER,
+    input_data TEXT NOT NULL,
+    output_data TEXT NOT NULL,
+    error TEXT,
+    revert_reason TEXT,
+    PRIMARY KEY(chain, tx_hash, ordinal),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES transaction_traces(chain, tx_hash) ON DELETE CASCADE
+);
+CREATE INDEX idx_transaction_trace_calls_target
+    ON transaction_trace_calls(chain, to_address);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
     3: _SCHEMA_V3_SQL,
     4: _SCHEMA_V4_SQL,
     5: _SCHEMA_V5_SQL,
+    6: _SCHEMA_V6_SQL,
 }
 
 

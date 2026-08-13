@@ -1,6 +1,6 @@
 """Test local backup and restore behavior.
 
-The cases verify settings, ledger data, transaction decoding, ABIs, manifests, and SQLite integrity checks.
+The cases verify settings, ledger data, transaction inspection, traces, decoding, ABIs, manifests, and SQLite integrity checks.
 They also reject incomplete or unsupported backup bundles.
 """
 
@@ -23,10 +23,14 @@ from oracle41_open.core.models import (
     CompletenessState,
     ContractABIRecord,
     DataProvenance,
+    InternalCall,
     RawTransactionLog,
     SignatureProvenance,
     SignatureSourceKind,
+    TraceDialect,
+    TraceStatus,
     TransactionInspection,
+    TransactionTrace,
 )
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.storage.backup_restore import BackupRestoreError, BackupRestoreService
@@ -84,6 +88,8 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         _LEDGER_TX_HASH,
         source_decoding,
     )
+    source_trace = _transaction_trace(source_address)
+    transaction_repository.save_trace(source_trace)
     source_abi = ContractABIRecord(
         chain=Chain.ETHEREUM,
         contract_address="0x2222222222222222222222222222222222222222",
@@ -138,6 +144,11 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         _LEDGER_TX_HASH,
     )
     assert restored_decoding == source_decoding
+    restored_trace = TransactionRepository(sqlite_database).get_trace(
+        Chain.ETHEREUM,
+        _LEDGER_TX_HASH,
+    )
+    assert restored_trace == source_trace
     assert ContractABIRepository(sqlite_database).get_contract_abi(
         Chain.ETHEREUM,
         source_abi.contract_address,
@@ -260,4 +271,31 @@ def _transaction_inspection(address: str) -> TransactionInspection:
         ),
         source_provider="alchemy",
         fetched_at=datetime(2026, 8, 10, 2, tzinfo=UTC),
+    )
+
+
+def _transaction_trace(address: str) -> TransactionTrace:
+    return TransactionTrace(
+        chain=Chain.ETHEREUM,
+        tx_hash=_LEDGER_TX_HASH,
+        status=TraceStatus.COMPLETE,
+        calls=(
+            InternalCall(
+                trace_address=(),
+                depth=0,
+                call_type="CALL",
+                from_address=address,
+                to_address="0x2222222222222222222222222222222222222222",
+                created_contract=None,
+                value_wei=1,
+                gas_limit=21_000,
+                gas_used=20_000,
+                input_data="0x",
+                output_data="0x",
+            ),
+        ),
+        raw_json='{"type":"CALL"}',
+        source_provider="alchemy",
+        fetched_at=datetime(2026, 8, 13, tzinfo=UTC),
+        dialect=TraceDialect.DEBUG_CALL_TRACER,
     )

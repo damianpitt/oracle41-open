@@ -33,15 +33,17 @@ Failover is enabled only when two live providers are configured. Demonstration p
 
 ## Persistence
 
-SQLite schema v5 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, decoded calls/events/reverts, contract ABIs, block-specific proxy resolutions, and signature-source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
+SQLite schema v6 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, internal calls, decoded calls/events/reverts, contract ABIs, block-specific proxy resolutions, and signature-source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
 
-`TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. A deterministic decoder combines the bundled token-standard registry with address-specific user or Blockscout-verified ABIs after the raw inspection is durable. EIP-1967 and EIP-1167 resolutions are keyed by chain, proxy, and block so historical implementation context remains stable. Decoded, unknown, and malformed outcomes are persisted separately, so decoding cannot replace or discard source data. The GUI receives domain models rather than provider dictionaries.
+`TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. The provider checks for Geth-compatible or Parity-compatible trace methods and converts either format into the same internal-call model. Trace status is stored separately from its calls, so partial data and unsupported endpoints cannot look complete. Full raw trace payloads remain available for future decoders.
+
+A deterministic decoder combines the bundled token-standard registry with address-specific user or Blockscout-verified ABIs after the raw inspection is durable. EIP-1967 and EIP-1167 resolutions are keyed by chain, proxy, and block so historical implementation context remains stable. Decoded, unknown, and malformed outcomes are persisted separately, so decoding cannot replace or discard source data. The GUI receives domain models rather than provider dictionaries.
 
 SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
 
 Activity JSON exports use `oracle41-activity` format version 2. GUI-created CSV exports carry the same format/version, completeness, provider, fetch time, queried block range, and persistence fields.
 
-Backup files include settings and the complete SQLite state, including event-ledger checkpoints. Provider secrets are intentionally excluded. A schema-v1 backup is accepted and migrated forward after restore.
+Backup files include settings and the complete SQLite state, including event-ledger checkpoints and transaction traces. Provider secrets are intentionally excluded. A schema-v1 backup is accepted and migrated forward after restore.
 
 ## Extension Points
 

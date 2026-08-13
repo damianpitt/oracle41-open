@@ -1,7 +1,7 @@
 """Define the transaction inspection provider contract.
 
-The protocol covers receipts, proxy resolution, revert replay, and chain-specific capability reporting.
-Transaction services remain independent of the JSON-RPC implementation.
+The protocol covers receipts, internal traces, proxy resolution, revert replay, and chain-specific capabilities.
+Transaction services remain independent of JSON-RPC dialects and provider vendors.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from oracle41_open.core.models import (
     ProviderCapabilities,
     ProxyResolution,
     TransactionInspection,
+    TransactionTrace,
 )
 
 
@@ -36,4 +37,11 @@ class TransactionDataProvider(Protocol):
         ...
 
     def get_revert_data(self, inspection: TransactionInspection) -> str | None:
+        ...
+
+    def get_transaction_trace(
+        self,
+        tx_hash: str,
+        chain: Chain,
+    ) -> TransactionTrace:
         ...

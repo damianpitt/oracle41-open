@@ -37,6 +37,15 @@ A keyring endpoint takes precedence over its environment variable. Treat endpoin
 
 Without a live key, the application uses local stub providers so the interface can be explored without network access.
 
+### Internal Transaction Traces
+
+Transaction Inspector checks each configured endpoint for one of two common trace methods:
+
+- Geth-compatible `debug_traceTransaction` with the call tracer
+- Parity-compatible `trace_transaction`
+
+Many public endpoints disable these methods or place them behind a paid plan. Oracle41 Open reports this as unsupported instead of showing an empty execution history. Temporary provider errors are reported as unavailable and retried later. Partial responses remain marked as partial.
+
 ## Contract ABIs
 
 The Contract ABIs section in Settings accepts a chain, contract or proxy address, optional name, and ABI JSON file. Local files are stored in SQLite and explicitly marked as unverified. A saved ABI is used only for matching addresses.
@@ -73,4 +82,4 @@ The resolved paths can differ when `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, or `XDG_C
 
 ## Backup and Restore
 
-Backups contain local settings and all SQLite state, including canonical events, transaction receipts, raw logs, decoded calls/events/reverts, contract ABIs, proxy resolutions, signature provenance, fees, and synchronization checkpoints. They do not contain provider API keys, custom RPC URLs, or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.
+Backups contain local settings and all SQLite state, including canonical events, transaction receipts, raw logs, internal traces, decoded calls/events/reverts, contract ABIs, proxy resolutions, signature provenance, fees, and synchronization checkpoints. They do not contain provider API keys, custom RPC URLs, or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.

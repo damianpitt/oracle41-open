@@ -48,9 +48,13 @@ from oracle41_open.core.models.ledger import (
 from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
 from oracle41_open.core.models.transaction import (
+    InternalCall,
     ProviderCapabilities,
     RawTransactionLog,
+    TraceDialect,
+    TraceStatus,
     TransactionInspection,
+    TransactionTrace,
 )
 from oracle41_open.core.models.wallet_overview import WalletOverviewResult
 from oracle41_open.core.models.watchlist_entry import WatchlistEntry
@@ -76,6 +80,7 @@ __all__ = [
     "EventSignatureDefinition",
     "FeeRecord",
     "FunctionSignatureDefinition",
+    "InternalCall",
     "LedgerCheckpoint",
     "NormalizedEvent",
     "Oracle41Error",
@@ -95,7 +100,10 @@ __all__ = [
     "Token",
     "TokenBalance",
     "TokenBalancePage",
+    "TraceDialect",
+    "TraceStatus",
     "TransactionRecord",
+    "TransactionTrace",
     "TransactionInspection",
     "TransactionDecoding",
     "ValidationError",

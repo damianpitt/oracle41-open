@@ -2,7 +2,27 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a4] - Unreleased
+## [0.3.0a5] - Unreleased
+
+### Added
+
+- Normalized internal-call models for calls, contract creation, native value movement, nested errors, and revert locations.
+- Automatic per-chain discovery of Geth `debug_traceTransaction` and Parity `trace_transaction` support.
+- Schema-v6 storage for trace summaries, ordered internal calls, provider dialects, errors, and full raw trace payloads.
+- Transaction Inspector output and an expandable call tree with visible complete, partial, unsupported, and unavailable states.
+
+### Changed
+
+- Confirmed trace capability results are reused, while temporary provider failures are retried on the next inspection.
+- Backup and restore preserve transaction traces as part of SQLite state.
+
+### Known Limitations
+
+- Trace support depends on the configured JSON-RPC endpoint and may require a paid plan or node setting.
+- Geth call-tracer and Parity trace formats are supported; provider-specific trace formats remain visible only as raw data.
+- Internal calls are not yet converted into higher-level actions such as swaps, bridges, or staking operations.
+
+## [0.3.0a4] - 2026-08-12
 
 ### Added
 

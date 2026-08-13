@@ -1,7 +1,7 @@
-"""Persist transaction inspections and decoded results.
+"""Persist transaction inspections, traces, and decoded results.
 
-Receipt details, raw logs, fees, calls, events, reverts, and signature sources are stored without replacing canonical ledger rows.
-Decoded data requires an existing durable raw inspection.
+Receipt details, raw logs, internal calls, fees, decoded values, and signature sources are stored without replacing canonical ledger rows.
+Trace and decoded data require an existing durable raw inspection.
 """
 
 from __future__ import annotations
@@ -18,11 +18,15 @@ from oracle41_open.core.models import (
     DecodedEvent,
     DecodedRevert,
     DecodeStatus,
+    InternalCall,
     RawTransactionLog,
     SignatureProvenance,
     SignatureSourceKind,
+    TraceDialect,
+    TraceStatus,
     TransactionDecoding,
     TransactionInspection,
+    TransactionTrace,
     ValidationError,
 )
 from oracle41_open.storage.db._helpers import parse_datetime, utc_now_iso
@@ -227,6 +231,90 @@ class TransactionRepository:
             revert=_revert_from_row(call_row),
         )
 
+    def save_trace(self, trace: TransactionTrace) -> None:
+        normalized_hash = trace.tx_hash.lower()
+        with self._database.connection() as conn:
+            if not self._inspection_exists(conn, trace.chain, normalized_hash):
+                raise ValidationError(
+                    "Transaction inspection is not present. Load the transaction first."
+                )
+            conn.execute(
+                """
+                INSERT INTO transaction_traces(
+                    chain, tx_hash, status, dialect, raw_json,
+                    source_provider, fetched_at, error
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(chain, tx_hash) DO UPDATE SET
+                    status = excluded.status,
+                    dialect = excluded.dialect,
+                    raw_json = excluded.raw_json,
+                    source_provider = excluded.source_provider,
+                    fetched_at = excluded.fetched_at,
+                    error = excluded.error
+                """,
+                (
+                    trace.chain.value,
+                    normalized_hash,
+                    trace.status.value,
+                    trace.dialect.value if trace.dialect is not None else None,
+                    trace.raw_json,
+                    trace.source_provider,
+                    trace.fetched_at.astimezone(UTC).isoformat(),
+                    trace.error,
+                ),
+            )
+            conn.execute(
+                "DELETE FROM transaction_trace_calls WHERE chain = ? AND tx_hash = ?",
+                (trace.chain.value, normalized_hash),
+            )
+            for ordinal, call in enumerate(trace.calls):
+                self._insert_trace_call(
+                    conn,
+                    trace.chain,
+                    normalized_hash,
+                    ordinal,
+                    call,
+                )
+
+    def get_trace(self, chain: Chain, tx_hash: str) -> TransactionTrace | None:
+        normalized_hash = tx_hash.lower()
+        with self._database.connection() as conn:
+            trace_row = conn.execute(
+                """
+                SELECT * FROM transaction_traces
+                WHERE chain = ? AND tx_hash = ?
+                LIMIT 1
+                """,
+                (chain.value, normalized_hash),
+            ).fetchone()
+            if trace_row is None:
+                return None
+            call_rows = conn.execute(
+                """
+                SELECT * FROM transaction_trace_calls
+                WHERE chain = ? AND tx_hash = ?
+                ORDER BY ordinal
+                """,
+                (chain.value, normalized_hash),
+            ).fetchall()
+        raw_dialect = trace_row["dialect"]
+        return TransactionTrace(
+            chain=chain,
+            tx_hash=normalized_hash,
+            status=TraceStatus(str(trace_row["status"])),
+            calls=tuple(_trace_call_from_row(row) for row in call_rows),
+            raw_json=(
+                str(trace_row["raw_json"])
+                if trace_row["raw_json"] is not None
+                else None
+            ),
+            source_provider=str(trace_row["source_provider"]),
+            fetched_at=parse_datetime(trace_row["fetched_at"]),
+            dialect=TraceDialect(str(raw_dialect)) if raw_dialect is not None else None,
+            error=str(trace_row["error"]) if trace_row["error"] is not None else None,
+        )
+
     @staticmethod
     def _transaction_exists(
         conn: sqlite3.Connection,
@@ -397,6 +485,43 @@ class TransactionRepository:
         )
 
     @staticmethod
+    def _insert_trace_call(
+        conn: sqlite3.Connection,
+        chain: Chain,
+        tx_hash: str,
+        ordinal: int,
+        call: InternalCall,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO transaction_trace_calls(
+                chain, tx_hash, ordinal, trace_address_json, depth, call_type,
+                from_address, to_address, created_contract, value_wei,
+                gas_limit, gas_used, input_data, output_data, error, revert_reason
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chain.value,
+                tx_hash,
+                ordinal,
+                json_dumps(list(call.trace_address), pretty=False).decode("utf-8"),
+                call.depth,
+                call.call_type,
+                call.from_address,
+                call.to_address,
+                call.created_contract,
+                str(call.value_wei),
+                call.gas_limit,
+                call.gas_used,
+                call.input_data,
+                call.output_data,
+                call.error,
+                call.revert_reason,
+            ),
+        )
+
+    @staticmethod
     def _upsert_details(conn: sqlite3.Connection, inspection: TransactionInspection) -> None:
         conn.execute(
             """
@@ -527,6 +652,37 @@ def _log_from_row(row: sqlite3.Row) -> RawTransactionLog:
         topics=tuple(raw_topics),
         data=str(row["data"]),
         removed=bool(row["removed"]),
+    )
+
+
+def _trace_call_from_row(row: sqlite3.Row) -> InternalCall:
+    raw_trace_address = json_loads(str(row["trace_address_json"]))
+    if not isinstance(raw_trace_address, list) or not all(
+        isinstance(item, int) and item >= 0 for item in raw_trace_address
+    ):
+        raise ValueError("Stored trace address is invalid.")
+    return InternalCall(
+        trace_address=tuple(raw_trace_address),
+        depth=int(row["depth"]),
+        call_type=str(row["call_type"]),
+        from_address=(
+            str(row["from_address"]) if row["from_address"] is not None else None
+        ),
+        to_address=str(row["to_address"]) if row["to_address"] is not None else None,
+        created_contract=(
+            str(row["created_contract"])
+            if row["created_contract"] is not None
+            else None
+        ),
+        value_wei=int(str(row["value_wei"])),
+        gas_limit=int(row["gas_limit"]) if row["gas_limit"] is not None else None,
+        gas_used=int(row["gas_used"]) if row["gas_used"] is not None else None,
+        input_data=str(row["input_data"]),
+        output_data=str(row["output_data"]),
+        error=str(row["error"]) if row["error"] is not None else None,
+        revert_reason=(
+            str(row["revert_reason"]) if row["revert_reason"] is not None else None
+        ),
     )
 
 

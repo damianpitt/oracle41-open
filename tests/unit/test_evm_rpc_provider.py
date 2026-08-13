@@ -13,9 +13,12 @@ import pytest
 from oracle41_open.core.models import (
     Chain,
     ProviderAuthError,
+    ProviderError,
     ProviderResponseError,
     ProxyKind,
     ProxyResolutionStatus,
+    TraceDialect,
+    TraceStatus,
 )
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.jsonrpc import JSONRPCHTTPError, JSONRPCRemoteError
@@ -188,6 +191,124 @@ def test_revert_failover_continues_when_first_provider_returns_no_data() -> None
     assert result == revert_data
     assert [call[0] for call in first_rpc.calls].count("eth_call") == 1
     assert [call[0] for call in second_rpc.calls].count("eth_call") == 1
+
+
+def test_trace_discovery_prefers_debug_call_tracer_and_remembers_support() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["debug_traceTransaction"] = {
+        "type": "CALL",
+        "from": _FROM,
+        "to": _TO,
+        "gas": "0x20",
+        "gasUsed": "0x10",
+        "input": "0x",
+        "output": "0x",
+    }
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc
+    )
+
+    first = provider.get_transaction_trace(_TX_HASH, Chain.ETHEREUM)
+    second = provider.get_transaction_trace(_TX_HASH, Chain.ETHEREUM)
+
+    assert first.status is TraceStatus.COMPLETE
+    assert first.dialect is TraceDialect.DEBUG_CALL_TRACER
+    assert first.calls[0].to_address == _TO
+    assert first.raw_json is not None
+    assert second.dialect is TraceDialect.DEBUG_CALL_TRACER
+    assert provider.capabilities(Chain.ETHEREUM).traces is True
+    assert [call[0] for call in rpc.calls] == [
+        "debug_traceTransaction",
+        "debug_traceTransaction",
+    ]
+
+
+def test_trace_discovery_falls_back_to_parity_trace() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.errors_by_method["debug_traceTransaction"] = JSONRPCRemoteError(
+        "method not found", code=-32601
+    )
+    rpc.responses_by_method["trace_transaction"] = [
+        {
+            "type": "call",
+            "traceAddress": [],
+            "action": {
+                "callType": "call",
+                "from": _FROM,
+                "to": _TO,
+                "gas": "0x20",
+                "input": "0x",
+                "value": "0x1",
+            },
+            "result": {"gasUsed": "0x10", "output": "0x"},
+        }
+    ]
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc
+    )
+
+    result = provider.get_transaction_trace(_TX_HASH, Chain.ETHEREUM)
+
+    assert result.status is TraceStatus.COMPLETE
+    assert result.dialect is TraceDialect.PARITY_TRACE
+    assert result.calls[0].value_wei == 1
+    assert [call[0] for call in rpc.calls] == [
+        "debug_traceTransaction",
+        "trace_transaction",
+    ]
+
+
+def test_trace_discovery_reports_unsupported_capability() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.errors_by_method["debug_traceTransaction"] = JSONRPCRemoteError(
+        "method not found", code=-32601
+    )
+    rpc.errors_by_method["trace_transaction"] = JSONRPCRemoteError(
+        "method not found", code=-32601
+    )
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc
+    )
+
+    first = provider.get_transaction_trace(_TX_HASH, Chain.ETHEREUM)
+    second = provider.get_transaction_trace(_TX_HASH, Chain.ETHEREUM)
+
+    assert first.status is TraceStatus.UNSUPPORTED
+    assert second.status is TraceStatus.UNSUPPORTED
+    assert provider.capabilities(Chain.ETHEREUM).traces is False
+    assert len(rpc.calls) == 2
+
+
+def test_trace_failover_does_not_hide_temporary_failure_as_unsupported() -> None:
+    unsupported_rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    unsupported_rpc.errors_by_method["debug_traceTransaction"] = JSONRPCRemoteError(
+        "method not found", code=-32601
+    )
+    unsupported_rpc.errors_by_method["trace_transaction"] = JSONRPCRemoteError(
+        "method not found", code=-32601
+    )
+    failing_rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    failing_rpc.errors_by_method["debug_traceTransaction"] = JSONRPCRemoteError(
+        "node temporarily busy", code=-32000
+    )
+    providers = [
+        EVMJSONRPCProvider(
+            {Chain.ETHEREUM: "https://unsupported.example"},
+            source_name="unsupported",
+            rpc_client=unsupported_rpc,
+        ),
+        EVMJSONRPCProvider(
+            {Chain.ETHEREUM: "https://busy.example"},
+            source_name="busy",
+            rpc_client=failing_rpc,
+        ),
+    ]
+
+    with pytest.raises(ProviderError, match="trace providers failed"):
+        FailoverTransactionDataProvider(providers).get_transaction_trace(
+            _TX_HASH,
+            Chain.ETHEREUM,
+        )
 
 
 class _FakeRPCClient:

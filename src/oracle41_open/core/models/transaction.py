@@ -1,7 +1,7 @@
-"""Describe raw transaction and receipt inspection data.
+"""Describe raw transaction, receipt, and internal execution data.
 
-The models preserve calldata, logs, gas fields, status, provider source, and optional provider capabilities.
-ABI decoding is stored separately so raw blockchain data is never replaced.
+The models preserve calldata, logs, gas fields, trace completeness, provider source, and provider capabilities.
+ABI decoding is stored separately so raw blockchain and trace data are never replaced.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 
 from oracle41_open.core.models.chain import Chain
 
@@ -30,6 +31,48 @@ class RawTransactionLog:
     topics: tuple[str, ...]
     data: str
     removed: bool
+
+
+class TraceStatus(str, Enum):
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNSUPPORTED = "unsupported"
+    UNAVAILABLE = "unavailable"
+
+
+class TraceDialect(str, Enum):
+    DEBUG_CALL_TRACER = "debug_call_tracer"
+    PARITY_TRACE = "parity_trace"
+
+
+@dataclass(frozen=True)
+class InternalCall:
+    trace_address: tuple[int, ...]
+    depth: int
+    call_type: str
+    from_address: str | None
+    to_address: str | None
+    created_contract: str | None
+    value_wei: int
+    gas_limit: int | None
+    gas_used: int | None
+    input_data: str
+    output_data: str
+    error: str | None = None
+    revert_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class TransactionTrace:
+    chain: Chain
+    tx_hash: str
+    status: TraceStatus
+    calls: tuple[InternalCall, ...]
+    raw_json: str | None
+    source_provider: str
+    fetched_at: datetime
+    dialect: TraceDialect | None = None
+    error: str | None = None
 
 
 @dataclass(frozen=True)

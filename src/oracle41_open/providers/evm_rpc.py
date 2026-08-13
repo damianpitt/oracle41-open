@@ -1,7 +1,7 @@
-"""Inspect transactions through standard EVM JSON-RPC endpoints.
+"""Inspect transactions through EVM JSON-RPC endpoints.
 
-The provider loads receipts, resolves common proxy forms, replays reverted calls, and supports endpoint failover.
-Raw RPC failures are converted to structured errors without exposing endpoint secrets.
+The provider loads receipts and internal traces, discovers trace dialects, resolves common proxy forms, and replays reverted calls.
+Endpoint failover uses structured errors without exposing endpoint secrets.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
+from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import (
     Chain,
     ProviderAuthError,
@@ -25,7 +26,10 @@ from oracle41_open.core.models import (
     ProxyResolution,
     ProxyResolutionStatus,
     RawTransactionLog,
+    TraceDialect,
+    TraceStatus,
     TransactionInspection,
+    TransactionTrace,
 )
 from oracle41_open.providers.http_client import HTTPClient
 from oracle41_open.providers.jsonrpc import (
@@ -38,6 +42,7 @@ from oracle41_open.providers.jsonrpc import (
     JSONRPCTimeoutError,
 )
 from oracle41_open.providers.retry import retry_with_backoff
+from oracle41_open.providers.trace_mapper import map_debug_call_trace, map_parity_trace
 
 _EIP_1967_IMPLEMENTATION_SLOT = (
     "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
@@ -73,13 +78,19 @@ class EVMJSONRPCProvider:
         self._retry_backoff_multiplier = max(1.0, retry_backoff_multiplier)
         self._retry_max_delay_seconds = max(0.0, retry_max_delay_seconds)
         self._sleep_func = sleep_func or time.sleep
+        self._trace_dialects: dict[Chain, TraceDialect | None] = {}
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         configured = chain in self._endpoints
+        trace_support = (
+            self._trace_dialects[chain] is not None
+            if chain in self._trace_dialects
+            else None
+        )
         return ProviderCapabilities(
             transaction_lookup=configured,
             receipts=configured,
-            traces=None,
+            traces=trace_support if configured else False,
             archive_queries=None,
             proxy_resolution=configured,
             revert_replay=configured,
@@ -181,6 +192,73 @@ class EVMJSONRPCProvider:
                 return _extract_revert_data(cause.data)
             raise
         return None
+
+    def get_transaction_trace(
+        self,
+        tx_hash: str,
+        chain: Chain,
+    ) -> TransactionTrace:
+        normalized_hash = _require_hash(tx_hash)
+        endpoint = self._endpoint_for(chain)
+        if chain in self._trace_dialects:
+            known_dialect = self._trace_dialects[chain]
+            if known_dialect is None:
+                return self._unsupported_trace(normalized_hash, chain)
+            return self._load_trace(endpoint, normalized_hash, chain, known_dialect)
+
+        for dialect in (TraceDialect.DEBUG_CALL_TRACER, TraceDialect.PARITY_TRACE):
+            try:
+                trace = self._load_trace(endpoint, normalized_hash, chain, dialect)
+            except ProviderResponseError as error:
+                if _is_unsupported_rpc_method(error):
+                    continue
+                raise
+            self._trace_dialects[chain] = dialect
+            return trace
+
+        self._trace_dialects[chain] = None
+        return self._unsupported_trace(normalized_hash, chain)
+
+    def _load_trace(
+        self,
+        endpoint: str,
+        tx_hash: str,
+        chain: Chain,
+        dialect: TraceDialect,
+    ) -> TransactionTrace:
+        if dialect is TraceDialect.DEBUG_CALL_TRACER:
+            payload = self._rpc_call(
+                endpoint,
+                "debug_traceTransaction",
+                [tx_hash, {"tracer": "callTracer", "timeout": "20s"}],
+            )
+            mapped = map_debug_call_trace(payload)
+        else:
+            payload = self._rpc_call(endpoint, "trace_transaction", [tx_hash])
+            mapped = map_parity_trace(payload)
+        return TransactionTrace(
+            chain=chain,
+            tx_hash=tx_hash,
+            status=mapped.status,
+            calls=mapped.calls,
+            raw_json=json_dumps(payload, pretty=False).decode("utf-8"),
+            source_provider=self._source_name,
+            fetched_at=datetime.now(tz=UTC),
+            dialect=dialect,
+            error=mapped.error,
+        )
+
+    def _unsupported_trace(self, tx_hash: str, chain: Chain) -> TransactionTrace:
+        return TransactionTrace(
+            chain=chain,
+            tx_hash=tx_hash,
+            status=TraceStatus.UNSUPPORTED,
+            calls=(),
+            raw_json=None,
+            source_provider=self._source_name,
+            fetched_at=datetime.now(tz=UTC),
+            error="The configured endpoint does not support a recognized trace method.",
+        )
 
     def _endpoint_for(self, chain: Chain) -> str:
         endpoint = self._endpoints.get(chain)
@@ -361,6 +439,40 @@ class FailoverTransactionDataProvider:
             )
         raise ProviderError("All revert replay providers failed: " + "; ".join(errors))
 
+    def get_transaction_trace(
+        self,
+        tx_hash: str,
+        chain: Chain,
+    ) -> TransactionTrace:
+        errors: list[str] = []
+        unsupported: list[TransactionTrace] = []
+        for provider in self._providers:
+            if provider.capabilities(chain).traces is False:
+                continue
+            try:
+                trace = provider.get_transaction_trace(tx_hash, chain)
+            except ProviderError as error:
+                errors.append(str(error))
+                continue
+            if trace.status is TraceStatus.UNSUPPORTED:
+                unsupported.append(trace)
+                continue
+            return trace
+        if errors:
+            raise ProviderError("All transaction trace providers failed: " + "; ".join(errors))
+        if unsupported:
+            return unsupported[0]
+        return TransactionTrace(
+            chain=chain,
+            tx_hash=tx_hash.lower(),
+            status=TraceStatus.UNSUPPORTED,
+            calls=(),
+            raw_json=None,
+            source_provider="not-configured",
+            fetched_at=datetime.now(tz=UTC),
+            error=f"No transaction trace provider is configured for {chain.display_name}.",
+        )
+
     def _first_success(
         self,
         chain: Chain,
@@ -514,6 +626,25 @@ def _map_rpc_error(source_name: str, method: str, error: Exception) -> ProviderE
     if isinstance(error, JSONRPCPayloadError):
         return ProviderResponseError(f"{source_name} returned an invalid payload for {method}.")
     return ProviderResponseError(f"{source_name} failed for {method}: {error}")
+
+
+def _is_unsupported_rpc_method(error: ProviderResponseError) -> bool:
+    cause = error.__cause__
+    if not isinstance(cause, JSONRPCRemoteError):
+        return False
+    message = str(cause).lower()
+    return cause.code == -32601 or any(
+        text in message
+        for text in (
+            "method not found",
+            "method is not available",
+            "method not supported",
+            "unsupported method",
+            "method disabled",
+            "method is disabled",
+            "method not enabled",
+        )
+    )
 
 
 def _is_retryable(error: Exception) -> bool:

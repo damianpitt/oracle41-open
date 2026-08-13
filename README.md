@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a4` is an alpha release. It adds local and Blockscout-verified contract ABIs, EIP-1967/EIP-1167 proxy resolution, and deterministic custom-error decoding to Transaction Inspector. Unknown, malformed, and raw provider payloads remain available. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a5` is an alpha release. Transaction Inspector can now load and save internal contract calls from compatible JSON-RPC endpoints. It clearly reports whether a trace is complete, partial, unsupported, or temporarily unavailable. Unknown frames and raw provider payloads remain available. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -27,6 +27,8 @@ Version `0.3.0a4` is an alpha release. It adds local and Blockscout-verified con
 - Local user ABI management and optional verified ABI retrieval from Blockscout
 - EIP-1967 and EIP-1167 implementation resolution with block-specific caching
 - Custom and Solidity built-in revert decoding with raw-byte preservation
+- Expandable internal call trees from Geth-compatible and Parity-compatible trace endpoints
+- Per-chain trace capability discovery with explicit completeness states
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 ## Privacy and Scope
@@ -54,7 +56,7 @@ The desktop interface asks the core services for data. The core services decide 
 
 Network work runs in the background. The interface stays responsive while Oracle41 Open loads wallet activity, prices, transaction details, or verified contract information.
 
-Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, decoded calls, event logs, revert reasons, and proxy details while keeping the original raw data available.
+Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, internal calls, decoded calls, event logs, revert reasons, and proxy details while keeping the original raw data available.
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

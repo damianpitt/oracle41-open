@@ -22,12 +22,17 @@ from oracle41_open.core.models import (
     Chain,
     CompletenessState,
     DataProvenance,
+    InternalCall,
     ProviderCapabilities,
+    ProviderResponseError,
     ProxyKind,
     ProxyResolution,
     ProxyResolutionStatus,
     RawTransactionLog,
+    TraceDialect,
+    TraceStatus,
     TransactionInspection,
+    TransactionTrace,
     ValidationError,
 )
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
@@ -68,6 +73,8 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE transaction_trace_calls")
+        conn.execute("DROP TABLE transaction_traces")
         conn.execute("DROP TABLE proxy_resolutions")
         conn.execute("DROP TABLE contract_abis")
         conn.execute("DROP TABLE decoded_event_logs")
@@ -87,7 +94,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("5",)
+    assert version == ("6",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
 
@@ -119,6 +126,26 @@ def test_transaction_decoding_repository_roundtrip(tmp_path: Path) -> None:
     repository.save_decoding(Chain.ETHEREUM, _TX_HASH, decoding)
 
     assert repository.get_decoding(Chain.ETHEREUM, _TX_HASH) == decoding
+
+
+def test_transaction_trace_repository_roundtrip_and_replace(tmp_path: Path) -> None:
+    _, repository = _repository_with_transaction(tmp_path)
+    repository.save_inspection(_inspection())
+    trace = _trace()
+
+    repository.save_trace(trace)
+
+    assert repository.get_trace(Chain.ETHEREUM, _TX_HASH) == trace
+    unavailable = replace(
+        trace,
+        status=TraceStatus.UNAVAILABLE,
+        calls=(),
+        raw_json=None,
+        dialect=None,
+        error="temporary failure",
+    )
+    repository.save_trace(unavailable)
+    assert repository.get_trace(Chain.ETHEREUM, _TX_HASH) == unavailable
 
 
 def test_transaction_decoding_requires_raw_inspection(tmp_path: Path) -> None:
@@ -164,6 +191,7 @@ def test_transaction_inspection_service_reuses_persisted_result(tmp_path: Path) 
     assert second.decoding == first.decoding
     assert repository.get_decoding(Chain.ETHEREUM, _TX_HASH) == first.decoding
     assert provider.calls == 1
+    assert provider.trace_calls == 1
 
 
 def test_transaction_inspection_service_redecodes_stale_cached_result(tmp_path: Path) -> None:
@@ -186,6 +214,21 @@ def test_transaction_inspection_service_redecodes_stale_cached_result(tmp_path: 
     assert result.is_cached
     assert result.decoding == current_decoding
     assert provider.calls == 0
+    assert provider.trace_calls == 1
+
+
+def test_transaction_inspection_service_retries_unavailable_trace(tmp_path: Path) -> None:
+    _, repository = _repository_with_transaction(tmp_path)
+    provider = _RetryingTraceProvider(_inspection())
+    service = TransactionInspectionService(provider, repository)
+
+    first = service.inspect(_TX_HASH, Chain.ETHEREUM)
+    second = service.inspect(_TX_HASH, Chain.ETHEREUM)
+
+    assert first.trace is not None
+    assert first.trace.status is TraceStatus.UNAVAILABLE
+    assert second.trace == _trace()
+    assert provider.trace_calls == 2
 
 
 def test_transaction_inspection_resolves_proxy_and_decodes_custom_revert(
@@ -250,12 +293,14 @@ def test_transaction_inspection_resolves_proxy_and_decodes_custom_revert(
     assert provider.inspection_calls == 1
     assert provider.proxy_calls == 1
     assert provider.revert_calls == 1
+    assert provider.trace_calls == 1
 
 
 class _FakeTransactionProvider:
     def __init__(self, inspection: TransactionInspection) -> None:
         self.inspection = inspection
         self.calls = 0
+        self.trace_calls = 0
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         _ = chain
@@ -271,6 +316,10 @@ class _FakeTransactionProvider:
         self.calls += 1
         return self.inspection
 
+    def get_transaction_trace(self, tx_hash: str, chain: Chain) -> TransactionTrace:
+        self.trace_calls += 1
+        return _unsupported_trace(tx_hash, chain)
+
 
 class _ContextTransactionProvider:
     def __init__(
@@ -285,6 +334,7 @@ class _ContextTransactionProvider:
         self.inspection_calls = 0
         self.proxy_calls = 0
         self.revert_calls = 0
+        self.trace_calls = 0
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         _ = chain
@@ -318,6 +368,18 @@ class _ContextTransactionProvider:
         _ = inspection
         self.revert_calls += 1
         return self.revert_data
+
+    def get_transaction_trace(self, tx_hash: str, chain: Chain) -> TransactionTrace:
+        self.trace_calls += 1
+        return _unsupported_trace(tx_hash, chain)
+
+
+class _RetryingTraceProvider(_FakeTransactionProvider):
+    def get_transaction_trace(self, tx_hash: str, chain: Chain) -> TransactionTrace:
+        self.trace_calls += 1
+        if self.trace_calls == 1:
+            raise ProviderResponseError("temporary trace failure")
+        return _trace()
 
 
 def _repository_with_transaction(tmp_path: Path) -> tuple[SQLiteDatabase, TransactionRepository]:
@@ -382,4 +444,44 @@ def _inspection(
         else (RawTransactionLog(3, _TO, ("0x" + "01" * 32,), "0x", False),),
         source_provider="json-rpc",
         fetched_at=datetime(2026, 8, 10, 1, tzinfo=UTC),
+    )
+
+
+def _trace() -> TransactionTrace:
+    return TransactionTrace(
+        chain=Chain.ETHEREUM,
+        tx_hash=_TX_HASH,
+        status=TraceStatus.COMPLETE,
+        calls=(
+            InternalCall(
+                trace_address=(),
+                depth=0,
+                call_type="CALL",
+                from_address=_ADDRESS,
+                to_address=_TO,
+                created_contract=None,
+                value_wei=1,
+                gas_limit=21_000,
+                gas_used=20_000,
+                input_data="0x1234",
+                output_data="0x",
+            ),
+        ),
+        raw_json='{"type":"CALL"}',
+        source_provider="test-rpc",
+        fetched_at=datetime(2026, 8, 13, tzinfo=UTC),
+        dialect=TraceDialect.DEBUG_CALL_TRACER,
+    )
+
+
+def _unsupported_trace(tx_hash: str, chain: Chain) -> TransactionTrace:
+    return TransactionTrace(
+        chain=chain,
+        tx_hash=tx_hash,
+        status=TraceStatus.UNSUPPORTED,
+        calls=(),
+        raw_json=None,
+        source_provider="test-rpc",
+        fetched_at=datetime(2026, 8, 13, tzinfo=UTC),
+        error="trace methods unsupported",
     )

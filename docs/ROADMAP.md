@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 receipt ingestion, M5.2 deterministic token-standard decoding, and M5.3 contract ABI/proxy/revert decoding are implemented through `0.3.0a4`; internal traces, broader Blockscout data, action normalization, and wider proxy coverage remain.
+**Implementation status:** M5.1 receipt ingestion, M5.2 deterministic token-standard decoding, M5.3 contract ABI/proxy/revert decoding, and M5.4 internal traces are implemented through `0.3.0a5`; broader Blockscout data, action normalization, and wider proxy coverage remain.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -280,7 +280,7 @@ The roadmap uses these projects as directional references, not feature-equivalen
 
 Oracle41's differentiator is the combination of these ideas behind a read-only desktop boundary, explicit completeness metadata, and a small provider-independent Python architecture.
 
-## Immediate Next Slice: M5.4
+## Completed Slice: M5.4
 
 Add internal execution visibility and explicit provider capability states:
 
@@ -291,3 +291,17 @@ Add internal execution visibility and explicit provider capability states:
 5. Display an expandable execution tree while preserving raw trace payloads for unsupported frames.
 
 M5.4 is complete only when trace-capable endpoints produce deterministic internal actions, unsupported endpoints report an explicit capability gap, and a partial trace cannot be mistaken for complete execution history.
+
+**Status:** Complete in `0.3.0a5`. Geth call-tracer and Parity trace responses use one stored model. The inspector shows an expandable call tree and trace completeness, and temporary errors are kept separate from unsupported endpoint capabilities.
+
+## Immediate Next Slice: M5.5
+
+Turn decoded calls, logs, value transfers, and internal calls into a small set of understandable wallet actions:
+
+1. Define a versioned action model with participants, assets, amounts, protocol hints, and confidence.
+2. Normalize simple transfers, approvals, token swaps, contract deployments, and failed actions without changing raw records.
+3. Keep unmatched transactions as explicit unknown actions with their decoded and raw evidence.
+4. Store action provenance and decoder version so rules can be improved safely.
+5. Display action summaries in Activity and Transaction Inspector and include them in versioned exports.
+
+M5.5 is complete only when the same fixture creates the same ordered actions across providers and every summary links back to its source call, event, or internal transfer.
