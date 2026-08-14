@@ -82,4 +82,4 @@ The resolved paths can differ when `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, or `XDG_C
 
 ## Backup and Restore
 
-Backups contain local settings and all SQLite state, including canonical events, transaction receipts, raw logs, internal traces, decoded calls/events/reverts, contract ABIs, proxy resolutions, signature provenance, fees, and synchronization checkpoints. They do not contain provider API keys, custom RPC URLs, or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.
+Backups contain local settings and all SQLite state, including canonical events, transaction receipts, raw logs, internal traces, normalized actions, decoded calls/events/reverts, contract ABIs, proxy resolutions, signature provenance, fees, and synchronization checkpoints. They do not contain provider API keys, custom RPC URLs, or the provider cache. Restore should be used with the application closed or with no concurrent state-changing operation.

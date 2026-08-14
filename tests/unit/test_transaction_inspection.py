@@ -1,6 +1,6 @@
-"""Test transaction inspection, decoding persistence, and schema migration.
+"""Test transaction inspection, action persistence, and schema migration.
 
-The cases cover receipts, fees, cached re-decoding, ABIs, proxies, custom reverts, and raw-data requirements.
+The cases cover receipts, traces, actions, cached decoding, ABIs, proxies, reverts, and raw-data requirements.
 They protect the full M5 transaction enrichment path.
 """
 
@@ -36,6 +36,7 @@ from oracle41_open.core.models import (
     ValidationError,
 )
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
+from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
 from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.transaction_inspection_service import (
     TransactionInspectionService,
@@ -73,6 +74,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE transaction_actions")
         conn.execute("DROP TABLE transaction_trace_calls")
         conn.execute("DROP TABLE transaction_traces")
         conn.execute("DROP TABLE proxy_resolutions")
@@ -94,7 +96,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("6",)
+    assert version == ("7",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
 
@@ -148,6 +150,21 @@ def test_transaction_trace_repository_roundtrip_and_replace(tmp_path: Path) -> N
     assert repository.get_trace(Chain.ETHEREUM, _TX_HASH) == unavailable
 
 
+def test_transaction_action_repository_roundtrip_and_replace(tmp_path: Path) -> None:
+    _, repository = _repository_with_transaction(tmp_path)
+    inspection = _inspection()
+    repository.save_inspection(inspection)
+    decoding = StandardABIDecoder().decode(inspection)
+    actions = WalletActionNormalizer().normalize(inspection, decoding, _trace())
+
+    repository.save_actions(Chain.ETHEREUM, _TX_HASH, actions)
+
+    assert repository.get_actions(Chain.ETHEREUM, _TX_HASH) == actions
+    replacement = actions[:1]
+    repository.save_actions(Chain.ETHEREUM, _TX_HASH, replacement)
+    assert repository.get_actions(Chain.ETHEREUM, _TX_HASH) == replacement
+
+
 def test_transaction_decoding_requires_raw_inspection(tmp_path: Path) -> None:
     repository = TransactionRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
     decoding = StandardABIDecoder().decode(_inspection())
@@ -183,6 +200,11 @@ def test_transaction_inspection_service_reuses_persisted_result(tmp_path: Path) 
     service = TransactionInspectionService(provider, repository)
 
     first = service.inspect(_TX_HASH, Chain.ETHEREUM)
+    repository.save_actions(
+        Chain.ETHEREUM,
+        _TX_HASH,
+        tuple(replace(action, normalizer_version="0") for action in first.actions),
+    )
     second = service.inspect(_TX_HASH, Chain.ETHEREUM)
 
     assert not first.is_cached
@@ -190,6 +212,8 @@ def test_transaction_inspection_service_reuses_persisted_result(tmp_path: Path) 
     assert second.inspection == first.inspection
     assert second.decoding == first.decoding
     assert repository.get_decoding(Chain.ETHEREUM, _TX_HASH) == first.decoding
+    assert second.actions == first.actions
+    assert repository.get_actions(Chain.ETHEREUM, _TX_HASH) == first.actions
     assert provider.calls == 1
     assert provider.trace_calls == 1
 

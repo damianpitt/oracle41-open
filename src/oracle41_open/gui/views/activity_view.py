@@ -1,6 +1,6 @@
-"""Present wallet activity and transaction inspection.
+"""Present wallet activity, normalized actions, and transaction inspection.
 
-The view handles address input, filters, pagination, exports, background loading, and detailed receipt display.
+The view handles address input, filters, pagination, action exports, background loading, and receipt details.
 Provider and decoding work is delegated to core services.
 """
 
@@ -46,6 +46,7 @@ from oracle41_open.core.models import (
     TransactionInspection,
     TransactionTrace,
     ValidationError,
+    WalletAction,
 )
 from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.address_validator import AddressValidator
@@ -55,6 +56,8 @@ from oracle41_open.exports import (
     ActivityExportTemplate,
     write_activity_csv,
     write_activity_json,
+    write_wallet_actions_csv,
+    write_wallet_actions_json,
 )
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
 
@@ -98,6 +101,8 @@ class ActivityView(QWidget):
         self._is_inspecting_transaction = False
         self._retry_request: tuple[str | None, bool, bool] | None = None
         self._pending_load: tuple[str | None, bool, bool] | None = None
+        self._inspected_actions: tuple[WalletAction, ...] = ()
+        self._action_summaries_by_tx: dict[str, str] = {}
 
         self._chain_combo = QComboBox(self)
         for chain in Chain:
@@ -171,6 +176,12 @@ class ActivityView(QWidget):
         self._inspect_transaction_button = QPushButton("Inspect Receipt", self)
         self._inspect_transaction_button.clicked.connect(self._on_inspect_transaction_clicked)
         self._inspect_transaction_button.setEnabled(False)
+        self._export_actions_csv_button = QPushButton("Export Actions CSV", self)
+        self._export_actions_csv_button.clicked.connect(self._on_export_actions_csv_clicked)
+        self._export_actions_csv_button.setEnabled(False)
+        self._export_actions_json_button = QPushButton("Export Actions JSON", self)
+        self._export_actions_json_button.clicked.connect(self._on_export_actions_json_clicked)
+        self._export_actions_json_button.setEnabled(False)
 
         self._detail_drawer = QTextEdit(self)
         self._detail_drawer.setReadOnly(True)
@@ -225,7 +236,12 @@ class ActivityView(QWidget):
         root.addWidget(controls_box)
         root.addWidget(self._status_label)
         root.addWidget(self._items_list, stretch=1)
-        root.addWidget(self._inspect_transaction_button)
+        inspection_row = QHBoxLayout()
+        inspection_row.addWidget(self._inspect_transaction_button)
+        inspection_row.addWidget(self._export_actions_csv_button)
+        inspection_row.addWidget(self._export_actions_json_button)
+        inspection_row.addStretch(1)
+        root.addLayout(inspection_row)
         root.addWidget(self._detail_drawer, stretch=1)
         root.addWidget(self._trace_tree, stretch=1)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -326,6 +342,10 @@ class ActivityView(QWidget):
         self._active_wallet_address = None
         self._active_wallet_input = None
         self._labels_by_address = {}
+        self._inspected_actions = ()
+        self._action_summaries_by_tx = {}
+        self._export_actions_csv_button.setEnabled(False)
+        self._export_actions_json_button.setEnabled(False)
         self._items_list.clear()
         self._detail_drawer.clear()
         self._load_page(cursor=None, append=False, force_refresh=False)
@@ -340,6 +360,10 @@ class ActivityView(QWidget):
         self._active_wallet_address = None
         self._active_wallet_input = None
         self._labels_by_address = {}
+        self._inspected_actions = ()
+        self._action_summaries_by_tx = {}
+        self._export_actions_csv_button.setEnabled(False)
+        self._export_actions_json_button.setEnabled(False)
         self._items_list.clear()
         self._detail_drawer.clear()
         self._load_page(cursor=None, append=False, force_refresh=True)
@@ -551,6 +575,9 @@ class ActivityView(QWidget):
 
         self._is_inspecting_transaction = True
         self._inspect_transaction_button.setEnabled(False)
+        self._inspected_actions = ()
+        self._export_actions_csv_button.setEnabled(False)
+        self._export_actions_json_button.setEnabled(False)
         self._trace_tree.clear()
         self._trace_tree.setVisible(False)
         self._detail_drawer.setPlainText("Loading transaction and receipt...")
@@ -579,9 +606,27 @@ class ActivityView(QWidget):
                 raw_result.result.decoding,
                 raw_result.result.proxy_resolution,
                 raw_result.result.trace,
+                raw_result.result.actions,
             )
         )
         _populate_trace_tree(self._trace_tree, raw_result.result.trace)
+        self._inspected_actions = raw_result.result.actions
+        has_actions = bool(self._inspected_actions)
+        self._export_actions_csv_button.setEnabled(has_actions)
+        self._export_actions_json_button.setEnabled(has_actions)
+        if has_actions:
+            summary = "; ".join(action.summary for action in self._inspected_actions)
+            self._action_summaries_by_tx[raw_result.result.inspection.tx_hash] = summary
+            current = self._items_list.currentItem()
+            selected_item = self._selected_item()
+            if current is not None and selected_item is not None:
+                current.setText(
+                    _render_activity_list_row(
+                        selected_item,
+                        self._labels_by_address,
+                        summary,
+                    )
+                )
         source = "local ledger" if raw_result.result.is_cached else "provider and local ledger"
         trace_status = (
             raw_result.result.trace.status.value
@@ -593,6 +638,9 @@ class ActivityView(QWidget):
         )
 
     def _on_transaction_inspection_error(self, error: object) -> None:
+        self._inspected_actions = ()
+        self._export_actions_csv_button.setEnabled(False)
+        self._export_actions_json_button.setEnabled(False)
         self._trace_tree.clear()
         self._trace_tree.setVisible(False)
         self._detail_drawer.setPlainText(f"Transaction inspection failed: {error}")
@@ -629,6 +677,8 @@ class ActivityView(QWidget):
             enabled and not self._is_inspecting_transaction and self._selected_item() is not None
         )
         self._retry_button.setEnabled(enabled and self._retry_request is not None)
+        self._export_actions_csv_button.setEnabled(enabled and bool(self._inspected_actions))
+        self._export_actions_json_button.setEnabled(enabled and bool(self._inspected_actions))
         self._cancel_button.setEnabled(is_loading)
         if status_text is not None:
             self._status_label.setText(status_text)
@@ -652,7 +702,13 @@ class ActivityView(QWidget):
         self._items_list.clear()
         selected_widget_item: QListWidgetItem | None = None
         for item in self._visible_items:
-            list_item = QListWidgetItem(_render_activity_list_row(item, self._labels_by_address))
+            list_item = QListWidgetItem(
+                _render_activity_list_row(
+                    item,
+                    self._labels_by_address,
+                    self._action_summaries_by_tx.get(item.tx_hash),
+                )
+            )
             list_item.setData(Qt.ItemDataRole.UserRole, item)
             self._items_list.addItem(list_item)
             if selected_id is not None and item.id == selected_id:
@@ -668,6 +724,9 @@ class ActivityView(QWidget):
 
     def _on_item_selection_changed(self) -> None:
         item = self._selected_item()
+        self._inspected_actions = ()
+        self._export_actions_csv_button.setEnabled(False)
+        self._export_actions_json_button.setEnabled(False)
         self._trace_tree.clear()
         self._trace_tree.setVisible(False)
         self._inspect_transaction_button.setEnabled(
@@ -798,6 +857,38 @@ class ActivityView(QWidget):
         )
         self._status_label.setText(f"JSON export saved: {path}")
 
+    def _on_export_actions_csv_clicked(self) -> None:
+        if not self._inspected_actions:
+            self._status_label.setText("Inspect a transaction before exporting actions.")
+            return
+        tx_hash = self._inspected_actions[0].tx_hash
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Normalized Actions CSV",
+            f"actions-{tx_hash[:10]}.csv",
+            "CSV Files (*.csv);;All Files (*)",
+        )
+        if not file_name:
+            return
+        path = write_wallet_actions_csv(self._inspected_actions, Path(file_name))
+        self._status_label.setText(f"Action CSV export saved: {path}")
+
+    def _on_export_actions_json_clicked(self) -> None:
+        if not self._inspected_actions:
+            self._status_label.setText("Inspect a transaction before exporting actions.")
+            return
+        tx_hash = self._inspected_actions[0].tx_hash
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Normalized Actions JSON",
+            f"actions-{tx_hash[:10]}.json",
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if not file_name:
+            return
+        path = write_wallet_actions_json(self._inspected_actions, Path(file_name))
+        self._status_label.setText(f"Action JSON export saved: {path}")
+
 
 def _merge_activity_items(existing: list[ActivityItem], incoming: list[ActivityItem]) -> list[ActivityItem]:
     by_id: dict[str, ActivityItem] = {item.id: item for item in existing}
@@ -808,14 +899,19 @@ def _merge_activity_items(existing: list[ActivityItem], incoming: list[ActivityI
     return sorted(by_id.values(), key=lambda item: item.timestamp, reverse=True)
 
 
-def _render_activity_list_row(item: ActivityItem, labels_by_address: dict[str, str]) -> str:
+def _render_activity_list_row(
+    item: ActivityItem,
+    labels_by_address: dict[str, str],
+    action_summary: str | None = None,
+) -> str:
     from_display = _format_address_with_label(item.from_address, labels_by_address)
     to_display = _format_address_with_label(item.to_address, labels_by_address)
-    return (
+    row = (
         f"{item.timestamp.isoformat()} | {item.category.value} | {item.asset_symbol} | "
         f"value={item.value_decimal} | usd={_fmt_decimal(item.value_usd)} | "
         f"from={from_display} | to={to_display} | tx={item.tx_hash}"
     )
+    return f"{row} | action={action_summary}" if action_summary is not None else row
 
 
 def _render_activity_detail(
@@ -860,6 +956,7 @@ def _render_transaction_inspection(
     decoding: TransactionDecoding,
     proxy_resolution: ProxyResolution | None = None,
     trace: TransactionTrace | None = None,
+    actions: tuple[WalletAction, ...] = (),
 ) -> str:
     if inspection.status is True:
         status = "success"
@@ -882,6 +979,9 @@ def _render_transaction_inspection(
         f"- Nonce: {inspection.nonce}",
         f"- Native Value (wei): {inspection.value_wei}",
         f"- Method Selector: {selector or 'n/a'}",
+        "",
+        "Normalized Actions",
+        *_render_wallet_actions(actions),
         "",
         "Decoded Call",
         *_render_decoded_call(decoding.call),
@@ -920,6 +1020,35 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_wallet_actions(actions: tuple[WalletAction, ...]) -> tuple[str, ...]:
+    if not actions:
+        return ("- No normalized actions are available.",)
+    lines: list[str] = []
+    for action in actions:
+        lines.extend(
+            (
+                f"- Action #{action.action_index}: {action.kind.value}",
+                f"  Status: {action.status.value}",
+                f"  Summary: {action.summary}",
+                f"  Confidence: {action.confidence.value}",
+                f"  Protocol Hint: {action.protocol_hint or 'none'}",
+                f"  Rule Version: {action.normalizer_version}",
+            )
+        )
+        for participant in action.participants:
+            lines.append(f"  Participant: {participant.role}={participant.address}")
+        for asset in action.assets:
+            identifier = asset.symbol or asset.contract_address or asset.standard
+            token_id = f", token_id={asset.token_id}" if asset.token_id is not None else ""
+            lines.append(
+                f"  Asset: {asset.direction.value} {identifier}, amount={asset.raw_amount}{token_id}"
+            )
+        for evidence in action.evidence:
+            signature = f", signature={evidence.signature}" if evidence.signature else ""
+            lines.append(f"  Evidence: {evidence.kind.value}:{evidence.reference}{signature}")
+    return tuple(lines)
 
 
 def _render_transaction_trace(trace: TransactionTrace | None) -> tuple[str, ...]:

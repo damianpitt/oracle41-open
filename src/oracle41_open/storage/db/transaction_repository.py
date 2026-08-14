@@ -1,7 +1,7 @@
-"""Persist transaction inspections, traces, and decoded results.
+"""Persist transaction inspections, traces, decoded results, and wallet actions.
 
-Receipt details, raw logs, internal calls, fees, decoded values, and signature sources are stored without replacing canonical ledger rows.
-Trace and decoded data require an existing durable raw inspection.
+Receipt details, raw logs, internal calls, fees, decoded values, actions, and provenance remain separate from canonical ledger rows.
+Derived records require an existing durable raw inspection.
 """
 
 from __future__ import annotations
@@ -12,6 +12,12 @@ from datetime import UTC
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import (
+    ActionAsset,
+    ActionAssetDirection,
+    ActionConfidence,
+    ActionEvidence,
+    ActionEvidenceKind,
+    ActionParticipant,
     Chain,
     DecodedArgument,
     DecodedCall,
@@ -28,6 +34,9 @@ from oracle41_open.core.models import (
     TransactionInspection,
     TransactionTrace,
     ValidationError,
+    WalletAction,
+    WalletActionKind,
+    WalletActionStatus,
 )
 from oracle41_open.storage.db._helpers import parse_datetime, utc_now_iso
 from oracle41_open.storage.db.sqlite_database import SQLiteDatabase
@@ -314,6 +323,64 @@ class TransactionRepository:
             dialect=TraceDialect(str(raw_dialect)) if raw_dialect is not None else None,
             error=str(trace_row["error"]) if trace_row["error"] is not None else None,
         )
+
+    def save_actions(
+        self,
+        chain: Chain,
+        tx_hash: str,
+        actions: tuple[WalletAction, ...],
+    ) -> None:
+        normalized_hash = tx_hash.lower()
+        _validate_actions(chain, normalized_hash, actions)
+        with self._database.connection() as conn:
+            if not self._inspection_exists(conn, chain, normalized_hash):
+                raise ValidationError(
+                    "Transaction inspection is not present. Load the transaction first."
+                )
+            conn.execute(
+                "DELETE FROM transaction_actions WHERE chain = ? AND tx_hash = ?",
+                (chain.value, normalized_hash),
+            )
+            normalized_at = utc_now_iso()
+            for action in actions:
+                conn.execute(
+                    """
+                    INSERT INTO transaction_actions(
+                        chain, tx_hash, action_index, kind, status, summary,
+                        participants_json, assets_json, protocol_hint, confidence,
+                        evidence_json, normalizer_version, normalized_at
+                    )
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        chain.value,
+                        normalized_hash,
+                        action.action_index,
+                        action.kind.value,
+                        action.status.value,
+                        action.summary,
+                        _participants_json(action.participants),
+                        _assets_json(action.assets),
+                        action.protocol_hint,
+                        action.confidence.value,
+                        _evidence_json(action.evidence),
+                        action.normalizer_version,
+                        normalized_at,
+                    ),
+                )
+
+    def get_actions(self, chain: Chain, tx_hash: str) -> tuple[WalletAction, ...]:
+        normalized_hash = tx_hash.lower()
+        with self._database.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM transaction_actions
+                WHERE chain = ? AND tx_hash = ?
+                ORDER BY action_index
+                """,
+                (chain.value, normalized_hash),
+            ).fetchall()
+        return tuple(_action_from_row(chain, normalized_hash, row) for row in rows)
 
     @staticmethod
     def _transaction_exists(
@@ -684,6 +751,130 @@ def _trace_call_from_row(row: sqlite3.Row) -> InternalCall:
             str(row["revert_reason"]) if row["revert_reason"] is not None else None
         ),
     )
+
+
+def _validate_actions(
+    chain: Chain,
+    tx_hash: str,
+    actions: tuple[WalletAction, ...],
+) -> None:
+    expected_indexes = tuple(range(len(actions)))
+    actual_indexes = tuple(action.action_index for action in actions)
+    if actual_indexes != expected_indexes:
+        raise ValidationError("Transaction actions must use consecutive indexes starting at zero.")
+    if any(action.chain is not chain or action.tx_hash.lower() != tx_hash for action in actions):
+        raise ValidationError("Transaction actions do not match the requested transaction.")
+
+
+def _participants_json(participants: tuple[ActionParticipant, ...]) -> str:
+    payload = [{"role": item.role, "address": item.address} for item in participants]
+    return json_dumps(payload, pretty=False).decode("utf-8")
+
+
+def _assets_json(assets: tuple[ActionAsset, ...]) -> str:
+    payload = [
+        {
+            "direction": item.direction.value,
+            "standard": item.standard,
+            "contract_address": item.contract_address,
+            "symbol": item.symbol,
+            "token_id": item.token_id,
+            "raw_amount": item.raw_amount,
+        }
+        for item in assets
+    ]
+    return json_dumps(payload, pretty=False).decode("utf-8")
+
+
+def _evidence_json(evidence: tuple[ActionEvidence, ...]) -> str:
+    payload = [
+        {
+            "kind": item.kind.value,
+            "reference": item.reference,
+            "contract_address": item.contract_address,
+            "signature": item.signature,
+            "source_id": item.source_id,
+        }
+        for item in evidence
+    ]
+    return json_dumps(payload, pretty=False).decode("utf-8")
+
+
+def _action_from_row(
+    chain: Chain,
+    tx_hash: str,
+    row: sqlite3.Row,
+) -> WalletAction:
+    participants_payload = _object_list(row["participants_json"], "participants")
+    assets_payload = _object_list(row["assets_json"], "assets")
+    evidence_payload = _object_list(row["evidence_json"], "evidence")
+    return WalletAction(
+        chain=chain,
+        tx_hash=tx_hash,
+        action_index=int(row["action_index"]),
+        kind=WalletActionKind(str(row["kind"])),
+        status=WalletActionStatus(str(row["status"])),
+        summary=str(row["summary"]),
+        participants=tuple(
+            ActionParticipant(
+                role=_required_text(item, "role"),
+                address=_required_text(item, "address"),
+            )
+            for item in participants_payload
+        ),
+        assets=tuple(
+            ActionAsset(
+                direction=ActionAssetDirection(_required_text(item, "direction")),
+                standard=_required_text(item, "standard"),
+                contract_address=_optional_payload_text(item, "contract_address"),
+                symbol=_optional_payload_text(item, "symbol"),
+                token_id=_optional_payload_text(item, "token_id"),
+                raw_amount=_required_text(item, "raw_amount"),
+            )
+            for item in assets_payload
+        ),
+        protocol_hint=(
+            str(row["protocol_hint"]) if row["protocol_hint"] is not None else None
+        ),
+        confidence=ActionConfidence(str(row["confidence"])),
+        evidence=tuple(
+            ActionEvidence(
+                kind=ActionEvidenceKind(_required_text(item, "kind")),
+                reference=_required_text(item, "reference"),
+                contract_address=_optional_payload_text(item, "contract_address"),
+                signature=_optional_payload_text(item, "signature"),
+                source_id=_optional_payload_text(item, "source_id"),
+            )
+            for item in evidence_payload
+        ),
+        normalizer_version=str(row["normalizer_version"]),
+    )
+
+
+def _object_list(raw_json: object, field_name: str) -> list[dict[str, object]]:
+    payload = json_loads(str(raw_json))
+    if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
+        raise ValueError(f"Stored action {field_name} are invalid.")
+    return payload
+
+
+def _required_text(payload: dict[str, object], field_name: str) -> str:
+    value = payload.get(field_name)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"Stored action {field_name} is invalid.")
+    return value
+
+
+def _optional_payload_text(
+    payload: dict[str, object],
+    field_name: str,
+) -> str | None:
+    value = payload.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"Stored action {field_name} is invalid.")
+    return value
 
 
 def _optional_int_text(value: int | None) -> str | None:

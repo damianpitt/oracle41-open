@@ -1,9 +1,17 @@
 """Expose the supported export functions and templates.
 
-Activity, portfolio, watchlist, and snapshot reports share this public import surface.
+Action, activity, portfolio, watchlist, and snapshot reports share this public import surface.
 Serialization details remain outside GUI views and core services.
 """
 
+from oracle41_open.exports.action_export import (
+    ACTION_EXPORT_FORMAT,
+    ACTION_EXPORT_FORMAT_VERSION,
+    wallet_actions_csv_text,
+    wallet_actions_json_bytes,
+    write_wallet_actions_csv,
+    write_wallet_actions_json,
+)
 from oracle41_open.exports.csv_export import (
     activity_csv_text,
     portfolio_csv_text,
@@ -34,6 +42,8 @@ from oracle41_open.exports.templates import (
 )
 
 __all__ = [
+    "ACTION_EXPORT_FORMAT",
+    "ACTION_EXPORT_FORMAT_VERSION",
     "ACTIVITY_EXPORT_FORMAT",
     "ACTIVITY_EXPORT_FORMAT_VERSION",
     "ActivityExportContext",
@@ -48,6 +58,8 @@ __all__ = [
     "snapshot_json_bytes",
     "watchlist_csv_text",
     "watchlist_json_bytes",
+    "wallet_actions_csv_text",
+    "wallet_actions_json_bytes",
     "write_activity_csv",
     "write_activity_json",
     "write_portfolio_csv",
@@ -56,4 +68,6 @@ __all__ = [
     "write_snapshot_json",
     "write_watchlist_csv",
     "write_watchlist_json",
+    "write_wallet_actions_csv",
+    "write_wallet_actions_json",
 ]

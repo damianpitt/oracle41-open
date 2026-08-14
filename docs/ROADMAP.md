@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 receipt ingestion, M5.2 deterministic token-standard decoding, M5.3 contract ABI/proxy/revert decoding, and M5.4 internal traces are implemented through `0.3.0a5`; broader Blockscout data, action normalization, and wider proxy coverage remain.
+**Implementation status:** M5.1 receipt ingestion, M5.2 deterministic token-standard decoding, M5.3 contract ABI/proxy/revert decoding, M5.4 internal traces, and M5.5 wallet-action normalization are implemented through `0.3.0a6`; broader Blockscout data and wider proxy coverage remain.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -294,7 +294,7 @@ M5.4 is complete only when trace-capable endpoints produce deterministic interna
 
 **Status:** Complete in `0.3.0a5`. Geth call-tracer and Parity trace responses use one stored model. The inspector shows an expandable call tree and trace completeness, and temporary errors are kept separate from unsupported endpoint capabilities.
 
-## Immediate Next Slice: M5.5
+## Completed Slice: M5.5
 
 Turn decoded calls, logs, value transfers, and internal calls into a small set of understandable wallet actions:
 
@@ -305,3 +305,17 @@ Turn decoded calls, logs, value transfers, and internal calls into a small set o
 5. Display action summaries in Activity and Transaction Inspector and include them in versioned exports.
 
 M5.5 is complete only when the same fixture creates the same ordered actions across providers and every summary links back to its source call, event, or internal transfer.
+
+**Status:** Complete in `0.3.0a6`. Actions are rebuilt from provider-independent stored evidence, saved with rule version 1, shown in Activity and Transaction Inspector, and available through versioned CSV and JSON exports.
+
+## Immediate Next Slice: M5.6
+
+Add Blockscout transaction and contract context as an optional, provenance-aware enrichment source:
+
+1. Discover Blockscout API capabilities per supported chain.
+2. Load verified contract names, creation details, and decoded transaction context on request.
+3. Merge Blockscout context without replacing JSON-RPC receipts, raw logs, traces, or local ABI results.
+4. Record source references and verification state for every added label or decoded field.
+5. Show clear unavailable and unsupported states when a chain or endpoint lacks the requested data.
+
+M5.6 is complete only when optional Blockscout enrichment improves understandable output without changing deterministic results from existing raw evidence.

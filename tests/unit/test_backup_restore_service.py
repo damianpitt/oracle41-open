@@ -1,6 +1,6 @@
 """Test local backup and restore behavior.
 
-The cases verify settings, ledger data, transaction inspection, traces, decoding, ABIs, manifests, and SQLite integrity checks.
+The cases verify settings, ledger data, transaction inspection, traces, actions, decoding, ABIs, manifests, and SQLite integrity checks.
 They also reject incomplete or unsupported backup bundles.
 """
 
@@ -33,6 +33,7 @@ from oracle41_open.core.models import (
     TransactionTrace,
 )
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
+from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
 from oracle41_open.storage.backup_restore import BackupRestoreError, BackupRestoreService
 from oracle41_open.storage.db import (
     ContractABIRepository,
@@ -90,6 +91,16 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     )
     source_trace = _transaction_trace(source_address)
     transaction_repository.save_trace(source_trace)
+    source_actions = WalletActionNormalizer().normalize(
+        source_inspection,
+        source_decoding,
+        source_trace,
+    )
+    transaction_repository.save_actions(
+        Chain.ETHEREUM,
+        _LEDGER_TX_HASH,
+        source_actions,
+    )
     source_abi = ContractABIRecord(
         chain=Chain.ETHEREUM,
         contract_address="0x2222222222222222222222222222222222222222",
@@ -149,6 +160,11 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         _LEDGER_TX_HASH,
     )
     assert restored_trace == source_trace
+    restored_actions = TransactionRepository(sqlite_database).get_actions(
+        Chain.ETHEREUM,
+        _LEDGER_TX_HASH,
+    )
+    assert restored_actions == source_actions
     assert ContractABIRepository(sqlite_database).get_contract_abi(
         Chain.ETHEREUM,
         source_abi.contract_address,

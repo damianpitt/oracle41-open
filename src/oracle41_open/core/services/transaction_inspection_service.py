@@ -1,7 +1,7 @@
-"""Enrich canonical transactions with receipts, traces, and decoded details.
+"""Enrich canonical transactions with receipts, traces, decoding, and actions.
 
-The service reuses durable raw data, retries temporary trace failures, resolves proxy implementations, and loads matching ABIs.
-Decoder fingerprints trigger safe re-decoding of calls, logs, and reverts when an ABI changes.
+The service reuses durable raw data, retries temporary trace failures, resolves proxies, and loads matching ABIs.
+Decoded evidence is normalized into versioned actions without replacing its source records.
 """
 
 from __future__ import annotations
@@ -22,8 +22,10 @@ from oracle41_open.core.models import (
     TransactionDecoding,
     TransactionInspection,
     TransactionTrace,
+    WalletAction,
 )
 from oracle41_open.core.services.abi_decoder import SignatureRegistry, StandardABIDecoder
+from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
 from oracle41_open.providers.transaction_provider import TransactionDataProvider
 
 
@@ -59,6 +61,17 @@ class TransactionInspectionStore(Protocol):
     def get_trace(self, chain: Chain, tx_hash: str) -> TransactionTrace | None:
         ...
 
+    def save_actions(
+        self,
+        chain: Chain,
+        tx_hash: str,
+        actions: tuple[WalletAction, ...],
+    ) -> None:
+        ...
+
+    def get_actions(self, chain: Chain, tx_hash: str) -> tuple[WalletAction, ...]:
+        ...
+
 
 class TransactionDecoder(Protocol):
     version: str
@@ -76,6 +89,18 @@ class TransactionDecoder(Protocol):
         revert_data: str | None = None,
         implementation_address: str | None = None,
     ) -> TransactionDecoding:
+        ...
+
+
+class ActionNormalizer(Protocol):
+    version: str
+
+    def normalize(
+        self,
+        inspection: TransactionInspection,
+        decoding: TransactionDecoding,
+        trace: TransactionTrace | None,
+    ) -> tuple[WalletAction, ...]:
         ...
 
 
@@ -108,6 +133,7 @@ class TransactionInspectionResult:
     is_cached: bool
     proxy_resolution: ProxyResolution | None = None
     trace: TransactionTrace | None = None
+    actions: tuple[WalletAction, ...] = ()
 
 
 class TransactionInspectionService:
@@ -118,12 +144,14 @@ class TransactionInspectionService:
         decoder: TransactionDecoder | None = None,
         abi_registry_provider: ContractABIRegistryProvider | None = None,
         proxy_repository: ProxyResolutionStore | None = None,
+        action_normalizer: ActionNormalizer | None = None,
     ) -> None:
         self._provider = provider
         self._repository = repository
         self._decoder = decoder or StandardABIDecoder()
         self._abi_registry_provider = abi_registry_provider
         self._proxy_repository = proxy_repository
+        self._action_normalizer = action_normalizer or WalletActionNormalizer()
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         return self._provider.capabilities(chain)
@@ -151,12 +179,14 @@ class TransactionInspectionService:
             stored_decoding is not None
             and stored_decoding.decoder_version == expected_decoder_version
         ):
+            actions = self._load_actions(inspection, stored_decoding, trace)
             return TransactionInspectionResult(
                 inspection=inspection,
                 decoding=stored_decoding,
                 is_cached=True,
                 proxy_resolution=proxy_resolution,
                 trace=trace,
+                actions=actions,
             )
 
         revert_data = None
@@ -180,13 +210,27 @@ class TransactionInspectionService:
             implementation_address=implementation_address,
         )
         self._repository.save_decoding(chain, tx_hash, decoding)
+        actions = self._load_actions(inspection, decoding, trace)
         return TransactionInspectionResult(
             inspection=inspection,
             decoding=decoding,
             is_cached=is_cached,
             proxy_resolution=proxy_resolution,
             trace=trace,
+            actions=actions,
         )
+
+    def _load_actions(
+        self,
+        inspection: TransactionInspection,
+        decoding: TransactionDecoding,
+        trace: TransactionTrace | None,
+    ) -> tuple[WalletAction, ...]:
+        actions = self._action_normalizer.normalize(inspection, decoding, trace)
+        stored = self._repository.get_actions(inspection.chain, inspection.tx_hash)
+        if stored != actions:
+            self._repository.save_actions(inspection.chain, inspection.tx_hash, actions)
+        return actions
 
     def _load_trace(
         self,

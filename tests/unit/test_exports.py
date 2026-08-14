@@ -1,6 +1,6 @@
 """Test CSV and JSON export formats.
 
-The cases cover activity, portfolio, watchlist, snapshot, field templates, metadata, and stable versions.
+The cases cover actions, activity, portfolios, watchlists, snapshots, templates, metadata, and stable versions.
 They protect public file compatibility and value formatting.
 """
 
@@ -13,6 +13,12 @@ from pathlib import Path
 
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import (
+    ActionAsset,
+    ActionAssetDirection,
+    ActionConfidence,
+    ActionEvidence,
+    ActionEvidenceKind,
+    ActionParticipant,
     ActivityCategory,
     ActivityItem,
     Chain,
@@ -20,6 +26,9 @@ from oracle41_open.core.models import (
     DataProvenance,
     Token,
     TokenBalance,
+    WalletAction,
+    WalletActionKind,
+    WalletActionStatus,
     WalletOverviewResult,
     WatchlistEntry,
 )
@@ -40,6 +49,8 @@ from oracle41_open.exports import (
     portfolio_json_bytes,
     snapshot_csv_text,
     snapshot_json_bytes,
+    wallet_actions_csv_text,
+    wallet_actions_json_bytes,
     watchlist_csv_text,
     watchlist_json_bytes,
     write_activity_csv,
@@ -48,6 +59,8 @@ from oracle41_open.exports import (
     write_portfolio_json,
     write_snapshot_csv,
     write_snapshot_json,
+    write_wallet_actions_csv,
+    write_wallet_actions_json,
     write_watchlist_csv,
     write_watchlist_json,
 )
@@ -74,6 +87,32 @@ def test_activity_csv_text_contains_expected_columns_and_rows() -> None:
     assert rows[1][2] == "erc20"
     assert rows[2][2] == "external"
     assert len(rows) == 3
+
+
+def test_wallet_action_exports_preserve_nested_evidence_and_version() -> None:
+    actions = (_sample_action(),)
+
+    rows = list(csv.reader(wallet_actions_csv_text(actions).splitlines()))
+    evidence_index = rows[0].index("evidence")
+    assert rows[1][3] == "transfer"
+    assert "log:3" in rows[1][evidence_index]
+
+    payload = json_loads(wallet_actions_json_bytes(actions, pretty=False))
+    assert payload["format"] == "oracle41-wallet-actions"
+    assert payload["format_version"] == 1
+    assert payload["items"][0]["assets"][0]["raw_amount"] == "25"
+    assert payload["items"][0]["evidence"][0]["reference"] == "log:3"
+
+
+def test_write_wallet_action_exports_create_files(tmp_path: Path) -> None:
+    actions = (_sample_action(),)
+
+    csv_path = write_wallet_actions_csv(actions, tmp_path / "actions.csv")
+    json_path = write_wallet_actions_json(actions, tmp_path / "actions.json")
+
+    assert csv_path.exists()
+    assert json_path.exists()
+    assert "normalizer_version" in csv_path.read_text(encoding="utf-8")
 
 
 def test_activity_csv_text_compact_template_uses_subset_columns() -> None:
@@ -315,6 +354,46 @@ def _sample_items() -> list[ActivityItem]:
             chain=Chain.ETHEREUM,
         ),
     ]
+
+
+def _sample_action() -> WalletAction:
+    sender = "0x1111111111111111111111111111111111111111"
+    recipient = "0x2222222222222222222222222222222222222222"
+    contract = "0x3333333333333333333333333333333333333333"
+    return WalletAction(
+        chain=Chain.ETHEREUM,
+        tx_hash="0xaaa",
+        action_index=0,
+        kind=WalletActionKind.TRANSFER,
+        status=WalletActionStatus.SUCCESS,
+        summary="Transfer ERC-20",
+        participants=(
+            ActionParticipant("sender", sender),
+            ActionParticipant("recipient", recipient),
+        ),
+        assets=(
+            ActionAsset(
+                ActionAssetDirection.OUT,
+                "ERC-20",
+                contract,
+                None,
+                None,
+                "25",
+            ),
+        ),
+        protocol_hint=None,
+        confidence=ActionConfidence.HIGH,
+        evidence=(
+            ActionEvidence(
+                ActionEvidenceKind.EVENT,
+                "log:3",
+                contract_address=contract,
+                signature="Transfer(address,address,uint256)",
+                source_id="bundled:erc20",
+            ),
+        ),
+        normalizer_version="1",
+    )
 
 
 def _sample_watchlist_entries() -> list[WatchlistEntry]:

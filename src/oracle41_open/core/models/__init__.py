@@ -56,6 +56,17 @@ from oracle41_open.core.models.transaction import (
     TransactionInspection,
     TransactionTrace,
 )
+from oracle41_open.core.models.wallet_action import (
+    ActionAsset,
+    ActionAssetDirection,
+    ActionConfidence,
+    ActionEvidence,
+    ActionEvidenceKind,
+    ActionParticipant,
+    WalletAction,
+    WalletActionKind,
+    WalletActionStatus,
+)
 from oracle41_open.core.models.wallet_overview import WalletOverviewResult
 from oracle41_open.core.models.watchlist_entry import WatchlistEntry
 
@@ -64,6 +75,12 @@ __all__ = [
     "ActivityItem",
     "ActivityPage",
     "ABIArgumentDefinition",
+    "ActionAsset",
+    "ActionAssetDirection",
+    "ActionConfidence",
+    "ActionEvidence",
+    "ActionEvidenceKind",
+    "ActionParticipant",
     "ApprovalRecord",
     "AssetMovement",
     "AssetRecord",
@@ -108,5 +125,8 @@ __all__ = [
     "TransactionDecoding",
     "ValidationError",
     "WalletOverviewResult",
+    "WalletAction",
+    "WalletActionKind",
+    "WalletActionStatus",
     "WatchlistEntry",
 ]

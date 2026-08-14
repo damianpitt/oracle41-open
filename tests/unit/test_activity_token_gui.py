@@ -31,6 +31,7 @@ from oracle41_open.core.models import (
 )
 from oracle41_open.core.services import AddressResolution
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
+from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
 from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.gui.views.activity_view import ActivityView
@@ -157,6 +158,11 @@ def test_activity_gui_inspects_selected_transaction(
     assert "Internal Execution" in detail
     assert "Completeness: complete" in detail
     assert "CALL" in detail
+    assert "Normalized Actions" in detail
+    assert "unknown" in detail
+    assert view._export_actions_csv_button.isEnabled()
+    assert view._export_actions_json_button.isEnabled()
+    assert "action=Unknown transaction action" in view._items_list.currentItem().text()
     assert not view._trace_tree.isHidden()
     assert view._trace_tree.topLevelItemCount() == 1
     assert view._trace_tree.topLevelItem(0).text(0) == "CALL"
@@ -351,34 +357,37 @@ class _FakeTransactionInspectionService:
             source_provider="test-rpc",
             fetched_at=datetime(2026, 8, 10, tzinfo=UTC),
         )
+        decoding = StandardABIDecoder().decode(inspection)
+        trace = TransactionTrace(
+            chain=chain,
+            tx_hash=tx_hash,
+            status=TraceStatus.COMPLETE,
+            calls=(
+                InternalCall(
+                    trace_address=(),
+                    depth=0,
+                    call_type="CALL",
+                    from_address=_ADDRESS,
+                    to_address="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    created_contract=None,
+                    value_wei=0,
+                    gas_limit=21_000,
+                    gas_used=20_000,
+                    input_data="0xa9059cbb",
+                    output_data="0x",
+                ),
+            ),
+            raw_json='{"type":"CALL"}',
+            source_provider="test-rpc",
+            fetched_at=datetime(2026, 8, 13, tzinfo=UTC),
+            dialect=TraceDialect.DEBUG_CALL_TRACER,
+        )
         return TransactionInspectionResult(
             inspection=inspection,
-            decoding=StandardABIDecoder().decode(inspection),
+            decoding=decoding,
             is_cached=False,
-            trace=TransactionTrace(
-                chain=chain,
-                tx_hash=tx_hash,
-                status=TraceStatus.COMPLETE,
-                calls=(
-                    InternalCall(
-                        trace_address=(),
-                        depth=0,
-                        call_type="CALL",
-                        from_address=_ADDRESS,
-                        to_address="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                        created_contract=None,
-                        value_wei=0,
-                        gas_limit=21_000,
-                        gas_used=20_000,
-                        input_data="0xa9059cbb",
-                        output_data="0x",
-                    ),
-                ),
-                raw_json='{"type":"CALL"}',
-                source_provider="test-rpc",
-                fetched_at=datetime(2026, 8, 13, tzinfo=UTC),
-                dialect=TraceDialect.DEBUG_CALL_TRACER,
-            ),
+            trace=trace,
+            actions=WalletActionNormalizer().normalize(inspection, decoding, trace),
         )
 
 

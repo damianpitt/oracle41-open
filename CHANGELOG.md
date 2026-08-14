@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a5] - Unreleased
+## [0.3.0a6] - Unreleased
+
+### Added
+
+- Versioned wallet-action models for transfers, approvals, simple swaps, deployments, contract calls, and unknown activity.
+- Action participants, raw asset amounts, transaction-initiator directions, confidence, protocol hints, and source-evidence references.
+- Schema-v7 storage for ordered normalized actions and their normalizer version.
+- Normalized Action summaries in Activity and Transaction Inspector.
+- Versioned `oracle41-wallet-actions` CSV and JSON exports with complete nested evidence.
+
+### Changed
+
+- Transaction Inspector re-normalizes saved raw evidence locally and updates stored actions only when deterministic output changes.
+- Backup and restore preserve normalized actions as part of SQLite state.
+
+### Known Limitations
+
+- Swap recognition is intentionally limited to one wallet outflow and one wallet inflow involving different token contracts.
+- Token action amounts are raw on-chain values; decimal and price enrichment remains in the existing activity and portfolio layers.
+- Protocol hints use decoded method names where available and do not yet provide a full protocol-label registry.
+
+## [0.3.0a5] - 2026-08-13
 
 ### Added
 

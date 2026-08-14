@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 6
+_SCHEMA_VERSION = 7
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -417,6 +417,29 @@ CREATE INDEX idx_transaction_trace_calls_target
     ON transaction_trace_calls(chain, to_address);
 """
 
+_SCHEMA_V7_SQL = """
+CREATE TABLE transaction_actions (
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    action_index INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    participants_json TEXT NOT NULL,
+    assets_json TEXT NOT NULL,
+    protocol_hint TEXT,
+    confidence TEXT NOT NULL,
+    evidence_json TEXT NOT NULL,
+    normalizer_version TEXT NOT NULL,
+    normalized_at TEXT NOT NULL,
+    PRIMARY KEY(chain, tx_hash, action_index),
+    FOREIGN KEY(chain, tx_hash)
+        REFERENCES ledger_transaction_receipts(chain, tx_hash) ON DELETE CASCADE
+);
+CREATE INDEX idx_transaction_actions_kind
+    ON transaction_actions(chain, kind, status);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -424,6 +447,7 @@ _MIGRATIONS = {
     4: _SCHEMA_V4_SQL,
     5: _SCHEMA_V5_SQL,
     6: _SCHEMA_V6_SQL,
+    7: _SCHEMA_V7_SQL,
 }
 
 
