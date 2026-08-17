@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from oracle41_open.core.models import Chain, ProviderRateLimitError
+from oracle41_open.core.models import Chain, EnrichmentStatus, ProviderRateLimitError
 from oracle41_open.providers.blockscout import BlockscoutABIProvider
 from oracle41_open.providers.http_client import HTTPRequest, HTTPResponse
 
@@ -84,11 +84,82 @@ def test_blockscout_provider_retries_rate_limits_without_leaking_url() -> None:
     assert "private-key" not in str(captured.value)
 
 
+def test_blockscout_provider_loads_transaction_and_creation_context() -> None:
+    transaction = {
+        "method": "execute",
+        "transaction_types": ["contract_call", "token_transfer"],
+        "to": {
+            "hash": _ADDRESS,
+            "name": "Proxy",
+            "is_contract": True,
+            "is_verified": True,
+        },
+        "decoded_input": {
+            "method_call": "execute(uint256 amount)",
+            "method_id": "0x12345678",
+            "parameters": [{"name": "amount", "type": "uint256", "value": "42"}],
+        },
+    }
+    address = {
+        "hash": _ADDRESS,
+        "name": "Vault",
+        "implementation_name": "VaultV2",
+        "is_contract": True,
+        "is_verified": True,
+        "creator_address_hash": "0x" + "22" * 20,
+        "creation_transaction_hash": "0x" + "33" * 32,
+    }
+    client = _FakeHTTPClient(
+        HTTPResponse(200, json.dumps(transaction).encode(), {}),
+        HTTPResponse(200, json.dumps(address).encode(), {}),
+    )
+    provider = BlockscoutABIProvider(
+        {Chain.ETHEREUM: "https://explorer.example"},
+        http_client=client,  # type: ignore[arg-type]
+    )
+
+    result = provider.fetch_transaction_enrichment(Chain.ETHEREUM, "0x" + "ab" * 32)
+
+    assert result.status is EnrichmentStatus.AVAILABLE
+    assert result.method_name == "execute"
+    assert result.decoded_method_call == "execute(uint256 amount)"
+    assert result.decoded_parameters[0].value == "42"
+    assert result.target_context is not None
+    assert result.target_context.name == "Vault"
+    assert result.target_context.implementation_name == "VaultV2"
+    assert result.target_context.is_verified
+    assert result.target_context.creation_tx_hash == "0x" + "33" * 32
+    assert result.source_reference == "https://explorer.example/tx/" + "0x" + "ab" * 32
+    assert len(client.requests) == 2
+
+
+def test_blockscout_enrichment_reports_not_found_and_unsupported() -> None:
+    missing_provider = BlockscoutABIProvider(
+        {Chain.ETHEREUM: "https://explorer.example"},
+        http_client=_FakeHTTPClient(HTTPResponse(404, b"{}", {})),  # type: ignore[arg-type]
+    )
+    unsupported_provider = BlockscoutABIProvider({})
+
+    missing = missing_provider.fetch_transaction_enrichment(
+        Chain.ETHEREUM,
+        "0x" + "ab" * 32,
+    )
+    unsupported = unsupported_provider.fetch_transaction_enrichment(
+        Chain.BASE,
+        "0x" + "ab" * 32,
+    )
+
+    assert missing.status is EnrichmentStatus.NOT_FOUND
+    assert unsupported.status is EnrichmentStatus.UNSUPPORTED
+    assert not unsupported_provider.capabilities(Chain.BASE).transaction_context
+
+
 class _FakeHTTPClient:
-    def __init__(self, response: HTTPResponse) -> None:
-        self.response = response
+    def __init__(self, *responses: HTTPResponse) -> None:
+        self.responses = responses
         self.requests: list[HTTPRequest] = []
 
     def send(self, request: HTTPRequest) -> HTTPResponse:
         self.requests.append(request)
-        return self.response
+        index = min(len(self.requests) - 1, len(self.responses) - 1)
+        return self.responses[index]

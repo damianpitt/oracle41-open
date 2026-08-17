@@ -33,13 +33,15 @@ Failover is enabled only when two live providers are configured. Demonstration p
 
 ## Persistence
 
-SQLite schema v7 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, internal calls, decoded calls/events/reverts, wallet actions, contract ABIs, block-specific proxy resolutions, and signature-source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
+SQLite schema v8 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, internal calls, decoded calls/events/reverts, wallet actions, contract ABIs, block-specific proxy resolutions, optional explorer context, and source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
 
 `TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. The provider checks for Geth-compatible or Parity-compatible trace methods and converts either format into the same internal-call model. Trace status is stored separately from its calls, so partial data and unsupported endpoints cannot look complete. Full raw trace payloads remain available for future decoders.
 
 A deterministic decoder combines the bundled token-standard registry with address-specific user or Blockscout-verified ABIs after the raw inspection is durable. EIP-1967 and EIP-1167 resolutions are keyed by chain, proxy, and block so historical implementation context remains stable. Decoded, unknown, and malformed outcomes are persisted separately, so decoding cannot replace or discard source data. The GUI receives domain models rather than provider dictionaries.
 
 `WalletActionNormalizer` reads the saved receipt, decoded call and events, and internal trace. It produces ordered actions with participants, assets, confidence, a rule version, and references such as `call`, `log:3`, or `trace:0.1`. Unknown evidence remains an unknown action. The action layer can be rebuilt when rules improve because it never edits its source records.
+
+Blockscout enrichment is optional. It can add readable contract names, creation details, verification state, and explorer-decoded method context after local actions are complete. These fields use a separate schema-v8 table with source links and clear availability states. They do not change receipts, local ABI decoding, traces, or normalized actions.
 
 SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
 

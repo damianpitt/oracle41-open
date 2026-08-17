@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 receipt ingestion, M5.2 deterministic token-standard decoding, M5.3 contract ABI/proxy/revert decoding, M5.4 internal traces, and M5.5 wallet-action normalization are implemented through `0.3.0a6`; broader Blockscout data and wider proxy coverage remain.
+**Implementation status:** M5.1 through M5.6 are implemented through `0.3.0a7`. Transaction receipts, deterministic decoding, proxy and revert context, internal traces, wallet actions, and optional Blockscout context are available. Wider proxy coverage remains.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -308,7 +308,7 @@ M5.5 is complete only when the same fixture creates the same ordered actions acr
 
 **Status:** Complete in `0.3.0a6`. Actions are rebuilt from provider-independent stored evidence, saved with rule version 1, shown in Activity and Transaction Inspector, and available through versioned CSV and JSON exports.
 
-## Immediate Next Slice: M5.6
+## Completed Slice: M5.6
 
 Add Blockscout transaction and contract context as an optional, provenance-aware enrichment source:
 
@@ -319,3 +319,16 @@ Add Blockscout transaction and contract context as an optional, provenance-aware
 5. Show clear unavailable and unsupported states when a chain or endpoint lacks the requested data.
 
 M5.6 is complete only when optional Blockscout enrichment improves understandable output without changing deterministic results from existing raw evidence.
+
+**Status:** Complete in `0.3.0a7`. Blockscout API v2 context is stored separately with source links, verification flags, capability states, and retryable failure handling. Local decoding and normalized actions finish independently and remain unchanged by explorer output.
+
+## Immediate Next Slice: M5.7
+
+Make partial transaction understanding clearer and expand common proxy support:
+
+1. Add an action-set completeness result based on receipt and trace availability.
+2. Include completeness and missing-evidence reasons in action exports and Transaction Inspector.
+3. Add EIP-1967 beacon proxy resolution without changing historical block context.
+4. Keep unresolved and unsupported proxy forms explicit instead of guessing an implementation.
+
+M5.7 is complete only when users can see whether internal actions may be missing and beacon proxies resolve through block-specific, provenance-aware records.

@@ -65,7 +65,7 @@ def test_database_migrates_v1_state_without_losing_existing_rows(tmp_path: Path)
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'ledger_events'"
         ).fetchone()
 
-    assert version == ("7",)
+    assert version == ("8",)
     assert watchlist_count == (1,)
     assert ledger_table == ("ledger_events",)
 

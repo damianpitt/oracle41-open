@@ -6,4 +6,4 @@ It does not start the desktop interface or create runtime services.
 
 __all__ = ["__version__"]
 
-__version__ = "0.3.0a6"
+__version__ = "0.3.0a7"

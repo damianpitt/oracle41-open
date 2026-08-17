@@ -24,6 +24,13 @@ from oracle41_open.core.models.decoding import (
     SignatureSourceKind,
     TransactionDecoding,
 )
+from oracle41_open.core.models.enrichment import (
+    EnrichmentStatus,
+    ExplorerAddressContext,
+    ExplorerCapabilities,
+    ExplorerDecodedParameter,
+    TransactionEnrichment,
+)
 from oracle41_open.core.models.errors import (
     Oracle41Error,
     ProviderAuthError,
@@ -94,7 +101,11 @@ __all__ = [
     "DecodedEvent",
     "DecodedRevert",
     "ErrorSignatureDefinition",
+    "EnrichmentStatus",
     "EventSignatureDefinition",
+    "ExplorerAddressContext",
+    "ExplorerCapabilities",
+    "ExplorerDecodedParameter",
     "FeeRecord",
     "FunctionSignatureDefinition",
     "InternalCall",
@@ -123,6 +134,7 @@ __all__ = [
     "TransactionTrace",
     "TransactionInspection",
     "TransactionDecoding",
+    "TransactionEnrichment",
     "ValidationError",
     "WalletOverviewResult",
     "WalletAction",

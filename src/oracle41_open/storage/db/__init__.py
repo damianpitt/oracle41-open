@@ -12,6 +12,9 @@ from oracle41_open.storage.db.notes_repository import WalletNotesRepository
 from oracle41_open.storage.db.saved_views_repository import SavedViewsRepository
 from oracle41_open.storage.db.snapshots_repository import SnapshotsRepository
 from oracle41_open.storage.db.sqlite_database import SQLiteDatabase
+from oracle41_open.storage.db.transaction_enrichment_repository import (
+    TransactionEnrichmentRepository,
+)
 from oracle41_open.storage.db.transaction_repository import TransactionRepository
 from oracle41_open.storage.db.watchlist_repository import WatchlistRepository
 
@@ -23,6 +26,7 @@ __all__ = [
     "SQLiteDatabase",
     "SnapshotsRepository",
     "TransactionRepository",
+    "TransactionEnrichmentRepository",
     "WalletNote",
     "WalletNotesRepository",
     "WalletSnapshot",

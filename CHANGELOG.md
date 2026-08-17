@@ -2,7 +2,26 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a6] - Unreleased
+## [0.3.0a7] - Unreleased
+
+### Added
+
+- Optional Blockscout API v2 transaction context for readable methods, transaction types, decoded parameters, and contract labels.
+- Contract verification, implementation name, creator, and creation-transaction details with direct source links.
+- Schema-v8 storage for explorer enrichment with explicit available, not-found, unsupported, and unavailable states.
+- Transaction Inspector output that clearly separates optional explorer fields from local decoding and raw JSON-RPC evidence.
+
+### Changed
+
+- Successful, missing, and unsupported explorer results are cached; temporary failures are retried on the next inspection.
+- Blockscout enrichment runs after action normalization and cannot change deterministic wallet actions.
+
+### Known Limitations
+
+- Public Blockscout instances may differ in coverage, indexing delay, and API field availability.
+- Explorer-decoded values are supporting context. Raw receipts and local ABI decoding remain authoritative inside the application.
+
+## [0.3.0a6] - 2026-08-15
 
 ### Added
 

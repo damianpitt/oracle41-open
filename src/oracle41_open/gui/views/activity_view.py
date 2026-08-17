@@ -39,10 +39,12 @@ from oracle41_open.core.models import (
     DecodedCall,
     DecodedEvent,
     DecodedRevert,
+    ExplorerAddressContext,
     InternalCall,
     ProxyResolution,
     SignatureProvenance,
     TransactionDecoding,
+    TransactionEnrichment,
     TransactionInspection,
     TransactionTrace,
     ValidationError,
@@ -607,6 +609,7 @@ class ActivityView(QWidget):
                 raw_result.result.proxy_resolution,
                 raw_result.result.trace,
                 raw_result.result.actions,
+                raw_result.result.enrichment,
             )
         )
         _populate_trace_tree(self._trace_tree, raw_result.result.trace)
@@ -633,8 +636,14 @@ class ActivityView(QWidget):
             if raw_result.result.trace is not None
             else "unavailable"
         )
+        enrichment_status = (
+            raw_result.result.enrichment.status.value
+            if raw_result.result.enrichment is not None
+            else "not configured"
+        )
         self._status_label.setText(
-            f"Transaction receipt loaded from {source}. Internal trace: {trace_status}."
+            f"Transaction receipt loaded from {source}. Internal trace: {trace_status}. "
+            f"Explorer context: {enrichment_status}."
         )
 
     def _on_transaction_inspection_error(self, error: object) -> None:
@@ -957,6 +966,7 @@ def _render_transaction_inspection(
     proxy_resolution: ProxyResolution | None = None,
     trace: TransactionTrace | None = None,
     actions: tuple[WalletAction, ...] = (),
+    enrichment: TransactionEnrichment | None = None,
 ) -> str:
     if inspection.status is True:
         status = "success"
@@ -989,6 +999,9 @@ def _render_transaction_inspection(
         "Contract Context",
         *_render_contract_context(decoding, proxy_resolution),
         "",
+        "Optional Explorer Context",
+        *_render_transaction_enrichment(enrichment),
+        "",
         "Revert Details",
         *_render_decoded_revert(decoding.revert, inspection.status),
         "",
@@ -1020,6 +1033,61 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_transaction_enrichment(
+    enrichment: TransactionEnrichment | None,
+) -> tuple[str, ...]:
+    if enrichment is None:
+        return ("- Status: not configured",)
+    lines = [
+        f"- Status: {enrichment.status.value}",
+        f"- Source: {enrichment.source_name} {enrichment.source_version}",
+        f"- Source Link: {enrichment.source_reference or 'n/a'}",
+        f"- Fetched At: {enrichment.fetched_at.isoformat()}",
+    ]
+    if enrichment.method_name is not None:
+        lines.append(f"- Explorer Method: {enrichment.method_name}")
+    if enrichment.transaction_types:
+        lines.append(f"- Transaction Types: {', '.join(enrichment.transaction_types)}")
+    if enrichment.decoded_method_call is not None:
+        lines.append(f"- Explorer Decoded Call: {enrichment.decoded_method_call}")
+    if enrichment.decoded_method_id is not None:
+        lines.append(f"- Explorer Method ID: {enrichment.decoded_method_id}")
+    for parameter in enrichment.decoded_parameters:
+        indexed = " indexed" if parameter.indexed is True else ""
+        lines.append(
+            f"  - {parameter.name} ({parameter.type_name}{indexed}): {parameter.value}"
+        )
+    lines.extend(_render_explorer_address("Target", enrichment.target_context))
+    lines.extend(
+        _render_explorer_address("Created Contract", enrichment.created_contract_context)
+    )
+    if enrichment.error is not None:
+        lines.append(f"- Note: {enrichment.error}")
+    lines.append("- Explorer fields are optional and do not replace local decoding.")
+    return tuple(lines)
+
+
+def _render_explorer_address(
+    label: str,
+    context: ExplorerAddressContext | None,
+) -> tuple[str, ...]:
+    if context is None:
+        return ()
+    verified = (
+        "yes" if context.is_verified is True else "no" if context.is_verified is False else "unknown"
+    )
+    return (
+        f"- {label} Address: {context.address}",
+        f"  - Name: {context.name or 'n/a'}",
+        f"  - Implementation Name: {context.implementation_name or 'n/a'}",
+        f"  - ENS Name: {context.ens_name or 'n/a'}",
+        f"  - Verified: {verified}",
+        f"  - Creator: {context.creator_address or 'n/a'}",
+        f"  - Creation Transaction: {context.creation_tx_hash or 'n/a'}",
+        f"  - Source Link: {context.source_reference}",
+    )
 
 
 def _render_wallet_actions(actions: tuple[WalletAction, ...]) -> tuple[str, ...]:

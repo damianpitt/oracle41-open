@@ -1,7 +1,7 @@
-"""Enrich canonical transactions with receipts, traces, decoding, and actions.
+"""Enrich canonical transactions with receipts, traces, decoding, actions, and explorer context.
 
 The service reuses durable raw data, retries temporary trace failures, resolves proxies, and loads matching ABIs.
-Decoded evidence is normalized into versioned actions without replacing its source records.
+Optional explorer context remains separate and never changes locally decoded evidence or normalized actions.
 """
 
 from __future__ import annotations
@@ -13,6 +13,8 @@ from typing import Protocol
 
 from oracle41_open.core.models import (
     Chain,
+    EnrichmentStatus,
+    ExplorerCapabilities,
     ProviderCapabilities,
     ProviderError,
     ProxyKind,
@@ -20,6 +22,7 @@ from oracle41_open.core.models import (
     ProxyResolutionStatus,
     TraceStatus,
     TransactionDecoding,
+    TransactionEnrichment,
     TransactionInspection,
     TransactionTrace,
     WalletAction,
@@ -126,6 +129,30 @@ class ProxyResolutionStore(Protocol):
         ...
 
 
+class TransactionEnrichmentStore(Protocol):
+    def save_enrichment(self, enrichment: TransactionEnrichment) -> None:
+        ...
+
+    def get_enrichment(
+        self,
+        chain: Chain,
+        tx_hash: str,
+    ) -> TransactionEnrichment | None:
+        ...
+
+
+class TransactionEnrichmentProvider(Protocol):
+    def capabilities(self, chain: Chain) -> ExplorerCapabilities:
+        ...
+
+    def fetch_transaction_enrichment(
+        self,
+        chain: Chain,
+        tx_hash: str,
+    ) -> TransactionEnrichment:
+        ...
+
+
 @dataclass(frozen=True)
 class TransactionInspectionResult:
     inspection: TransactionInspection
@@ -134,6 +161,7 @@ class TransactionInspectionResult:
     proxy_resolution: ProxyResolution | None = None
     trace: TransactionTrace | None = None
     actions: tuple[WalletAction, ...] = ()
+    enrichment: TransactionEnrichment | None = None
 
 
 class TransactionInspectionService:
@@ -145,6 +173,8 @@ class TransactionInspectionService:
         abi_registry_provider: ContractABIRegistryProvider | None = None,
         proxy_repository: ProxyResolutionStore | None = None,
         action_normalizer: ActionNormalizer | None = None,
+        enrichment_provider: TransactionEnrichmentProvider | None = None,
+        enrichment_repository: TransactionEnrichmentStore | None = None,
     ) -> None:
         self._provider = provider
         self._repository = repository
@@ -152,6 +182,8 @@ class TransactionInspectionService:
         self._abi_registry_provider = abi_registry_provider
         self._proxy_repository = proxy_repository
         self._action_normalizer = action_normalizer or WalletActionNormalizer()
+        self._enrichment_provider = enrichment_provider
+        self._enrichment_repository = enrichment_repository
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         return self._provider.capabilities(chain)
@@ -180,6 +212,7 @@ class TransactionInspectionService:
             and stored_decoding.decoder_version == expected_decoder_version
         ):
             actions = self._load_actions(inspection, stored_decoding, trace)
+            enrichment = self._load_enrichment(inspection, force_refresh)
             return TransactionInspectionResult(
                 inspection=inspection,
                 decoding=stored_decoding,
@@ -187,6 +220,7 @@ class TransactionInspectionService:
                 proxy_resolution=proxy_resolution,
                 trace=trace,
                 actions=actions,
+                enrichment=enrichment,
             )
 
         revert_data = None
@@ -211,6 +245,7 @@ class TransactionInspectionService:
         )
         self._repository.save_decoding(chain, tx_hash, decoding)
         actions = self._load_actions(inspection, decoding, trace)
+        enrichment = self._load_enrichment(inspection, force_refresh)
         return TransactionInspectionResult(
             inspection=inspection,
             decoding=decoding,
@@ -218,7 +253,68 @@ class TransactionInspectionService:
             proxy_resolution=proxy_resolution,
             trace=trace,
             actions=actions,
+            enrichment=enrichment,
         )
+
+    def _load_enrichment(
+        self,
+        inspection: TransactionInspection,
+        force_refresh: bool,
+    ) -> TransactionEnrichment | None:
+        if self._enrichment_provider is None or self._enrichment_repository is None:
+            return None
+        stored = None if force_refresh else self._enrichment_repository.get_enrichment(
+            inspection.chain,
+            inspection.tx_hash,
+        )
+        # Network failures are retried on the next user request; stable explorer results are cached.
+        if stored is not None and stored.status is not EnrichmentStatus.UNAVAILABLE:
+            return stored
+        capabilities = self._enrichment_provider.capabilities(inspection.chain)
+        if not capabilities.transaction_context:
+            enrichment = TransactionEnrichment(
+                chain=inspection.chain,
+                tx_hash=inspection.tx_hash,
+                status=EnrichmentStatus.UNSUPPORTED,
+                method_name=None,
+                transaction_types=(),
+                decoded_method_call=None,
+                decoded_method_id=None,
+                decoded_parameters=(),
+                target_context=None,
+                created_contract_context=None,
+                source_name="Blockscout",
+                source_version="api-v2",
+                source_reference=None,
+                fetched_at=datetime.now(tz=UTC),
+                error=f"Explorer context is unsupported for {inspection.chain.display_name}.",
+            )
+        else:
+            try:
+                enrichment = self._enrichment_provider.fetch_transaction_enrichment(
+                    inspection.chain,
+                    inspection.tx_hash,
+                )
+            except ProviderError as error:
+                enrichment = TransactionEnrichment(
+                    chain=inspection.chain,
+                    tx_hash=inspection.tx_hash,
+                    status=EnrichmentStatus.UNAVAILABLE,
+                    method_name=None,
+                    transaction_types=(),
+                    decoded_method_call=None,
+                    decoded_method_id=None,
+                    decoded_parameters=(),
+                    target_context=None,
+                    created_contract_context=None,
+                    source_name="Blockscout",
+                    source_version="api-v2",
+                    source_reference=None,
+                    fetched_at=datetime.now(tz=UTC),
+                    error=str(error),
+                )
+        self._enrichment_repository.save_enrichment(enrichment)
+        return enrichment
 
     def _load_actions(
         self,

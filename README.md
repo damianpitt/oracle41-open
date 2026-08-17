@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a6` is an alpha release. Transaction Inspector now turns stored calls, logs, receipts, and internal traces into understandable wallet actions. Every summary keeps links to its original evidence, and unmatched transactions remain explicitly unknown. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a7` is an alpha release. Transaction Inspector can add optional Blockscout names, creation details, and decoded method context to its local receipt analysis. Explorer fields keep their source links and verification state, and never replace raw provider data or local decoding. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -31,6 +31,7 @@ Version `0.3.0a6` is an alpha release. Transaction Inspector now turns stored ca
 - Per-chain trace capability discovery with explicit completeness states
 - Normalized transfers, approvals, simple swaps, deployments, contract calls, and unknown actions
 - Versioned action CSV/JSON exports with participants, assets, confidence, and source evidence
+- Optional Blockscout transaction context with contract names, creation details, verification state, and source links
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 ## Privacy and Scope
@@ -42,7 +43,7 @@ Version `0.3.0a6` is an alpha release. Transaction Inspector now turns stored ca
 - Settings, SQLite state, and cache data are stored locally.
 - Backups intentionally exclude provider API keys.
 - Custom JSON-RPC endpoint URLs are stored in the keyring and excluded from backups.
-- Network requests are made only to configured data/pricing providers, the ENS resolver, and Blockscout when a user requests a verified ABI.
+- Network requests are made only to configured data/pricing providers, the ENS resolver, and Blockscout when a user requests a verified ABI or inspects a transaction.
 
 ## Architecture
 
@@ -58,7 +59,7 @@ The desktop interface asks the core services for data. The core services decide 
 
 Network work runs in the background. The interface stays responsive while Oracle41 Open loads wallet activity, prices, transaction details, or verified contract information.
 
-Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, internal calls, decoded calls, wallet actions, event logs, revert reasons, and proxy details while keeping the original raw data available.
+Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, internal calls, decoded calls, wallet actions, event logs, revert reasons, proxy details, and optional explorer context while keeping the original raw data available.
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

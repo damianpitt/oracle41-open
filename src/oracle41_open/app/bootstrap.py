@@ -42,6 +42,7 @@ from oracle41_open.storage.db import (
     SavedViewsRepository,
     SnapshotsRepository,
     SQLiteDatabase,
+    TransactionEnrichmentRepository,
     TransactionRepository,
     WalletNotesRepository,
     WatchlistRepository,
@@ -63,6 +64,7 @@ class AppContainer:
     snapshots_repository: SnapshotsRepository
     event_ledger_repository: EventLedgerRepository
     transaction_repository: TransactionRepository
+    transaction_enrichment_repository: TransactionEnrichmentRepository
     contract_abi_repository: ContractABIRepository
     watchlist_service: WatchlistService
     data_provider: DataProvider
@@ -95,10 +97,12 @@ def build_container() -> AppContainer:
     snapshots_repository = SnapshotsRepository(sqlite_database)
     event_ledger_repository = EventLedgerRepository(sqlite_database)
     transaction_repository = TransactionRepository(sqlite_database)
+    transaction_enrichment_repository = TransactionEnrichmentRepository(sqlite_database)
     contract_abi_repository = ContractABIRepository(sqlite_database)
+    blockscout_provider = BlockscoutABIProvider()
     contract_abi_service = ContractABIService(
         contract_abi_repository,
-        verified_abi_provider=BlockscoutABIProvider(),
+        verified_abi_provider=blockscout_provider,
     )
     watchlist_service = WatchlistService(repository=watchlist_repository)
 
@@ -216,6 +220,8 @@ def build_container() -> AppContainer:
         decoder=StandardABIDecoder(),
         abi_registry_provider=contract_abi_service,
         proxy_repository=contract_abi_repository,
+        enrichment_provider=blockscout_provider,
+        enrichment_repository=transaction_enrichment_repository,
     )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
@@ -237,6 +243,7 @@ def build_container() -> AppContainer:
         snapshots_repository=snapshots_repository,
         event_ledger_repository=event_ledger_repository,
         transaction_repository=transaction_repository,
+        transaction_enrichment_repository=transaction_enrichment_repository,
         contract_abi_repository=contract_abi_repository,
         watchlist_service=watchlist_service,
         data_provider=data_provider,
