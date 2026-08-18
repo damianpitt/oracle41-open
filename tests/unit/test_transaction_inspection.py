@@ -97,7 +97,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("8",)
+    assert version == ("9",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
 
@@ -217,6 +217,10 @@ def test_transaction_inspection_service_reuses_persisted_result(tmp_path: Path) 
     assert repository.get_actions(Chain.ETHEREUM, _TX_HASH) == first.actions
     assert provider.calls == 1
     assert provider.trace_calls == 1
+    assert second.action_set is not None
+    assert second.action_set.completeness.value == "partial"
+    assert second.action_set.trace_status is TraceStatus.UNSUPPORTED
+    assert second.action_set.missing_evidence
 
 
 def test_transaction_inspection_service_redecodes_stale_cached_result(tmp_path: Path) -> None:
@@ -254,6 +258,9 @@ def test_transaction_inspection_service_retries_unavailable_trace(tmp_path: Path
     assert first.trace.status is TraceStatus.UNAVAILABLE
     assert second.trace == _trace()
     assert provider.trace_calls == 2
+    assert second.action_set is not None
+    assert second.action_set.completeness.value == "complete"
+    assert second.action_set.missing_evidence == ()
 
 
 def test_transaction_inspection_resolves_proxy_and_decodes_custom_revert(

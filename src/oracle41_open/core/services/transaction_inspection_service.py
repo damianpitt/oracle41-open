@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from oracle41_open.core.models import (
+    ActionSetCompleteness,
     Chain,
     EnrichmentStatus,
     ExplorerCapabilities,
@@ -26,6 +27,7 @@ from oracle41_open.core.models import (
     TransactionInspection,
     TransactionTrace,
     WalletAction,
+    WalletActionSet,
 )
 from oracle41_open.core.services.abi_decoder import SignatureRegistry, StandardABIDecoder
 from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
@@ -161,6 +163,7 @@ class TransactionInspectionResult:
     proxy_resolution: ProxyResolution | None = None
     trace: TransactionTrace | None = None
     actions: tuple[WalletAction, ...] = ()
+    action_set: WalletActionSet | None = None
     enrichment: TransactionEnrichment | None = None
 
 
@@ -212,6 +215,7 @@ class TransactionInspectionService:
             and stored_decoding.decoder_version == expected_decoder_version
         ):
             actions = self._load_actions(inspection, stored_decoding, trace)
+            action_set = self._build_action_set(inspection, actions, trace)
             enrichment = self._load_enrichment(inspection, force_refresh)
             return TransactionInspectionResult(
                 inspection=inspection,
@@ -220,6 +224,7 @@ class TransactionInspectionService:
                 proxy_resolution=proxy_resolution,
                 trace=trace,
                 actions=actions,
+                action_set=action_set,
                 enrichment=enrichment,
             )
 
@@ -245,6 +250,7 @@ class TransactionInspectionService:
         )
         self._repository.save_decoding(chain, tx_hash, decoding)
         actions = self._load_actions(inspection, decoding, trace)
+        action_set = self._build_action_set(inspection, actions, trace)
         enrichment = self._load_enrichment(inspection, force_refresh)
         return TransactionInspectionResult(
             inspection=inspection,
@@ -253,7 +259,31 @@ class TransactionInspectionService:
             proxy_resolution=proxy_resolution,
             trace=trace,
             actions=actions,
+            action_set=action_set,
             enrichment=enrichment,
+        )
+
+    def _build_action_set(
+        self,
+        inspection: TransactionInspection,
+        actions: tuple[WalletAction, ...],
+        trace: TransactionTrace | None,
+    ) -> WalletActionSet:
+        trace_status = trace.status if trace is not None else None
+        missing_evidence = _missing_action_evidence(trace_status)
+        completeness = (
+            ActionSetCompleteness.COMPLETE
+            if not missing_evidence
+            else ActionSetCompleteness.PARTIAL
+        )
+        return WalletActionSet(
+            chain=inspection.chain,
+            tx_hash=inspection.tx_hash,
+            actions=actions,
+            completeness=completeness,
+            trace_status=trace_status,
+            missing_evidence=missing_evidence,
+            normalizer_version=self._action_normalizer.version,
         )
 
     def _load_enrichment(
@@ -426,3 +456,23 @@ class TransactionInspectionService:
             )
         self._proxy_repository.save_proxy_resolution(resolution)
         return resolution
+
+
+def _missing_action_evidence(trace_status: TraceStatus | None) -> tuple[str, ...]:
+    if trace_status is TraceStatus.COMPLETE:
+        return ()
+    if trace_status is TraceStatus.PARTIAL:
+        return (
+            "The internal execution trace is partial; nested calls or native transfers may be missing.",
+        )
+    if trace_status is TraceStatus.UNSUPPORTED:
+        return (
+            "The endpoint does not support transaction traces; internal calls and native transfers may be missing.",
+        )
+    if trace_status is TraceStatus.UNAVAILABLE:
+        return (
+            "The transaction trace was temporarily unavailable; internal calls and native transfers may be missing.",
+        )
+    return (
+        "No transaction trace was loaded; internal calls and native transfers may be missing.",
+    )

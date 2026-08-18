@@ -1,7 +1,7 @@
 """Test SQLite contract ABI and proxy storage.
 
 The cases cover ABI replacement, listing, deletion, provenance, and block-specific proxy lookup.
-They protect the schema-v5 persistence contract.
+They protect contract ABI and schema-v9 proxy persistence.
 """
 
 from datetime import UTC, datetime
@@ -20,6 +20,7 @@ from oracle41_open.storage.db import ContractABIRepository, SQLiteDatabase
 
 _ADDRESS = "0x1111111111111111111111111111111111111111"
 _IMPLEMENTATION = "0x2222222222222222222222222222222222222222"
+_BEACON = "0x3333333333333333333333333333333333333333"
 _NOW = datetime(2026, 8, 12, tzinfo=UTC)
 
 
@@ -43,11 +44,12 @@ def test_proxy_resolution_repository_is_block_specific(tmp_path: Path) -> None:
         chain=Chain.ETHEREUM,
         proxy_address=_ADDRESS,
         status=ProxyResolutionStatus.RESOLVED,
-        proxy_kind=ProxyKind.EIP_1967,
+        proxy_kind=ProxyKind.EIP_1967_BEACON,
         implementation_address=_IMPLEMENTATION,
         block_number=24_000_000,
         source_provider="test-rpc",
         resolved_at=_NOW,
+        beacon_address=_BEACON,
     )
 
     repository.save_proxy_resolution(resolution)

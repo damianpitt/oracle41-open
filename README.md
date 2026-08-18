@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a7` is an alpha release. Transaction Inspector can add optional Blockscout names, creation details, and decoded method context to its local receipt analysis. Explorer fields keep their source links and verification state, and never replace raw provider data or local decoding. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a8` is an alpha release. Transaction Inspector now states whether normalized actions have complete internal-execution evidence and explains what may be missing when traces are partial or unavailable. EIP-1967 beacon proxies resolve at the transaction block without guessing unresolved implementations. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -25,12 +25,13 @@ Version `0.3.0a7` is an alpha release. Transaction Inspector can add optional Bl
 - Transaction inspection with receipt status, gas, fees, raw logs, and provenance
 - Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
 - Local user ABI management and optional verified ABI retrieval from Blockscout
-- EIP-1967 and EIP-1167 implementation resolution with block-specific caching
+- EIP-1967 implementation, EIP-1967 beacon, and EIP-1167 proxy resolution with block-specific caching
 - Custom and Solidity built-in revert decoding with raw-byte preservation
 - Expandable internal call trees from Geth-compatible and Parity-compatible trace endpoints
 - Per-chain trace capability discovery with explicit completeness states
 - Normalized transfers, approvals, simple swaps, deployments, contract calls, and unknown actions
 - Versioned action CSV/JSON exports with participants, assets, confidence, and source evidence
+- Action-set completeness and missing-evidence reasons based on trace availability
 - Optional Blockscout transaction context with contract names, creation details, verification state, and source links
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 

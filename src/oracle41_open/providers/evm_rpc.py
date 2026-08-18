@@ -47,6 +47,10 @@ from oracle41_open.providers.trace_mapper import map_debug_call_trace, map_parit
 _EIP_1967_IMPLEMENTATION_SLOT = (
     "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
 )
+_EIP_1967_BEACON_SLOT = (
+    "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
+)
+_BEACON_IMPLEMENTATION_CALL = "0x5c60da1b"
 _EIP_1167_PATTERN = re.compile(
     r"363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3"
 )
@@ -162,6 +166,65 @@ class EVMJSONRPCProvider:
                 ProxyKind.EIP_1967,
                 implementation,
             )
+
+        raw_beacon_slot = self._rpc_call(
+            endpoint,
+            "eth_getStorageAt",
+            [address, _EIP_1967_BEACON_SLOT, block_tag],
+        )
+        beacon_slot = _require_fixed_hex_data(
+            raw_beacon_slot,
+            "EIP-1967 beacon slot",
+            32,
+        )
+        beacon_address = "0x" + beacon_slot[-40:]
+        if beacon_address != "0x" + "00" * 20:
+            try:
+                raw_implementation = self._rpc_call(
+                    endpoint,
+                    "eth_call",
+                    [{"to": beacon_address, "data": _BEACON_IMPLEMENTATION_CALL}, block_tag],
+                )
+                beacon_result = _require_fixed_hex_data(
+                    raw_implementation,
+                    "EIP-1967 beacon implementation",
+                    32,
+                )
+            except ProviderError as error:
+                return ProxyResolution(
+                    chain=chain,
+                    proxy_address=address,
+                    status=ProxyResolutionStatus.UNAVAILABLE,
+                    proxy_kind=ProxyKind.EIP_1967_BEACON,
+                    implementation_address=None,
+                    block_number=block_number,
+                    source_provider=self._source_name,
+                    resolved_at=datetime.now(tz=UTC),
+                    error=str(error),
+                    beacon_address=beacon_address,
+                )
+            beacon_implementation = "0x" + beacon_result[-40:]
+            if beacon_implementation == "0x" + "00" * 20:
+                return ProxyResolution(
+                    chain=chain,
+                    proxy_address=address,
+                    status=ProxyResolutionStatus.UNAVAILABLE,
+                    proxy_kind=ProxyKind.EIP_1967_BEACON,
+                    implementation_address=None,
+                    block_number=block_number,
+                    source_provider=self._source_name,
+                    resolved_at=datetime.now(tz=UTC),
+                    error="The beacon returned an empty implementation address.",
+                    beacon_address=beacon_address,
+                )
+            return self._proxy_resolution(
+                chain,
+                address,
+                block_number,
+                ProxyKind.EIP_1967_BEACON,
+                beacon_implementation,
+                beacon_address=beacon_address,
+            )
         return ProxyResolution(
             chain=chain,
             proxy_address=address,
@@ -275,6 +338,7 @@ class EVMJSONRPCProvider:
         block_number: int,
         proxy_kind: ProxyKind,
         implementation_address: str,
+        beacon_address: str | None = None,
     ) -> ProxyResolution:
         return ProxyResolution(
             chain=chain,
@@ -285,6 +349,7 @@ class EVMJSONRPCProvider:
             block_number=block_number,
             source_provider=self._source_name,
             resolved_at=datetime.now(tz=UTC),
+            beacon_address=beacon_address,
         )
 
     def _map_inspection(
@@ -406,12 +471,27 @@ class FailoverTransactionDataProvider:
         chain: Chain,
         block_number: int,
     ) -> ProxyResolution:
-        return self._first_success(
-            chain,
-            "proxy resolution",
-            lambda provider: provider.resolve_proxy(contract_address, chain, block_number),
-            capability="proxy_resolution",
-        )
+        errors: list[str] = []
+        unavailable: list[ProxyResolution] = []
+        for provider in self._providers:
+            if provider.capabilities(chain).proxy_resolution is not True:
+                continue
+            try:
+                resolution = provider.resolve_proxy(contract_address, chain, block_number)
+            except ProviderError as error:
+                errors.append(str(error))
+                continue
+            if resolution.status is ProxyResolutionStatus.UNAVAILABLE:
+                unavailable.append(resolution)
+                continue
+            return resolution
+        if unavailable:
+            return unavailable[0]
+        if not errors:
+            raise ProviderResponseError(
+                f"No proxy resolution provider is configured for {chain.display_name}."
+            )
+        raise ProviderError("All proxy resolution providers failed: " + "; ".join(errors))
 
     def get_revert_data(self, inspection: TransactionInspection) -> str | None:
         if inspection.status is not False:

@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 through M5.6 are implemented through `0.3.0a7`. Transaction receipts, deterministic decoding, proxy and revert context, internal traces, wallet actions, and optional Blockscout context are available. Wider proxy coverage remains.
+**Implementation status:** M5.1 through M5.7 are implemented through `0.3.0a8`. Transaction receipts, deterministic decoding, proxy and revert context, internal traces, wallet actions, optional Blockscout context, action completeness, and beacon proxies are available.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -99,7 +99,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 - Add a configurable standard JSON-RPC provider for user-selected endpoints.
 - Ingest transaction receipts, logs, gas usage, status, and internal traces where available.
 - Add an ABI and signature registry with source and verification metadata. Bundled token standards completed in M5.2; user and Blockscout-verified contract ABIs completed in M5.3.
-- Decode contract methods, events, proxy implementations, custom errors, and common token operations. Token standards completed in M5.2; EIP-1967/EIP-1167 and custom errors completed in M5.3.
+- Decode contract methods, events, proxy implementations, custom errors, and common token operations. Token standards completed in M5.2; EIP-1967/EIP-1167 and custom errors completed in M5.3; EIP-1967 beacons completed in M5.7.
 - Normalize swaps, bridges, staking actions, lending actions, and contract deployments.
 - Add Blockscout as an optional decoded-data and contract-metadata source.
 - Evaluate optional TrueBlocks integration for users who want a local address index.
@@ -322,7 +322,7 @@ M5.6 is complete only when optional Blockscout enrichment improves understandabl
 
 **Status:** Complete in `0.3.0a7`. Blockscout API v2 context is stored separately with source links, verification flags, capability states, and retryable failure handling. Local decoding and normalized actions finish independently and remain unchanged by explorer output.
 
-## Immediate Next Slice: M5.7
+## Completed Slice: M5.7
 
 Make partial transaction understanding clearer and expand common proxy support:
 
@@ -332,3 +332,16 @@ Make partial transaction understanding clearer and expand common proxy support:
 4. Keep unresolved and unsupported proxy forms explicit instead of guessing an implementation.
 
 M5.7 is complete only when users can see whether internal actions may be missing and beacon proxies resolve through block-specific, provenance-aware records.
+
+**Status:** Complete in `0.3.0a8`. Every inspected action list reports trace-based evidence completeness and missing-evidence reasons in the UI and versioned exports. Beacon proxies store the beacon and implementation addresses at the queried block; empty implementations remain unresolved.
+
+## Immediate Next Slice: M5.8
+
+Close M5 with data-independence and capability validation:
+
+1. Add cross-provider fixtures that prove the same raw transaction produces the same decoding and actions.
+2. Report archive-query capability separately from receipt and trace support.
+3. Audit unknown-call, malformed-data, and provider-failure paths against the M5 exit gate.
+4. Evaluate TrueBlocks as an optional local address index and record the decision without adding a mandatory dependency.
+
+M5.8 is complete only when the M5 exit gate has a reproducible test matrix and every optional dependency has a documented fallback.

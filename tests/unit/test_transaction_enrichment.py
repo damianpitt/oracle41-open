@@ -1,6 +1,6 @@
 """Test optional explorer context persistence and service isolation.
 
-The cases verify schema-v8 round trips, caching, failure retries, and unchanged normalized actions.
+The cases verify enrichment round trips, caching, failure retries, and unchanged normalized actions.
 Explorer fixtures are local and no test contacts a public service.
 """
 
@@ -60,7 +60,7 @@ def test_transaction_enrichment_repository_roundtrip(tmp_path: Path) -> None:
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
     assert schema_version is not None
-    assert schema_version["value"] == "8"
+    assert schema_version["value"] == "9"
 
 
 def test_inspection_caches_enrichment_without_changing_actions(tmp_path: Path) -> None:

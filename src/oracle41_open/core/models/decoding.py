@@ -30,6 +30,7 @@ class SignatureSourceKind(str, Enum):
 class ProxyKind(str, Enum):
     NONE = "none"
     EIP_1967 = "eip_1967"
+    EIP_1967_BEACON = "eip_1967_beacon"
     EIP_1167 = "eip_1167"
 
 
@@ -150,6 +151,7 @@ class ProxyResolution:
     source_provider: str
     resolved_at: datetime
     error: str | None = None
+    beacon_address: str | None = None
 
 
 @dataclass(frozen=True)

@@ -70,8 +70,10 @@ from oracle41_open.core.models.wallet_action import (
     ActionEvidence,
     ActionEvidenceKind,
     ActionParticipant,
+    ActionSetCompleteness,
     WalletAction,
     WalletActionKind,
+    WalletActionSet,
     WalletActionStatus,
 )
 from oracle41_open.core.models.wallet_overview import WalletOverviewResult
@@ -88,6 +90,7 @@ __all__ = [
     "ActionEvidence",
     "ActionEvidenceKind",
     "ActionParticipant",
+    "ActionSetCompleteness",
     "ApprovalRecord",
     "AssetMovement",
     "AssetRecord",
@@ -139,6 +142,7 @@ __all__ = [
     "WalletOverviewResult",
     "WalletAction",
     "WalletActionKind",
+    "WalletActionSet",
     "WalletActionStatus",
     "WatchlistEntry",
 ]

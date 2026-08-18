@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from oracle41_open.core.models.chain import Chain
+from oracle41_open.core.models.transaction import TraceStatus
 
 
 class WalletActionKind(str, Enum):
@@ -44,6 +45,11 @@ class ActionEvidenceKind(str, Enum):
     EVENT = "event"
     TRACE = "trace"
     RECEIPT = "receipt"
+
+
+class ActionSetCompleteness(str, Enum):
+    COMPLETE = "complete"
+    PARTIAL = "partial"
 
 
 @dataclass(frozen=True)
@@ -84,4 +90,15 @@ class WalletAction:
     protocol_hint: str | None
     confidence: ActionConfidence
     evidence: tuple[ActionEvidence, ...]
+    normalizer_version: str
+
+
+@dataclass(frozen=True)
+class WalletActionSet:
+    chain: Chain
+    tx_hash: str
+    actions: tuple[WalletAction, ...]
+    completeness: ActionSetCompleteness
+    trace_status: TraceStatus | None
+    missing_evidence: tuple[str, ...]
     normalizer_version: str

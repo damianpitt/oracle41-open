@@ -28,6 +28,7 @@ _BLOCK_HASH = "0x" + "cd" * 32
 _FROM = "0x1111111111111111111111111111111111111111"
 _TO = "0x2222222222222222222222222222222222222222"
 _LOG_ADDRESS = "0x3333333333333333333333333333333333333333"
+_BEACON = "0x4444444444444444444444444444444444444444"
 
 
 def test_evm_rpc_provider_maps_transaction_receipt_and_fee() -> None:
@@ -135,6 +136,84 @@ def test_evm_rpc_provider_resolves_eip1967_storage_proxy() -> None:
     assert result.proxy_kind is ProxyKind.EIP_1967
     assert result.implementation_address == _LOG_ADDRESS
     assert [call[0] for call in rpc.calls] == ["eth_getCode", "eth_getStorageAt"]
+
+
+def test_evm_rpc_provider_resolves_eip1967_beacon_at_requested_block() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = "0x6000"
+    rpc.response_sequences_by_method["eth_getStorageAt"] = [
+        "0x" + "00" * 32,
+        "0x" + "00" * 12 + _BEACON[2:],
+    ]
+    rpc.responses_by_method["eth_call"] = "0x" + "00" * 12 + _LOG_ADDRESS[2:]
+    provider = EVMJSONRPCProvider({Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc)
+
+    result = provider.resolve_proxy(_TO, Chain.ETHEREUM, 24_000_000)
+
+    assert result.status is ProxyResolutionStatus.RESOLVED
+    assert result.proxy_kind is ProxyKind.EIP_1967_BEACON
+    assert result.beacon_address == _BEACON
+    assert result.implementation_address == _LOG_ADDRESS
+    assert [call[0] for call in rpc.calls] == [
+        "eth_getCode",
+        "eth_getStorageAt",
+        "eth_getStorageAt",
+        "eth_call",
+    ]
+    assert rpc.calls[-1][1] == [
+        {"to": _BEACON, "data": "0x5c60da1b"},
+        hex(24_000_000),
+    ]
+
+
+def test_evm_rpc_provider_keeps_empty_beacon_implementation_unresolved() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = "0x6000"
+    rpc.response_sequences_by_method["eth_getStorageAt"] = [
+        "0x" + "00" * 32,
+        "0x" + "00" * 12 + _BEACON[2:],
+    ]
+    rpc.responses_by_method["eth_call"] = "0x" + "00" * 32
+    provider = EVMJSONRPCProvider({Chain.ETHEREUM: "https://rpc.example"}, rpc_client=rpc)
+
+    result = provider.resolve_proxy(_TO, Chain.ETHEREUM, 24_000_000)
+
+    assert result.status is ProxyResolutionStatus.UNAVAILABLE
+    assert result.proxy_kind is ProxyKind.EIP_1967_BEACON
+    assert result.beacon_address == _BEACON
+    assert result.implementation_address is None
+    assert result.error == "The beacon returned an empty implementation address."
+
+
+def test_beacon_resolution_failover_continues_after_unavailable_provider() -> None:
+    first_rpc = _beacon_rpc()
+    first_rpc.errors_by_method["eth_call"] = JSONRPCRemoteError(
+        "historical state unavailable",
+        code=-32000,
+    )
+    second_rpc = _beacon_rpc()
+    second_rpc.responses_by_method["eth_call"] = "0x" + "00" * 12 + _LOG_ADDRESS[2:]
+    provider = FailoverTransactionDataProvider(
+        [
+            EVMJSONRPCProvider(
+                {Chain.ETHEREUM: "https://first.example"},
+                source_name="first",
+                rpc_client=first_rpc,
+            ),
+            EVMJSONRPCProvider(
+                {Chain.ETHEREUM: "https://second.example"},
+                source_name="second",
+                rpc_client=second_rpc,
+            ),
+        ]
+    )
+
+    result = provider.resolve_proxy(_TO, Chain.ETHEREUM, 24_000_000)
+
+    assert result.status is ProxyResolutionStatus.RESOLVED
+    assert result.source_provider == "second"
+    assert result.beacon_address == _BEACON
+    assert result.implementation_address == _LOG_ADDRESS
 
 
 def test_evm_rpc_provider_marks_plain_contract_as_not_proxy() -> None:
@@ -318,6 +397,7 @@ class _FakeRPCClient:
         self.error: Exception | None = None
         self.errors_by_method: dict[str, Exception] = {}
         self.responses_by_method: dict[str, object] = {}
+        self.response_sequences_by_method: dict[str, list[object]] = {}
         self.calls: list[tuple[str, list[Any]]] = []
 
     def call(self, url: str, method: str, params: list[Any] | None = None) -> object:
@@ -328,6 +408,11 @@ class _FakeRPCClient:
             raise self.error
         if method in self.errors_by_method:
             raise self.errors_by_method[method]
+        if method in self.response_sequences_by_method:
+            responses = self.response_sequences_by_method[method]
+            if not responses:
+                raise AssertionError(f"No remaining response for method: {method}")
+            return responses.pop(0)
         if method in self.responses_by_method:
             return self.responses_by_method[method]
         if method == "eth_getTransactionByHash":
@@ -335,6 +420,16 @@ class _FakeRPCClient:
         if method == "eth_getTransactionReceipt":
             return self.receipt
         raise AssertionError(f"Unexpected method: {method}")
+
+
+def _beacon_rpc() -> _FakeRPCClient:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = "0x6000"
+    rpc.response_sequences_by_method["eth_getStorageAt"] = [
+        "0x" + "00" * 32,
+        "0x" + "00" * 12 + _BEACON[2:],
+    ]
+    return rpc
 
 
 def _transaction_payload() -> dict[str, object]:

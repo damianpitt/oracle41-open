@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 8
+_SCHEMA_VERSION = 9
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -459,6 +459,10 @@ CREATE INDEX idx_transaction_enrichments_status
     ON transaction_enrichments(chain, status);
 """
 
+_SCHEMA_V9_SQL = """
+ALTER TABLE proxy_resolutions ADD COLUMN beacon_address TEXT;
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -468,6 +472,7 @@ _MIGRATIONS = {
     6: _SCHEMA_V6_SQL,
     7: _SCHEMA_V7_SQL,
     8: _SCHEMA_V8_SQL,
+    9: _SCHEMA_V9_SQL,
 }
 
 

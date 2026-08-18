@@ -2,7 +2,26 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a7] - Unreleased
+## [0.3.0a8] - Unreleased
+
+### Added
+
+- Action-set evidence completeness derived from complete, partial, unsupported, unavailable, or missing transaction traces.
+- Plain missing-evidence reasons in Transaction Inspector and `oracle41-wallet-actions` CSV/JSON format version 2.
+- Historical EIP-1967 beacon resolution through the standard beacon `implementation()` call.
+- Schema-v9 persistence for the beacon address alongside the resolved implementation and block-specific proxy record.
+
+### Changed
+
+- Normalized action records remain unchanged; completeness is a separate derived envelope over the complete action list.
+- Beacon slot reads and implementation calls use the transaction block, preserving historical implementation context.
+
+### Known Limitations
+
+- Complete evidence means the configured endpoint returned a complete supported trace. It does not mean every unknown contract call has a known semantic label.
+- Diamond and non-standard proxies remain explicit unresolved or raw contract context.
+
+## [0.3.0a7] - 2026-08-17
 
 ### Added
 

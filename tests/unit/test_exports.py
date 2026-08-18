@@ -19,6 +19,7 @@ from oracle41_open.core.models import (
     ActionEvidence,
     ActionEvidenceKind,
     ActionParticipant,
+    ActionSetCompleteness,
     ActivityCategory,
     ActivityItem,
     Chain,
@@ -26,8 +27,10 @@ from oracle41_open.core.models import (
     DataProvenance,
     Token,
     TokenBalance,
+    TraceStatus,
     WalletAction,
     WalletActionKind,
+    WalletActionSet,
     WalletActionStatus,
     WalletOverviewResult,
     WatchlistEntry,
@@ -91,15 +94,32 @@ def test_activity_csv_text_contains_expected_columns_and_rows() -> None:
 
 def test_wallet_action_exports_preserve_nested_evidence_and_version() -> None:
     actions = (_sample_action(),)
+    action_set = WalletActionSet(
+        chain=Chain.ETHEREUM,
+        tx_hash=actions[0].tx_hash,
+        actions=actions,
+        completeness=ActionSetCompleteness.PARTIAL,
+        trace_status=TraceStatus.UNSUPPORTED,
+        missing_evidence=("Internal transaction trace is unsupported.",),
+        normalizer_version="1",
+    )
 
-    rows = list(csv.reader(wallet_actions_csv_text(actions).splitlines()))
+    rows = list(
+        csv.reader(wallet_actions_csv_text(actions, action_set=action_set).splitlines())
+    )
     evidence_index = rows[0].index("evidence")
     assert rows[1][3] == "transfer"
     assert "log:3" in rows[1][evidence_index]
+    assert rows[1][rows[0].index("action_set_completeness")] == "partial"
+    assert rows[1][rows[0].index("trace_status")] == "unsupported"
 
-    payload = json_loads(wallet_actions_json_bytes(actions, pretty=False))
+    payload = json_loads(
+        wallet_actions_json_bytes(actions, pretty=False, action_set=action_set)
+    )
     assert payload["format"] == "oracle41-wallet-actions"
-    assert payload["format_version"] == 1
+    assert payload["format_version"] == 2
+    assert payload["context"]["action_set_completeness"] == "partial"
+    assert payload["context"]["missing_evidence"]
     assert payload["items"][0]["assets"][0]["raw_amount"] == "25"
     assert payload["items"][0]["evidence"][0]["reference"] == "log:3"
 

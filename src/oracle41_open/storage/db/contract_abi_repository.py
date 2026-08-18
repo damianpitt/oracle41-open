@@ -106,16 +106,18 @@ class ContractABIRepository:
                 """
                 INSERT INTO proxy_resolutions(
                     chain, proxy_address, block_number, status, proxy_kind,
-                    implementation_address, source_provider, resolved_at, error
+                    implementation_address, source_provider, resolved_at, error,
+                    beacon_address
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(chain, proxy_address, block_number) DO UPDATE SET
                     status = excluded.status,
                     proxy_kind = excluded.proxy_kind,
                     implementation_address = excluded.implementation_address,
                     source_provider = excluded.source_provider,
                     resolved_at = excluded.resolved_at,
-                    error = excluded.error
+                    error = excluded.error,
+                    beacon_address = excluded.beacon_address
                 """,
                 (
                     resolution.chain.value,
@@ -127,6 +129,7 @@ class ContractABIRepository:
                     resolution.source_provider,
                     resolution.resolved_at.astimezone(UTC).isoformat(),
                     resolution.error,
+                    resolution.beacon_address,
                 ),
             )
 
@@ -161,6 +164,11 @@ class ContractABIRepository:
             source_provider=str(row["source_provider"]),
             resolved_at=parse_datetime(row["resolved_at"]),
             error=str(row["error"]) if row["error"] is not None else None,
+            beacon_address=(
+                str(row["beacon_address"])
+                if row["beacon_address"] is not None
+                else None
+            ),
         )
 
 

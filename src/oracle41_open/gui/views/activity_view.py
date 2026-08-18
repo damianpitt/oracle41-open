@@ -49,6 +49,7 @@ from oracle41_open.core.models import (
     TransactionTrace,
     ValidationError,
     WalletAction,
+    WalletActionSet,
 )
 from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.address_validator import AddressValidator
@@ -104,6 +105,7 @@ class ActivityView(QWidget):
         self._retry_request: tuple[str | None, bool, bool] | None = None
         self._pending_load: tuple[str | None, bool, bool] | None = None
         self._inspected_actions: tuple[WalletAction, ...] = ()
+        self._inspected_action_set: WalletActionSet | None = None
         self._action_summaries_by_tx: dict[str, str] = {}
 
         self._chain_combo = QComboBox(self)
@@ -345,6 +347,7 @@ class ActivityView(QWidget):
         self._active_wallet_input = None
         self._labels_by_address = {}
         self._inspected_actions = ()
+        self._inspected_action_set = None
         self._action_summaries_by_tx = {}
         self._export_actions_csv_button.setEnabled(False)
         self._export_actions_json_button.setEnabled(False)
@@ -363,6 +366,7 @@ class ActivityView(QWidget):
         self._active_wallet_input = None
         self._labels_by_address = {}
         self._inspected_actions = ()
+        self._inspected_action_set = None
         self._action_summaries_by_tx = {}
         self._export_actions_csv_button.setEnabled(False)
         self._export_actions_json_button.setEnabled(False)
@@ -578,6 +582,7 @@ class ActivityView(QWidget):
         self._is_inspecting_transaction = True
         self._inspect_transaction_button.setEnabled(False)
         self._inspected_actions = ()
+        self._inspected_action_set = None
         self._export_actions_csv_button.setEnabled(False)
         self._export_actions_json_button.setEnabled(False)
         self._trace_tree.clear()
@@ -609,11 +614,13 @@ class ActivityView(QWidget):
                 raw_result.result.proxy_resolution,
                 raw_result.result.trace,
                 raw_result.result.actions,
+                raw_result.result.action_set,
                 raw_result.result.enrichment,
             )
         )
         _populate_trace_tree(self._trace_tree, raw_result.result.trace)
         self._inspected_actions = raw_result.result.actions
+        self._inspected_action_set = raw_result.result.action_set
         has_actions = bool(self._inspected_actions)
         self._export_actions_csv_button.setEnabled(has_actions)
         self._export_actions_json_button.setEnabled(has_actions)
@@ -648,6 +655,7 @@ class ActivityView(QWidget):
 
     def _on_transaction_inspection_error(self, error: object) -> None:
         self._inspected_actions = ()
+        self._inspected_action_set = None
         self._export_actions_csv_button.setEnabled(False)
         self._export_actions_json_button.setEnabled(False)
         self._trace_tree.clear()
@@ -734,6 +742,7 @@ class ActivityView(QWidget):
     def _on_item_selection_changed(self) -> None:
         item = self._selected_item()
         self._inspected_actions = ()
+        self._inspected_action_set = None
         self._export_actions_csv_button.setEnabled(False)
         self._export_actions_json_button.setEnabled(False)
         self._trace_tree.clear()
@@ -879,7 +888,11 @@ class ActivityView(QWidget):
         )
         if not file_name:
             return
-        path = write_wallet_actions_csv(self._inspected_actions, Path(file_name))
+        path = write_wallet_actions_csv(
+            self._inspected_actions,
+            Path(file_name),
+            action_set=self._inspected_action_set,
+        )
         self._status_label.setText(f"Action CSV export saved: {path}")
 
     def _on_export_actions_json_clicked(self) -> None:
@@ -895,7 +908,11 @@ class ActivityView(QWidget):
         )
         if not file_name:
             return
-        path = write_wallet_actions_json(self._inspected_actions, Path(file_name))
+        path = write_wallet_actions_json(
+            self._inspected_actions,
+            Path(file_name),
+            action_set=self._inspected_action_set,
+        )
         self._status_label.setText(f"Action JSON export saved: {path}")
 
 
@@ -966,6 +983,7 @@ def _render_transaction_inspection(
     proxy_resolution: ProxyResolution | None = None,
     trace: TransactionTrace | None = None,
     actions: tuple[WalletAction, ...] = (),
+    action_set: WalletActionSet | None = None,
     enrichment: TransactionEnrichment | None = None,
 ) -> str:
     if inspection.status is True:
@@ -991,6 +1009,7 @@ def _render_transaction_inspection(
         f"- Method Selector: {selector or 'n/a'}",
         "",
         "Normalized Actions",
+        *_render_action_set_completeness(action_set),
         *_render_wallet_actions(actions),
         "",
         "Decoded Call",
@@ -1033,6 +1052,19 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_action_set_completeness(
+    action_set: WalletActionSet | None,
+) -> tuple[str, ...]:
+    if action_set is None:
+        return ("- Evidence Completeness: unavailable",)
+    lines = [
+        f"- Evidence Completeness: {action_set.completeness.value}",
+        f"- Trace Status: {action_set.trace_status.value if action_set.trace_status else 'not loaded'}",
+    ]
+    lines.extend(f"- Missing Evidence: {reason}" for reason in action_set.missing_evidence)
+    return tuple(lines)
 
 
 def _render_transaction_enrichment(
@@ -1204,6 +1236,7 @@ def _render_contract_context(
             f"- Proxy Type: {proxy_resolution.proxy_kind.value}",
             f"- Proxy Address: {proxy_resolution.proxy_address}",
             f"- Implementation: {proxy_resolution.implementation_address or 'n/a'}",
+            f"- Beacon: {proxy_resolution.beacon_address or 'n/a'}",
             f"- Resolution Block: {proxy_resolution.block_number}",
             f"- Resolution Source: {proxy_resolution.source_provider}",
         )
