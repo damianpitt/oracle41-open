@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a8` is an alpha release. Transaction Inspector now states whether normalized actions have complete internal-execution evidence and explains what may be missing when traces are partial or unavailable. EIP-1967 beacon proxies resolve at the transaction block without guessing unresolved implementations. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.3.0a9` is an alpha release. Transaction decoding and wallet actions now have paired Alchemy and Ankr fixture tests for provider-independent output. Transaction Inspector reports observed receipt, trace, historical-state, proxy, and revert capabilities separately. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -29,11 +29,14 @@ Version `0.3.0a8` is an alpha release. Transaction Inspector now states whether 
 - Custom and Solidity built-in revert decoding with raw-byte preservation
 - Expandable internal call trees from Geth-compatible and Parity-compatible trace endpoints
 - Per-chain trace capability discovery with explicit completeness states
+- Learned historical-state capability reporting for block-specific proxy and revert queries
 - Normalized transfers, approvals, simple swaps, deployments, contract calls, and unknown actions
 - Versioned action CSV/JSON exports with participants, assets, confidence, and source evidence
 - Action-set completeness and missing-evidence reasons based on trace availability
 - Optional Blockscout transaction context with contract names, creation details, verification state, and source links
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
+
+The complete M5 transaction-understanding test matrix and optional-provider fallbacks are documented in [docs/M5_VALIDATION.md](docs/M5_VALIDATION.md).
 
 ## Privacy and Scope
 

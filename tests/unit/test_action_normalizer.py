@@ -182,6 +182,18 @@ def test_unknown_call_remains_explicit_and_keeps_raw_reference() -> None:
     assert actions[0].evidence[0].signature == "0x12345678"
 
 
+def test_malformed_known_call_remains_explicit_with_signature_provenance() -> None:
+    inspection = _inspection(input_data="0xa9059cbbdeadbeef")
+
+    actions = _normalize(inspection)
+
+    assert len(actions) == 1
+    assert actions[0].kind is WalletActionKind.UNKNOWN
+    assert actions[0].confidence.value == "low"
+    assert actions[0].evidence[0].signature == "transfer(address,uint256)"
+    assert actions[0].evidence[0].reference == "call"
+
+
 def test_same_evidence_is_provider_independent() -> None:
     first = _inspection(
         logs=(

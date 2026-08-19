@@ -90,7 +90,7 @@ Create one durable representation of wallet history that all analytics can consu
 
 **Release target:** `0.3.0-alpha`
 
-**Implementation status:** M5.1 through M5.7 are implemented through `0.3.0a8`. Transaction receipts, deterministic decoding, proxy and revert context, internal traces, wallet actions, optional Blockscout context, action completeness, and beacon proxies are available.
+**Implementation status:** Complete in `0.3.0a9`. Transaction receipts, deterministic decoding, proxy and revert context, internal traces, wallet actions, optional Blockscout context, action completeness, beacon proxies, cross-provider validation, and learned historical-state capability reporting are available.
 
 Turn raw transfers and logs into understandable wallet activity while reducing dependence on two hosted vendors.
 
@@ -100,10 +100,10 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 - Ingest transaction receipts, logs, gas usage, status, and internal traces where available.
 - Add an ABI and signature registry with source and verification metadata. Bundled token standards completed in M5.2; user and Blockscout-verified contract ABIs completed in M5.3.
 - Decode contract methods, events, proxy implementations, custom errors, and common token operations. Token standards completed in M5.2; EIP-1967/EIP-1167 and custom errors completed in M5.3; EIP-1967 beacons completed in M5.7.
-- Normalize swaps, bridges, staking actions, lending actions, and contract deployments.
+- Normalize receipt and trace evidence into transfers, approvals, simple swaps, deployments, contract calls, and explicit unknown actions. Protocol-specific positions and economic interpretations continue in M6.
 - Add Blockscout as an optional decoded-data and contract-metadata source.
-- Evaluate optional TrueBlocks integration for users who want a local address index.
-- Add per-provider capability discovery instead of assuming every endpoint supports traces or archive queries.
+- Keep TrueBlocks behind a documented optional-adapter boundary for users who want a local address index.
+- Discover per-provider trace and historical-state capabilities instead of assuming every endpoint supports them.
 
 ### Exit Gate
 
@@ -111,6 +111,8 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 - Decoded output is deterministic across providers for the same fixture.
 - Every decoded field identifies its ABI or signature source.
 - Provider capability gaps produce explicit partial-data states.
+
+**Exit status:** Passed in `0.3.0a9`. The reproducible matrix is documented in [M5_VALIDATION.md](M5_VALIDATION.md), and the TrueBlocks decision is recorded in [ADR 0002](adr/0002-trueblocks-optional-local-index.md).
 
 ## M6: DeFi, NFT, and Position Intelligence
 
@@ -335,7 +337,7 @@ M5.7 is complete only when users can see whether internal actions may be missing
 
 **Status:** Complete in `0.3.0a8`. Every inspected action list reports trace-based evidence completeness and missing-evidence reasons in the UI and versioned exports. Beacon proxies store the beacon and implementation addresses at the queried block; empty implementations remain unresolved.
 
-## Immediate Next Slice: M5.8
+## Completed Slice: M5.8
 
 Close M5 with data-independence and capability validation:
 
@@ -345,3 +347,16 @@ Close M5 with data-independence and capability validation:
 4. Evaluate TrueBlocks as an optional local address index and record the decision without adding a mandatory dependency.
 
 M5.8 is complete only when the M5 exit gate has a reproducible test matrix and every optional dependency has a documented fallback.
+
+**Status:** Complete in `0.3.0a9`. Paired Alchemy and Ankr fixtures produce identical decoding and actions, historical-state support is learned separately from receipt and trace support, failure paths have an explicit test matrix, and TrueBlocks remains an optional future adapter.
+
+## Immediate Next Slice: M6.1
+
+Create the protocol-adapter foundation before adding individual DeFi integrations:
+
+1. Define a versioned adapter protocol for positions, liabilities, rewards, and source provenance.
+2. Define a recorded fixture format that includes chain, block, contracts, raw evidence, and expected normalized positions.
+3. Add an adapter registry with explicit chain and protocol capabilities.
+4. Provide an unknown-protocol fallback that keeps decoded events and token balances visible.
+
+M6.1 is complete only when a reference adapter and an unknown-protocol fixture pass the same conformance suite without importing GUI code.

@@ -2,7 +2,27 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a8] - Unreleased
+## [0.3.0a9] - Unreleased
+
+### Added
+
+- Paired Alchemy and Ankr transaction fixtures that prove identical receipt mapping, ABI decoding, and wallet actions for the same raw evidence.
+- Learned per-chain historical-state capability reporting from successful block-specific reads and explicit node-pruning errors.
+- Provider capability details in Transaction Inspector for receipts, traces, historical state, proxy resolution, and revert replay.
+- A reproducible M5 exit-gate matrix covering unknown, malformed, incomplete, and provider-failure paths.
+- An architecture decision that keeps TrueBlocks behind an optional future adapter with documented fallbacks.
+
+### Changed
+
+- Temporary network, authentication, rate-limit, and timeout failures do not change historical-state capability.
+- M5 documentation now separates deterministic low-level actions from protocol-specific positions planned for M6.
+
+### Known Limitations
+
+- Historical-state support is learned during proxy resolution or revert replay; it remains not checked until one of those block-specific queries runs.
+- TrueBlocks is not integrated or bundled. Alchemy, Ankr, and configured JSON-RPC endpoints remain the available history sources.
+
+## [0.3.0a8] - 2026-08-18
 
 ### Added
 

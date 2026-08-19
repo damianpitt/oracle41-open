@@ -158,6 +158,9 @@ def test_activity_gui_inspects_selected_transaction(
     assert "Internal Execution" in detail
     assert "Completeness: complete" in detail
     assert "CALL" in detail
+    assert "Provider Capabilities" in detail
+    assert "Internal Traces: available" in detail
+    assert "Historical State: not checked" in detail
     assert "Normalized Actions" in detail
     assert "unknown" in detail
     assert view._export_actions_csv_button.isEnabled()
@@ -388,6 +391,14 @@ class _FakeTransactionInspectionService:
             is_cached=False,
             trace=trace,
             actions=WalletActionNormalizer().normalize(inspection, decoding, trace),
+            provider_capabilities=ProviderCapabilities(
+                transaction_lookup=True,
+                receipts=True,
+                traces=True,
+                archive_queries=None,
+                proxy_resolution=True,
+                revert_replay=True,
+            ),
         )
 
 

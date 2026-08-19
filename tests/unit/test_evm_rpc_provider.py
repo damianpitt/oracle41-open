@@ -106,7 +106,9 @@ def test_evm_rpc_capabilities_are_chain_specific() -> None:
     provider = EVMJSONRPCProvider({Chain.ARBITRUM: "https://arb.example"})
 
     assert provider.capabilities(Chain.ARBITRUM).receipts
+    assert provider.capabilities(Chain.ARBITRUM).archive_queries is None
     assert not provider.capabilities(Chain.ETHEREUM).receipts
+    assert provider.capabilities(Chain.ETHEREUM).archive_queries is False
 
 
 def test_evm_rpc_provider_resolves_eip1167_minimal_proxy() -> None:
@@ -122,6 +124,44 @@ def test_evm_rpc_provider_resolves_eip1167_minimal_proxy() -> None:
     assert result.proxy_kind is ProxyKind.EIP_1167
     assert result.implementation_address == _LOG_ADDRESS
     assert [call[0] for call in rpc.calls] == ["eth_getCode"]
+    assert provider.capabilities(Chain.ETHEREUM).archive_queries is True
+
+
+def test_evm_rpc_provider_learns_when_historical_state_is_pruned() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.errors_by_method["eth_getCode"] = JSONRPCRemoteError(
+        "missing trie node for requested block",
+        code=-32000,
+    )
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://rpc.example"},
+        rpc_client=rpc,
+        retry_attempts=1,
+    )
+
+    with pytest.raises(ProviderResponseError, match="missing trie node"):
+        provider.resolve_proxy(_TO, Chain.ETHEREUM, 1)
+
+    assert provider.capabilities(Chain.ETHEREUM).archive_queries is False
+
+
+def test_pruned_storage_read_overrides_successful_historical_code_read() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_getCode"] = "0x6000"
+    rpc.errors_by_method["eth_getStorageAt"] = JSONRPCRemoteError(
+        "historical state is not available",
+        code=-32000,
+    )
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://rpc.example"},
+        rpc_client=rpc,
+        retry_attempts=1,
+    )
+
+    with pytest.raises(ProviderResponseError, match="historical state"):
+        provider.resolve_proxy(_TO, Chain.ETHEREUM, 1)
+
+    assert provider.capabilities(Chain.ETHEREUM).archive_queries is False
 
 
 def test_evm_rpc_provider_resolves_eip1967_storage_proxy() -> None:

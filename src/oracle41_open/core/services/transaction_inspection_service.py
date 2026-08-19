@@ -165,6 +165,7 @@ class TransactionInspectionResult:
     actions: tuple[WalletAction, ...] = ()
     action_set: WalletActionSet | None = None
     enrichment: TransactionEnrichment | None = None
+    provider_capabilities: ProviderCapabilities | None = None
 
 
 class TransactionInspectionService:
@@ -226,6 +227,7 @@ class TransactionInspectionService:
                 actions=actions,
                 action_set=action_set,
                 enrichment=enrichment,
+                provider_capabilities=self._provider.capabilities(chain),
             )
 
         revert_data = None
@@ -261,6 +263,7 @@ class TransactionInspectionService:
             actions=actions,
             action_set=action_set,
             enrichment=enrichment,
+            provider_capabilities=self._provider.capabilities(chain),
         )
 
     def _build_action_set(

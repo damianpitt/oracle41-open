@@ -29,6 +29,8 @@ Provider adapters implement the protocols in `providers/data_provider.py`, `prov
 
 Provider errors are normalized into domain error types. Failover is applied at the provider boundary, not in individual views.
 
+Transaction providers report receipt, trace, historical-state, proxy, and revert capabilities separately. Trace support is learned from supported RPC methods. Historical-state support is learned only from successful block-specific reads or explicit node-pruning errors, so a timeout is not mistaken for a missing capability.
+
 Failover is enabled only when two live providers are configured. Demonstration providers are used only when no live provider is configured and never receive failed live requests.
 
 ## Persistence

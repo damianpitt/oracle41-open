@@ -83,6 +83,7 @@ class EVMJSONRPCProvider:
         self._retry_max_delay_seconds = max(0.0, retry_max_delay_seconds)
         self._sleep_func = sleep_func or time.sleep
         self._trace_dialects: dict[Chain, TraceDialect | None] = {}
+        self._historical_state_support: dict[Chain, bool] = {}
 
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         configured = chain in self._endpoints
@@ -95,7 +96,9 @@ class EVMJSONRPCProvider:
             transaction_lookup=configured,
             receipts=configured,
             traces=trace_support if configured else False,
-            archive_queries=None,
+            archive_queries=(
+                self._historical_state_support.get(chain) if configured else False
+            ),
             proxy_resolution=configured,
             revert_replay=configured,
         )
@@ -139,7 +142,12 @@ class EVMJSONRPCProvider:
         address = _require_address(contract_address, "contract")
         endpoint = self._endpoint_for(chain)
         block_tag = hex(block_number)
-        raw_code = self._rpc_call(endpoint, "eth_getCode", [address, block_tag])
+        try:
+            raw_code = self._rpc_call(endpoint, "eth_getCode", [address, block_tag])
+        except ProviderError as error:
+            self._record_historical_state_failure(chain, error)
+            raise
+        self._historical_state_support[chain] = True
         code = _require_hex_data(raw_code, "contract code")
         minimal_match = _EIP_1167_PATTERN.search(code.removeprefix("0x"))
         if minimal_match is not None:
@@ -151,7 +159,8 @@ class EVMJSONRPCProvider:
                 "0x" + minimal_match.group(1),
             )
 
-        raw_slot = self._rpc_call(
+        raw_slot = self._historical_rpc_call(
+            chain,
             endpoint,
             "eth_getStorageAt",
             [address, _EIP_1967_IMPLEMENTATION_SLOT, block_tag],
@@ -167,7 +176,8 @@ class EVMJSONRPCProvider:
                 implementation,
             )
 
-        raw_beacon_slot = self._rpc_call(
+        raw_beacon_slot = self._historical_rpc_call(
+            chain,
             endpoint,
             "eth_getStorageAt",
             [address, _EIP_1967_BEACON_SLOT, block_tag],
@@ -191,6 +201,7 @@ class EVMJSONRPCProvider:
                     32,
                 )
             except ProviderError as error:
+                self._record_historical_state_failure(chain, error)
                 return ProxyResolution(
                     chain=chain,
                     proxy_address=address,
@@ -250,10 +261,16 @@ class EVMJSONRPCProvider:
         try:
             self._rpc_call(endpoint, "eth_call", [call, hex(inspection.block_number)])
         except ProviderResponseError as error:
+            if _is_historical_state_unavailable(error):
+                self._historical_state_support[inspection.chain] = False
+                raise
             cause = error.__cause__
             if isinstance(cause, JSONRPCRemoteError):
+                # A contract revert still proves that the endpoint read the requested block state.
+                self._historical_state_support[inspection.chain] = True
                 return _extract_revert_data(cause.data)
             raise
+        self._historical_state_support[inspection.chain] = True
         return None
 
     def get_transaction_trace(
@@ -330,6 +347,30 @@ class EVMJSONRPCProvider:
                 f"{self._source_name} has no configured endpoint for {chain.display_name}."
             )
         return endpoint
+
+    def _record_historical_state_failure(
+        self,
+        chain: Chain,
+        error: ProviderError,
+    ) -> None:
+        if _is_historical_state_unavailable(error):
+            self._historical_state_support[chain] = False
+
+    def _historical_rpc_call(
+        self,
+        chain: Chain,
+        endpoint: str,
+        method: str,
+        params: list[Any],
+    ) -> object:
+        """Run a block-specific state query and learn only clear capability results."""
+        try:
+            result = self._rpc_call(endpoint, method, params)
+        except ProviderError as error:
+            self._record_historical_state_failure(chain, error)
+            raise
+        self._historical_state_support[chain] = True
+        return result
 
     def _proxy_resolution(
         self,
@@ -723,6 +764,24 @@ def _is_unsupported_rpc_method(error: ProviderResponseError) -> bool:
             "method disabled",
             "method is disabled",
             "method not enabled",
+        )
+    )
+
+
+def _is_historical_state_unavailable(error: ProviderError) -> bool:
+    """Recognize explicit pruning errors without guessing from temporary failures."""
+    cause = error.__cause__
+    message = str(cause if isinstance(cause, JSONRPCRemoteError) else error).lower()
+    return any(
+        text in message
+        for text in (
+            "archive node",
+            "historical state unavailable",
+            "historical state is not available",
+            "missing trie node",
+            "old state is not available",
+            "pruned state",
+            "state is not available",
         )
     )
 

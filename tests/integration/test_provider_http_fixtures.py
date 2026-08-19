@@ -6,6 +6,7 @@ Fixture tests protect pagination and response mapping across provider changes.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -18,9 +19,14 @@ from oracle41_open.core.models import (
     ProviderAuthError,
     ProviderRateLimitError,
     ProviderTimeoutError,
+    TransactionInspection,
+    WalletActionKind,
 )
+from oracle41_open.core.services.abi_decoder import StandardABIDecoder
+from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
 from oracle41_open.providers.alchemy import AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
+from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider
 from oracle41_open.providers.http_client import (
     HTTPClientTimeoutError,
     HTTPRequest,
@@ -259,6 +265,46 @@ def test_alchemy_http_fixture_maps_429_to_rate_limit_error_when_not_retried() ->
             address="0x742d35cc6634c0532925a3b844bc454e4438f44e",
             chain=Chain.ETHEREUM,
         )
+
+
+def test_shared_receipt_fixture_decodes_identically_across_providers() -> None:
+    alchemy = _inspection_from_fixtures("alchemy")
+    ankr = _inspection_from_fixtures("ankr")
+
+    # Provider and fetch metadata are provenance, not decoding inputs.
+    assert replace(
+        alchemy,
+        source_provider="provider",
+        fetched_at=ankr.fetched_at,
+    ) == replace(ankr, source_provider="provider")
+
+    decoder = StandardABIDecoder()
+    alchemy_decoding = decoder.decode(alchemy)
+    ankr_decoding = decoder.decode(ankr)
+    assert alchemy_decoding == ankr_decoding
+
+    normalizer = WalletActionNormalizer()
+    alchemy_actions = normalizer.normalize(alchemy, alchemy_decoding, None)
+    ankr_actions = normalizer.normalize(ankr, ankr_decoding, None)
+    assert alchemy_actions == ankr_actions
+    assert len(alchemy_actions) == 1
+    assert alchemy_actions[0].kind is WalletActionKind.TRANSFER
+    assert alchemy_actions[0].evidence[0].reference == "log:3"
+
+
+def _inspection_from_fixtures(provider_name: str) -> TransactionInspection:
+    http_client = _FixtureHTTPClient(
+        events=[
+            _fixture_response(f"{provider_name}/eth_getTransactionByHash_shared.json"),
+            _fixture_response(f"{provider_name}/eth_getTransactionReceipt_shared.json"),
+        ]
+    )
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://fixture.invalid"},
+        source_name=provider_name,
+        rpc_client=JSONRPCClient(http_client=http_client),
+    )
+    return provider.get_transaction_inspection("0x" + "ab" * 32, Chain.ETHEREUM)
 
 
 class _FixtureHTTPClient:

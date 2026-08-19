@@ -41,6 +41,7 @@ from oracle41_open.core.models import (
     DecodedRevert,
     ExplorerAddressContext,
     InternalCall,
+    ProviderCapabilities,
     ProxyResolution,
     SignatureProvenance,
     TransactionDecoding,
@@ -616,6 +617,7 @@ class ActivityView(QWidget):
                 raw_result.result.actions,
                 raw_result.result.action_set,
                 raw_result.result.enrichment,
+                raw_result.result.provider_capabilities,
             )
         )
         _populate_trace_tree(self._trace_tree, raw_result.result.trace)
@@ -985,6 +987,7 @@ def _render_transaction_inspection(
     actions: tuple[WalletAction, ...] = (),
     action_set: WalletActionSet | None = None,
     enrichment: TransactionEnrichment | None = None,
+    provider_capabilities: ProviderCapabilities | None = None,
 ) -> str:
     if inspection.status is True:
         status = "success"
@@ -1021,6 +1024,9 @@ def _render_transaction_inspection(
         "Optional Explorer Context",
         *_render_transaction_enrichment(enrichment),
         "",
+        "Provider Capabilities",
+        *_render_provider_capabilities(provider_capabilities),
+        "",
         "Revert Details",
         *_render_decoded_revert(decoding.revert, inspection.status),
         "",
@@ -1052,6 +1058,29 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_provider_capabilities(
+    capabilities: ProviderCapabilities | None,
+) -> tuple[str, ...]:
+    if capabilities is None:
+        return ("- Status: not reported",)
+    return (
+        f"- Transaction Lookup: {_capability_text(capabilities.transaction_lookup)}",
+        f"- Receipts: {_capability_text(capabilities.receipts)}",
+        f"- Internal Traces: {_capability_text(capabilities.traces)}",
+        f"- Historical State: {_capability_text(capabilities.archive_queries)}",
+        f"- Proxy Resolution: {_capability_text(capabilities.proxy_resolution)}",
+        f"- Revert Replay: {_capability_text(capabilities.revert_replay)}",
+    )
+
+
+def _capability_text(value: bool | None) -> str:
+    if value is True:
+        return "available"
+    if value is False:
+        return "unavailable"
+    return "not checked"
 
 
 def _render_action_set_completeness(
