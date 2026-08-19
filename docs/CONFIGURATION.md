@@ -19,6 +19,20 @@ oracle41-open
 
 A key stored in the system keyring takes precedence over the corresponding environment variable.
 
+### Planned Provider Choice
+
+A future `0.4.0a2` update is planned to add Moralis and GoldRush beside Alchemy and Ankr. This functionality is not available in the current release.
+
+The planned Settings design will allow users to:
+
+- Enable any subset of the four wallet-data providers.
+- Choose the order used for requests and failover.
+- Test each credential without saving it first.
+- See which chains and wallet features each provider supports.
+- Disable a provider completely so the application sends it no requests.
+
+Provider selection will apply to indexed wallet balances and history. Custom JSON-RPC endpoints will remain separate because standard JSON-RPC does not provide a complete address-history index by itself.
+
 ## Custom JSON-RPC Endpoints
 
 Settings can store one standard JSON-RPC endpoint per chain. Custom endpoints take priority for Transaction Inspector and are kept in the OS keyring because URLs may contain credentials. They are excluded from backup exports, and changes require an application restart.

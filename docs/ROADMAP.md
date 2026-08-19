@@ -257,6 +257,8 @@ These do not wait for a single milestone:
 - Run opt-in scheduled smoke tests with maintainer-owned provider keys outside pull-request CI.
 - Track provider capability and fixture drift without exposing credentials or request URLs.
 - Keep vendor outages and rate limits distinguishable from parsing or application defects.
+- Maintain one conformance suite for Alchemy, Ankr, Moralis, and GoldRush wallet-data adapters.
+- Keep provider enablement, priority, and chain capabilities visible and user-controlled.
 
 ### Security and Privacy
 
@@ -360,3 +362,21 @@ Create the protocol-adapter foundation before adding individual DeFi integration
 4. Provide an unknown-protocol fallback that keeps decoded events and token balances visible.
 
 M6.1 is complete only when a reference adapter and an unknown-protocol fixture pass the same conformance suite without importing GUI code.
+
+## Planned Slice: M6.2
+
+**Release target:** `0.4.0a2`
+
+Expand wallet-data choice from two providers to four:
+
+1. Add Moralis and GoldRush adapters for native balances, token holdings, wallet activity, and token-specific history.
+2. Replace the fixed primary/fallback pair with an ordered provider pool.
+3. Let users enable or disable each provider, choose priority, validate credentials, and see supported chains and features in Settings.
+4. Keep custom JSON-RPC endpoints as a separate transaction-inspection option instead of presenting them as complete wallet-history providers.
+5. Store every API key in the OS keyring, exclude all keys from backups and logs, and show the network destination before validation.
+6. Record provider provenance and completeness on every result so failover cannot silently mix incompatible pages.
+7. Add recorded fixtures for every provider and a shared conformance suite over the `DataProvider` contract.
+
+Moralis and GoldRush are the planned additions because both provide indexed wallet balances and history across the current Oracle41 chain set. Final inclusion remains conditional on API stability, licensing, free-tier usability, pagination quality, and fixture validation at implementation time.
+
+M6.2 is complete only when any one configured provider can run the supported wallet flows, an ordered subset can fail over safely, disabled providers make no requests, and Settings clearly reports feature gaps per provider and chain.

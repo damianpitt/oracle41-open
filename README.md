@@ -121,7 +121,7 @@ ruff check .
 mypy src
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the development workflow, [docs/ROADMAP.md](docs/ROADMAP.md) for product direction, and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the development workflow, [docs/ROADMAP.md](docs/ROADMAP.md) for product direction, [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md) for current and planned data sources, and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests.
 
 ## Build a Debian Package Locally
 
