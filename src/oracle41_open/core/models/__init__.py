@@ -52,6 +52,21 @@ from oracle41_open.core.models.ledger import (
     NormalizedEvent,
     TransactionRecord,
 )
+from oracle41_open.core.models.protocol_position import (
+    ProtocolAdapterCapabilities,
+    ProtocolAdapterContext,
+    ProtocolAdapterResult,
+    ProtocolAdapterStatus,
+    ProtocolAsset,
+    ProtocolAssetRole,
+    ProtocolContract,
+    ProtocolEvidenceValue,
+    ProtocolPosition,
+    ProtocolPositionCompleteness,
+    ProtocolPositionKind,
+    ProtocolPositionProvenance,
+    ProtocolRawEvidence,
+)
 from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
 from oracle41_open.core.models.transaction import (
@@ -122,6 +137,19 @@ __all__ = [
     "ProviderRateLimitError",
     "ProviderResponseError",
     "ProviderTimeoutError",
+    "ProtocolAdapterCapabilities",
+    "ProtocolAdapterContext",
+    "ProtocolAdapterResult",
+    "ProtocolAdapterStatus",
+    "ProtocolAsset",
+    "ProtocolAssetRole",
+    "ProtocolContract",
+    "ProtocolEvidenceValue",
+    "ProtocolPosition",
+    "ProtocolPositionCompleteness",
+    "ProtocolPositionKind",
+    "ProtocolPositionProvenance",
+    "ProtocolRawEvidence",
     "ProxyKind",
     "ProxyResolution",
     "ProxyResolutionStatus",

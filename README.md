@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.3.0a9` is an alpha release. Transaction decoding and wallet actions now have paired Alchemy and Ankr fixture tests for provider-independent output. Transaction Inspector reports observed receipt, trace, historical-state, proxy, and revert capabilities separately. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.4.0a1` is an alpha release. It introduces the versioned protocol-adapter foundation for supplied assets, debt, collateral, liquidity, staking, vesting, and rewards. A reference adapter and unknown-protocol fallback pass the same recorded-fixture conformance suite. Production protocol integrations and position views are not included yet. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -34,6 +34,7 @@ Version `0.3.0a9` is an alpha release. Transaction decoding and wallet actions n
 - Versioned action CSV/JSON exports with participants, assets, confidence, and source evidence
 - Action-set completeness and missing-evidence reasons based on trace availability
 - Optional Blockscout transaction context with contract names, creation details, verification state, and source links
+- Versioned protocol-position models, capability registry, fixture schema, reference adapter, and evidence-preserving unknown fallback
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 The complete M5 transaction-understanding test matrix and optional-provider fallbacks are documented in [docs/M5_VALIDATION.md](docs/M5_VALIDATION.md).
@@ -121,7 +122,7 @@ ruff check .
 mypy src
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the development workflow, [docs/ROADMAP.md](docs/ROADMAP.md) for product direction, [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md) for current and planned data sources, and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the development workflow, [docs/ROADMAP.md](docs/ROADMAP.md) for product direction, [docs/PROTOCOL_ADAPTERS.md](docs/PROTOCOL_ADAPTERS.md) for adapter development, [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md) for current and planned data sources, and [CONTRIBUTING.md](CONTRIBUTING.md) for pull requests.
 
 ## Build a Debian Package Locally
 
@@ -148,6 +149,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Provider APIs and rate limits vary by chain and account.
 - Token metadata quality depends on provider responses and local filtering rules.
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
+- Protocol positions are an extension foundation in `0.4.0a1`; no production DeFi adapter or position screen is connected yet.
 - The application currently targets EVM-compatible chains supported by the configured providers.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.

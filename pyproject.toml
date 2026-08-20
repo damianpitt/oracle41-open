@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oracle41-open"
-version = "0.3.0a9"
+version = "0.4.0a1"
 description = "Linux-first local wallet analytics desktop app."
 readme = "README.md"
 requires-python = ">=3.11"

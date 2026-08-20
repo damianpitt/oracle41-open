@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/damianpitt/oracle41-open/blob/main/docs/schemas/protocol-adapter-fixture-v1.schema.json",
+  "title": "Oracle41 Protocol Adapter Fixture",
+  "type": "object",
+  "required": ["format", "format_version", "case_id", "input", "expected"],
+  "properties": {
+    "format": {
+      "const": "oracle41-protocol-adapter-fixture"
+    },
+    "format_version": {
+      "const": 1
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "wallet_address",
+        "chain",
+        "block_number",
+        "contract_addresses",
+        "source_provider",
+        "observed_at",
+        "token_balances",
+        "decoded_events",
+        "raw_evidence"
+      ],
+      "properties": {
+        "wallet_address": { "$ref": "#/$defs/address" },
+        "chain": {
+          "enum": ["ethereum", "optimism", "polygon", "base", "arbitrum"]
+        },
+        "block_number": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contract_addresses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/address" },
+          "uniqueItems": true
+        },
+        "source_provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "token_balances": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/token_balance" }
+        },
+        "decoded_events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/decoded_event" }
+        },
+        "raw_evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/raw_evidence" }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "required": [
+        "status",
+        "adapter_id",
+        "protocol_id",
+        "position_kinds",
+        "raw_amounts",
+        "source_balance_count",
+        "source_event_count",
+        "raw_evidence_count"
+      ],
+      "properties": {
+        "status": {
+          "enum": ["matched", "partial", "unknown_protocol"]
+        },
+        "adapter_id": { "type": "string" },
+        "protocol_id": { "type": ["string", "null"] },
+        "position_kinds": {
+          "type": "array",
+          "items": {
+            "enum": ["supplied", "debt", "collateral", "liquidity", "staking", "vesting", "reward"]
+          }
+        },
+        "raw_amounts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/unsigned_integer_string" }
+        },
+        "source_balance_count": { "type": "integer", "minimum": 0 },
+        "source_event_count": { "type": "integer", "minimum": 0 },
+        "raw_evidence_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "address": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{64}$"
+    },
+    "unsigned_integer_string": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "token_balance": {
+      "type": "object",
+      "required": ["contract_address", "symbol", "name", "decimals", "is_verified", "balance_decimal"],
+      "properties": {
+        "contract_address": { "$ref": "#/$defs/address" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0 },
+        "is_verified": { "type": "boolean" },
+        "balance_decimal": { "type": "string" }
+      }
+    },
+    "decoded_event": {
+      "type": "object",
+      "required": ["status", "log_index", "topic0", "name", "canonical_signature", "standard", "arguments"],
+      "properties": {
+        "status": { "enum": ["decoded", "unknown", "malformed"] },
+        "log_index": { "type": "integer", "minimum": 0 },
+        "topic0": { "$ref": "#/$defs/hash" },
+        "name": { "type": ["string", "null"] },
+        "canonical_signature": { "type": ["string", "null"] },
+        "standard": { "type": ["string", "null"] },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "abi_type", "value", "indexed"],
+            "properties": {
+              "name": { "type": "string" },
+              "abi_type": { "type": "string" },
+              "value": { "type": "string" },
+              "indexed": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "raw_evidence": {
+      "type": "object",
+      "required": ["kind", "reference", "contract_address", "tx_hash", "signature", "values"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "reference": { "type": "string", "minLength": 1 },
+        "contract_address": { "oneOf": [{ "$ref": "#/$defs/address" }, { "type": "null" }] },
+        "tx_hash": { "oneOf": [{ "$ref": "#/$defs/hash" }, { "type": "null" }] },
+        "signature": { "type": ["string", "null"] },
+        "values": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}

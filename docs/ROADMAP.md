@@ -118,6 +118,8 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
+**Implementation status:** M6.1 is complete in `0.4.0a1`. Versioned position models, adapter capabilities, deterministic registry selection, a reference adapter, an unknown-protocol fallback, and format-v1 conformance fixtures are available. Production protocol integrations and position views remain open.
+
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
 ### Scope
@@ -352,7 +354,7 @@ M5.8 is complete only when the M5 exit gate has a reproducible test matrix and e
 
 **Status:** Complete in `0.3.0a9`. Paired Alchemy and Ankr fixtures produce identical decoding and actions, historical-state support is learned separately from receipt and trace support, failure paths have an explicit test matrix, and TrueBlocks remains an optional future adapter.
 
-## Immediate Next Slice: M6.1
+## Completed Slice: M6.1
 
 Create the protocol-adapter foundation before adding individual DeFi integrations:
 
@@ -363,7 +365,9 @@ Create the protocol-adapter foundation before adding individual DeFi integration
 
 M6.1 is complete only when a reference adapter and an unknown-protocol fixture pass the same conformance suite without importing GUI code.
 
-## Planned Slice: M6.2
+**Status:** Complete in `0.4.0a1`. The reference lending and unknown-protocol fixtures use the same deterministic conformance path. Unknown evidence preserves token balances, decoded events, actions, and raw records. Registry ambiguity is rejected before analysis.
+
+## Immediate Next Slice: M6.2
 
 **Release target:** `0.4.0a2`
 

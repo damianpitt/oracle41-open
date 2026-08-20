@@ -6,6 +6,7 @@ The application is organized into five boundaries:
 
 - `gui`: PySide6 windows and views. GUI code owns widgets, user interaction, and presentation.
 - `core`: domain models and services. Core code validates input, coordinates providers, applies filters, and produces domain results.
+- `core/protocols`: versioned protocol adapters, capability-based selection, and unknown-protocol fallback behavior.
 - `providers`: Alchemy, Ankr, failover, retry, HTTP, JSON-RPC, pricing, and stub implementations.
 - `storage`: settings, system-keyring access, SQLite repositories, cache persistence, backup/restore, and cache telemetry.
 - `exports`: CSV and JSON serialization for user-facing reports.
@@ -46,6 +47,8 @@ A deterministic decoder combines the bundled token-standard registry with addres
 Each normalized action list has a separate evidence-completeness result. A complete trace produces a complete action set. Partial, unsupported, unavailable, or missing traces produce a partial set with a plain explanation of which internal calls or native transfers may be absent. Action CSV and JSON format version 2 includes this context without changing individual action records.
 
 Blockscout enrichment is optional. It can add readable contract names, creation details, verification state, and explorer-decoded method context after local actions are complete. These fields use a separate schema-v8 table with source links and clear availability states. They do not change receipts, local ABI decoding, traces, or normalized actions.
+
+Protocol adapters receive immutable actions, balances, decoded events, and raw evidence at one chain and block. They can add supplied, debt, collateral, liquidity, staking, vesting, or reward positions, but every result returns its original evidence unchanged. The registry rejects ambiguous chain/contract claims and uses an unknown-protocol fallback when nothing matches. Version `0.4.0a1` provides this core boundary and recorded-fixture conformance tests only; protocol positions are not yet stored or connected to the GUI.
 
 SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
 

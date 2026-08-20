@@ -2,7 +2,29 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.3.0a9] - Unreleased
+## [0.4.0a1] - Unreleased
+
+### Added
+
+- Immutable protocol models for supplied assets, debt, collateral, liquidity, staking, vesting, and rewards.
+- A versioned protocol-adapter contract with explicit chain, contract, and position capabilities.
+- Deterministic registry selection with duplicate-ID and overlapping-contract protection.
+- An evidence-preserving unknown-protocol fallback that keeps actions, balances, decoded events, and raw records visible.
+- A reference lending adapter that demonstrates supplied, debt, and reward output without claiming a production deployment.
+- Format-v1 recorded protocol fixtures, a public JSON schema, a shared conformance suite, and an adapter authoring guide.
+
+### Changed
+
+- The roadmap advances to M6 DeFi, NFT, and position intelligence work.
+- Core architecture documentation now defines protocol adapters as a GUI-free and storage-free extension boundary.
+
+### Known Limitations
+
+- No production DeFi protocol adapter is included yet.
+- Protocol positions are not persisted, exported, priced, aggregated, or displayed in the GUI yet.
+- The reference lending contract and snapshot are illustrative test data only.
+
+## [0.3.0a9] - 2026-08-20
 
 ### Added
 

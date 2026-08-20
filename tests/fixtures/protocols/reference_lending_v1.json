@@ -1,0 +1,66 @@
+{
+  "format": "oracle41-protocol-adapter-fixture",
+  "format_version": 1,
+  "case_id": "reference-lending-complete",
+  "input": {
+    "wallet_address": "0x1111111111111111111111111111111111111111",
+    "chain": "ethereum",
+    "block_number": 24000000,
+    "contract_addresses": [
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "source_provider": "recorded-fixture",
+    "observed_at": "2026-08-21T00:00:00+00:00",
+    "token_balances": [
+      {
+        "contract_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "symbol": "USDC",
+        "name": "USD Coin",
+        "decimals": 6,
+        "is_verified": true,
+        "balance_decimal": "125"
+      }
+    ],
+    "decoded_events": [
+      {
+        "status": "decoded",
+        "log_index": 4,
+        "topic0": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "name": "ReferencePosition",
+        "canonical_signature": "ReferencePosition(address,uint256,uint256,uint256)",
+        "standard": "reference",
+        "arguments": []
+      }
+    ],
+    "raw_evidence": [
+      {
+        "kind": "reference_lending_position",
+        "reference": "event:4",
+        "contract_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tx_hash": "0xabababababababababababababababababababababababababababababababab",
+        "signature": "ReferencePosition(address,uint256,uint256,uint256)",
+        "values": {
+          "asset_contract": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "asset_symbol": "USDC",
+          "asset_decimals": "6",
+          "supplied_raw": "125000000",
+          "debt_raw": "25000000",
+          "reward_contract": "0xcccccccccccccccccccccccccccccccccccccccc",
+          "reward_symbol": "RWD",
+          "reward_decimals": "18",
+          "reward_raw": "3000000000000000000"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "status": "matched",
+    "adapter_id": "oracle41.reference-lending",
+    "protocol_id": "reference-lending",
+    "position_kinds": ["supplied", "debt", "reward"],
+    "raw_amounts": ["125000000", "25000000", "3000000000000000000"],
+    "source_balance_count": 1,
+    "source_event_count": 1,
+    "raw_evidence_count": 1
+  }
+}

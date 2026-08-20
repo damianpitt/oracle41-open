@@ -1,0 +1,65 @@
+{
+  "format": "oracle41-protocol-adapter-fixture",
+  "format_version": 1,
+  "case_id": "unknown-protocol-passthrough",
+  "input": {
+    "wallet_address": "0x1111111111111111111111111111111111111111",
+    "chain": "base",
+    "block_number": 36000000,
+    "contract_addresses": [
+      "0x9999999999999999999999999999999999999999"
+    ],
+    "source_provider": "recorded-fixture",
+    "observed_at": "2026-08-21T00:00:00+00:00",
+    "token_balances": [
+      {
+        "contract_address": "0x8888888888888888888888888888888888888888",
+        "symbol": "UNK",
+        "name": "Unknown Asset",
+        "decimals": 18,
+        "is_verified": false,
+        "balance_decimal": "7"
+      }
+    ],
+    "decoded_events": [
+      {
+        "status": "decoded",
+        "log_index": 2,
+        "topic0": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "name": "PositionChanged",
+        "canonical_signature": "PositionChanged(address,uint256)",
+        "standard": "contract-specific",
+        "arguments": [
+          {
+            "name": "amount",
+            "abi_type": "uint256",
+            "value": "7000000000000000000",
+            "indexed": false
+          }
+        ]
+      }
+    ],
+    "raw_evidence": [
+      {
+        "kind": "decoded_event",
+        "reference": "event:2",
+        "contract_address": "0x9999999999999999999999999999999999999999",
+        "tx_hash": "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+        "signature": "PositionChanged(address,uint256)",
+        "values": {
+          "amount": "7000000000000000000"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "status": "unknown_protocol",
+    "adapter_id": "oracle41.unknown-protocol",
+    "protocol_id": null,
+    "position_kinds": [],
+    "raw_amounts": [],
+    "source_balance_count": 1,
+    "source_event_count": 1,
+    "raw_evidence_count": 1
+  }
+}

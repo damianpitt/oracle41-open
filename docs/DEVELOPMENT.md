@@ -30,6 +30,7 @@ The gate runs:
 - Do not put real API keys in tests, fixtures, logs, or issue reports.
 - Add regression coverage for cache freshness, pagination, filtering, and provider error behavior.
 - Verify database migrations, idempotent event ingestion, checkpoint recovery, and export provenance.
+- Give every protocol adapter complete, partial, malformed, and unknown recorded fixtures at an exact block.
 - Keep core/provider tests independent of a display server where possible.
 - GUI changes should preserve the service boundary and loading/error states.
 
@@ -41,6 +42,8 @@ The gate runs:
 - Add comments before non-obvious logic when the reason is not clear from the code.
 - Explain why a special case exists. Do not write comments that only repeat the next line.
 - Update a header when the main responsibility of its file changes.
+
+Protocol adapter contributions must also follow [PROTOCOL_ADAPTERS.md](PROTOCOL_ADAPTERS.md).
 
 ## GUI Changes
 
