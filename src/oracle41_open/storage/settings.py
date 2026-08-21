@@ -8,14 +8,58 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from enum import Enum
 from pathlib import Path
 
 from platformdirs import user_config_dir
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import Chain
+
+
+class WalletDataProviderId(str, Enum):
+    """Stable IDs used by provider preferences and cursor ownership."""
+
+    ALCHEMY = "alchemy"
+    ANKR = "ankr"
+    MORALIS = "moralis"
+    GOLDRUSH = "goldrush"
+
+
+class ProviderPreference(BaseModel):
+    """Store a wallet-data provider's enabled state and request priority."""
+
+    provider_id: WalletDataProviderId
+    enabled: bool
+    priority: int = Field(ge=1, le=4)
+
+
+def _default_provider_preferences() -> list[ProviderPreference]:
+    # Future adapters stay disabled until they pass the shared provider tests.
+    return [
+        ProviderPreference(
+            provider_id=WalletDataProviderId.ALCHEMY,
+            enabled=True,
+            priority=1,
+        ),
+        ProviderPreference(
+            provider_id=WalletDataProviderId.ANKR,
+            enabled=True,
+            priority=2,
+        ),
+        ProviderPreference(
+            provider_id=WalletDataProviderId.MORALIS,
+            enabled=False,
+            priority=3,
+        ),
+        ProviderPreference(
+            provider_id=WalletDataProviderId.GOLDRUSH,
+            enabled=False,
+            priority=4,
+        ),
+    ]
 
 
 class AppSettings(BaseModel):
@@ -29,6 +73,9 @@ class AppSettings(BaseModel):
     token_detail_cache_ttl_seconds: int = Field(default=120, ge=0, le=86_400)
     pricing_max_stale_age_seconds: int = Field(default=86_400, ge=0, le=604_800)
     cache_max_size_mb: int = Field(default=150, ge=10, le=500)
+    provider_preferences: list[ProviderPreference] = Field(
+        default_factory=_default_provider_preferences
+    )
 
     @field_validator("dust_threshold_usd")
     @classmethod
@@ -46,6 +93,35 @@ class AppSettings(BaseModel):
         if normalized == normalized.to_integral():
             return str(normalized.quantize(Decimal("1")))
         return format(normalized, "f")
+
+    @model_validator(mode="after")
+    def _validate_provider_preferences(self) -> AppSettings:
+        provider_ids = [preference.provider_id for preference in self.provider_preferences]
+        priorities = [preference.priority for preference in self.provider_preferences]
+        expected_ids = set(WalletDataProviderId)
+
+        if len(provider_ids) != len(set(provider_ids)):
+            raise ValueError("Provider preferences contain duplicate provider IDs.")
+        if set(provider_ids) != expected_ids:
+            raise ValueError("Provider preferences must contain every supported provider ID.")
+        if len(priorities) != len(set(priorities)):
+            raise ValueError("Provider preferences contain duplicate priorities.")
+        return self
+
+    def ordered_enabled_provider_ids(self) -> tuple[WalletDataProviderId, ...]:
+        """Return enabled wallet providers in the user's chosen order."""
+
+        ordered = sorted(self.provider_preferences, key=lambda preference: preference.priority)
+        return tuple(preference.provider_id for preference in ordered if preference.enabled)
+
+    def provider_preference(self, provider_id: WalletDataProviderId) -> ProviderPreference:
+        """Return one provider preference from the validated complete set."""
+
+        return next(
+            preference
+            for preference in self.provider_preferences
+            if preference.provider_id == provider_id
+        )
 
 
 @dataclass

@@ -1,7 +1,7 @@
 """Describe token balances and paginated balance results.
 
 The models preserve raw integer values while also exposing decimal and optional price information.
-Pagination details remain available so services can report incomplete results.
+Paginated results keep their source provider and cursor so services can report incomplete results safely.
 """
 
 from __future__ import annotations
@@ -29,3 +29,4 @@ class TokenBalance:
 class TokenBalancePage:
     balances: list[TokenBalance]
     next_page_key: str | None
+    source_provider: str | None = None

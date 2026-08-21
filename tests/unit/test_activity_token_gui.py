@@ -38,6 +38,7 @@ from oracle41_open.gui.views.activity_view import ActivityView
 from oracle41_open.gui.views.settings_view import SettingsView
 from oracle41_open.gui.views.token_detail_view import TokenDetailView
 from oracle41_open.storage.secrets import SecretStore
+from oracle41_open.storage.settings import WalletDataProviderId
 
 _ADDRESS = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 _TOKEN = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
@@ -212,6 +213,28 @@ def test_settings_gui_imports_and_removes_contract_abi(
         Chain.ETHEREUM, contract_address
     ) is None
     assert view._contract_abi_list.count() == 0
+    view.close()
+
+
+def test_settings_gui_saves_provider_enablement_and_priority(
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ = qt_application
+    container = _container(monkeypatch, tmp_path)
+    view = SettingsView(container)
+    view._alchemy_enabled.setChecked(False)
+    view._alchemy_priority.setCurrentIndex(view._alchemy_priority.findData(2))
+    view._ankr_priority.setCurrentIndex(view._ankr_priority.findData(1))
+
+    view._save_settings_button.click()
+
+    saved = container.settings_store.load()
+    assert saved.ordered_enabled_provider_ids() == (WalletDataProviderId.ANKR,)
+    assert saved.provider_preference(WalletDataProviderId.ALCHEMY).priority == 2
+    assert saved.provider_preference(WalletDataProviderId.ANKR).priority == 1
+    assert "Restart app" in view._status.text()
     view.close()
 
 

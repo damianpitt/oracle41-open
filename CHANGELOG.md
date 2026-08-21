@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a1] - Unreleased
+## [0.4.0a2] - Unreleased
+
+### Added
+
+- Persisted enabled state and priority for Alchemy and Ankr wallet-data providers.
+- An ordered provider pool that supports one or more configured wallet-data adapters.
+- Provider-owned pagination cursors for balances, activity, and token history.
+- Settings controls for enabling Alchemy or Ankr and choosing which provider is tried first.
+
+### Changed
+
+- Fresh wallet-data requests fail over in the saved provider order.
+- A continuation page always returns to the provider that created its cursor.
+- Disabled providers are excluded from wallet-data, pricing, and transaction-inspection setup.
+
+### Known Limitations
+
+- Moralis and GoldRush remain planned. Their adapters and Settings rows are not included yet.
+- Provider preference changes require an application restart.
+- Cursors saved before 0.4.0a2 cannot be safely assigned to a provider. Start a new load when the application reports a legacy cursor.
+
+## [0.4.0a1] - 2026-08-21
 
 ### Added
 

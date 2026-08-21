@@ -7,6 +7,7 @@ Views receive the finished container and do not construct providers directly.
 from __future__ import annotations
 
 import os
+from contextlib import suppress
 from dataclasses import dataclass
 
 from oracle41_open.core.models import Chain, ProviderError
@@ -27,7 +28,7 @@ from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.blockscout import BlockscoutABIProvider
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
-from oracle41_open.providers.failover import FailoverDataProvider
+from oracle41_open.providers.failover import OrderedDataProviderPool, ProviderPoolEntry
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.providers.stub import (
     StubDataProvider,
@@ -48,7 +49,7 @@ from oracle41_open.storage.db import (
     WatchlistRepository,
 )
 from oracle41_open.storage.secrets import SecretStore
-from oracle41_open.storage.settings import SettingsStore
+from oracle41_open.storage.settings import SettingsStore, WalletDataProviderId
 
 
 @dataclass
@@ -118,37 +119,35 @@ def build_container() -> AppContainer:
         environment_name="ORACLE41_ANKR_API_KEY",
     )
 
-    alchemy_provider: DataProvider | None = None
-    ankr_provider: DataProvider | None = None
+    enabled_provider_ids = settings.ordered_enabled_provider_ids()
+    configured_providers: dict[WalletDataProviderId, DataProvider] = {}
     pricing_provider: PricingProvider
-    if alchemy_api_key:
-        try:
-            alchemy_provider = AlchemyProvider(api_key=alchemy_api_key)
-        except ProviderError:
-            alchemy_provider = None
-    if ankr_api_key:
-        try:
-            ankr_provider = AnkrProvider(api_key=ankr_api_key)
-        except ProviderError:
-            ankr_provider = None
+    if alchemy_api_key and WalletDataProviderId.ALCHEMY in enabled_provider_ids:
+        with suppress(ProviderError):
+            configured_providers[WalletDataProviderId.ALCHEMY] = AlchemyProvider(
+                api_key=alchemy_api_key
+            )
+    if ankr_api_key and WalletDataProviderId.ANKR in enabled_provider_ids:
+        with suppress(ProviderError):
+            configured_providers[WalletDataProviderId.ANKR] = AnkrProvider(api_key=ankr_api_key)
 
     data_provider: DataProvider
-    if alchemy_provider is not None and ankr_provider is not None:
-        data_provider = FailoverDataProvider(
-            primary=alchemy_provider,
-            fallback=ankr_provider,
+    pool_entries = [
+        ProviderPoolEntry(
+            provider_id=provider_id.value,
+            provider=configured_providers[provider_id],
         )
-        uses_live_providers = True
-    elif alchemy_provider is not None:
-        data_provider = alchemy_provider
-        uses_live_providers = True
-    elif ankr_provider is not None:
-        data_provider = ankr_provider
+        for provider_id in enabled_provider_ids
+        if provider_id in configured_providers
+    ]
+    if pool_entries:
+        # A one-provider pool still owns cursors and can accept more providers later.
+        data_provider = OrderedDataProviderPool(pool_entries)
         uses_live_providers = True
     else:
         data_provider = StubDataProvider()
 
-    if alchemy_api_key:
+    if alchemy_api_key and WalletDataProviderId.ALCHEMY in enabled_provider_ids:
         try:
             pricing_provider = AlchemyPricingProvider(api_key=alchemy_api_key)
         except ProviderError:
@@ -191,7 +190,7 @@ def build_container() -> AppContainer:
         transaction_providers.append(
             EVMJSONRPCProvider(custom_rpc_endpoints, source_name="custom-json-rpc")
         )
-    if alchemy_api_key:
+    if alchemy_api_key and WalletDataProviderId.ALCHEMY in enabled_provider_ids:
         transaction_providers.append(
             EVMJSONRPCProvider(
                 {
@@ -204,7 +203,7 @@ def build_container() -> AppContainer:
                 source_name="alchemy",
             )
         )
-    if ankr_api_key:
+    if ankr_api_key and WalletDataProviderId.ANKR in enabled_provider_ids:
         transaction_providers.append(
             EVMJSONRPCProvider(
                 {

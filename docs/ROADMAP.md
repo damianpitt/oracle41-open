@@ -367,9 +367,9 @@ M6.1 is complete only when a reference adapter and an unknown-protocol fixture p
 
 **Status:** Complete in `0.4.0a1`. The reference lending and unknown-protocol fixtures use the same deterministic conformance path. Unknown evidence preserves token balances, decoded events, actions, and raw records. Registry ambiguity is rejected before analysis.
 
-## Immediate Next Slice: M6.2
+## Current Milestone: M6.2
 
-**Release target:** `0.4.0a2`
+**Release series:** `0.4.0` alpha
 
 Expand wallet-data choice from two providers to four:
 
@@ -384,3 +384,11 @@ Expand wallet-data choice from two providers to four:
 Moralis and GoldRush are the planned additions because both provide indexed wallet balances and history across the current Oracle41 chain set. Final inclusion remains conditional on API stability, licensing, free-tier usability, pagination quality, and fixture validation at implementation time.
 
 M6.2 is complete only when any one configured provider can run the supported wallet flows, an ordered subset can fail over safely, disabled providers make no requests, and Settings clearly reports feature gaps per provider and chain.
+
+### Completed Slice: M6.2A
+
+**Status:** Complete in `0.4.0a2`.
+
+M6.2A replaces the fixed Alchemy/Ankr pair with an ordered provider pool. Settings now stores enabled state and priority for both available wallet-data providers. Fresh requests can fail over in that order, while balances, activity, and token-history cursors remain bound to the provider and operation that created them. Disabled providers are left out of automatic runtime setup.
+
+Moralis and GoldRush adapters, four-provider capability reporting, and the shared provider conformance suite remain open for the next M6.2 slices.

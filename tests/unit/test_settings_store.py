@@ -6,9 +6,17 @@ They confirm secrets are not part of the settings model.
 
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import Chain
-from oracle41_open.storage.settings import AppSettings, SettingsStore
+from oracle41_open.storage.settings import (
+    AppSettings,
+    ProviderPreference,
+    SettingsStore,
+    WalletDataProviderId,
+)
 
 
 def test_settings_store_roundtrip(tmp_path: Path) -> None:
@@ -21,6 +29,10 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     assert initial.token_detail_cache_ttl_seconds == 120
     assert initial.pricing_max_stale_age_seconds == 86_400
     assert initial.cache_max_size_mb == 150
+    assert initial.ordered_enabled_provider_ids() == (
+        WalletDataProviderId.ALCHEMY,
+        WalletDataProviderId.ANKR,
+    )
 
     updated = AppSettings(
         selected_chain=Chain.BASE,
@@ -33,6 +45,28 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
         token_detail_cache_ttl_seconds=180,
         pricing_max_stale_age_seconds=172_800,
         cache_max_size_mb=220,
+        provider_preferences=[
+            ProviderPreference(
+                provider_id=WalletDataProviderId.ALCHEMY,
+                enabled=False,
+                priority=2,
+            ),
+            ProviderPreference(
+                provider_id=WalletDataProviderId.ANKR,
+                enabled=True,
+                priority=1,
+            ),
+            ProviderPreference(
+                provider_id=WalletDataProviderId.MORALIS,
+                enabled=False,
+                priority=3,
+            ),
+            ProviderPreference(
+                provider_id=WalletDataProviderId.GOLDRUSH,
+                enabled=False,
+                priority=4,
+            ),
+        ],
     )
     store.save(updated)
 
@@ -47,6 +81,7 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     assert loaded.token_detail_cache_ttl_seconds == 180
     assert loaded.pricing_max_stale_age_seconds == 172_800
     assert loaded.cache_max_size_mb == 220
+    assert loaded.ordered_enabled_provider_ids() == (WalletDataProviderId.ANKR,)
 
 
 def test_settings_store_loads_legacy_payload_with_new_defaults(tmp_path: Path) -> None:
@@ -67,3 +102,24 @@ def test_settings_store_loads_legacy_payload_with_new_defaults(tmp_path: Path) -
     assert loaded.token_detail_cache_ttl_seconds == 120
     assert loaded.pricing_max_stale_age_seconds == 86_400
     assert loaded.cache_max_size_mb == 150
+    assert loaded.ordered_enabled_provider_ids() == (
+        WalletDataProviderId.ALCHEMY,
+        WalletDataProviderId.ANKR,
+    )
+
+
+def test_settings_reject_duplicate_provider_priorities() -> None:
+    raw_preferences = AppSettings().model_dump(mode="json")["provider_preferences"]
+    assert isinstance(raw_preferences, list)
+    raw_preferences[1]["priority"] = 1
+
+    with pytest.raises(ValidationError, match="duplicate priorities"):
+        AppSettings.model_validate({"provider_preferences": raw_preferences})
+
+
+def test_settings_reject_missing_provider_preferences() -> None:
+    raw_preferences = AppSettings().model_dump(mode="json")["provider_preferences"]
+    assert isinstance(raw_preferences, list)
+
+    with pytest.raises(ValidationError, match="every supported provider ID"):
+        AppSettings.model_validate({"provider_preferences": raw_preferences[:-1]})

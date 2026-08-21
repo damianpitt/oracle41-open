@@ -6,8 +6,8 @@ Oracle41 Open keeps provider-specific response formats outside its core services
 
 | Provider | Wallet balances and history | Transaction JSON-RPC | Settings support |
 | --- | --- | --- | --- |
-| Alchemy | Available | Available | API key |
-| Ankr | Available | Available | API key |
+| Alchemy | Available | Available | API key, enabled state, priority |
+| Ankr | Available | Available | API key, enabled state, priority |
 | Custom JSON-RPC | Not a complete indexed wallet source | Available | One endpoint per chain |
 
 Custom JSON-RPC is intentionally separate. Standard EVM nodes can return balances, receipts, logs, and traces, but they do not normally expose a complete indexed history for one address.
@@ -16,7 +16,7 @@ Custom JSON-RPC is intentionally separate. Standard EVM nodes can return balance
 
 M6.2 plans to add [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as complete wallet-data choices. Both currently provide indexed balances and transaction history for the EVM chains Oracle41 supports. Their APIs must be reviewed again when implementation starts because pricing, plans, limits, and response formats can change.
 
-The planned provider pool will have these rules:
+The provider pool follows these rules:
 
 1. Users choose which providers are enabled.
 2. Users choose an explicit priority order.
@@ -29,7 +29,7 @@ The planned provider pool will have these rules:
 
 ## Settings Design
 
-Each provider row should show:
+Version `0.4.0a2` shows enabled state and priority for Alchemy and Ankr. API keys keep their existing validation action. Later M6.2 slices will add Moralis and GoldRush and show these details for every provider:
 
 - Enabled state
 - Priority

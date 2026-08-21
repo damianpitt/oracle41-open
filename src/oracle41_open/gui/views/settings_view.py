@@ -35,7 +35,11 @@ from oracle41_open.core.models import Chain, ContractABIRecord, ValidationError
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationResult
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
 from oracle41_open.storage.backup_restore import BackupMetadata
-from oracle41_open.storage.settings import AppSettings
+from oracle41_open.storage.settings import (
+    AppSettings,
+    ProviderPreference,
+    WalletDataProviderId,
+)
 
 if TYPE_CHECKING:
     from oracle41_open.app.bootstrap import AppContainer
@@ -106,6 +110,8 @@ class SettingsView(QWidget):
         self._cache_max_size_input = QLineEdit(self)
         self._cache_max_size_input.setPlaceholderText("10-500")
 
+        self._alchemy_enabled = QCheckBox("Enabled", self)
+        self._alchemy_priority = _provider_priority_combo(self)
         self._alchemy_key_input = QLineEdit(self)
         self._alchemy_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._alchemy_key_input.setPlaceholderText("Alchemy API Key")
@@ -113,6 +119,8 @@ class SettingsView(QWidget):
             self._container.secret_store.get_secret("alchemy_api_key") or ""
         )
 
+        self._ankr_enabled = QCheckBox("Enabled", self)
+        self._ankr_priority = _provider_priority_combo(self)
         self._ankr_key_input = QLineEdit(self)
         self._ankr_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._ankr_key_input.setPlaceholderText("Ankr API Key")
@@ -204,6 +212,25 @@ class SettingsView(QWidget):
         settings_form.addRow("", self._save_settings_button)
         settings_box.setLayout(settings_form)
 
+        providers_box = QGroupBox("Wallet Data Providers")
+        providers_form = QFormLayout()
+        providers_form.addRow(
+            "Alchemy",
+            _provider_preference_row(self._alchemy_enabled, self._alchemy_priority),
+        )
+        providers_form.addRow(
+            "Ankr",
+            _provider_preference_row(self._ankr_enabled, self._ankr_priority),
+        )
+        provider_note = QLabel(
+            "Priority 1 is tried first. Disabled providers receive no automatic requests. "
+            "Restart after changing this order.",
+            self,
+        )
+        provider_note.setWordWrap(True)
+        providers_form.addRow("", provider_note)
+        providers_box.setLayout(providers_form)
+
         keys_box = QGroupBox("Provider Keys")
         keys_form = QFormLayout()
         keys_form.addRow("Alchemy", self._alchemy_key_input)
@@ -279,6 +306,7 @@ class SettingsView(QWidget):
 
         root = QVBoxLayout()
         root.addWidget(settings_box)
+        root.addWidget(providers_box)
         root.addWidget(keys_box)
         root.addWidget(rpc_box)
         root.addWidget(abi_box)
@@ -314,6 +342,9 @@ class SettingsView(QWidget):
 
     def _save_settings(self) -> None:
         selected_chain = self._selected_chain()
+        provider_preferences = self._provider_preferences_from_form()
+        if provider_preferences is None:
+            return
         page_cap = _parse_int_input(
             self._overview_page_cap_input.text(),
             minimum=1,
@@ -376,6 +407,7 @@ class SettingsView(QWidget):
                     "token_detail_cache_ttl_seconds": token_detail_ttl,
                     "pricing_max_stale_age_seconds": pricing_stale_age,
                     "cache_max_size_mb": cache_max_size,
+                    "provider_preferences": provider_preferences,
                 }
             )
         except PydanticValidationError as error:
@@ -384,8 +416,34 @@ class SettingsView(QWidget):
 
         self._container.settings_store.save(self._settings)
         self._status.setText(
-            "Settings saved. Restart app to apply cache/page/TTL tuning to running services."
+            "Settings saved. Restart app to apply provider order and runtime tuning."
         )
+
+    def _provider_preferences_from_form(self) -> list[ProviderPreference] | None:
+        alchemy_priority = int(self._alchemy_priority.currentData())
+        ankr_priority = int(self._ankr_priority.currentData())
+        if alchemy_priority == ankr_priority:
+            self._status.setText("Alchemy and Ankr must use different priorities.")
+            return None
+
+        current_by_id = {
+            preference.provider_id: preference
+            for preference in self._settings.provider_preferences
+        }
+        return [
+            ProviderPreference(
+                provider_id=WalletDataProviderId.ALCHEMY,
+                enabled=self._alchemy_enabled.isChecked(),
+                priority=alchemy_priority,
+            ),
+            ProviderPreference(
+                provider_id=WalletDataProviderId.ANKR,
+                enabled=self._ankr_enabled.isChecked(),
+                priority=ankr_priority,
+            ),
+            current_by_id[WalletDataProviderId.MORALIS],
+            current_by_id[WalletDataProviderId.GOLDRUSH],
+        ]
 
     def _save_keys(self) -> None:
         if self._key_validation_in_progress:
@@ -792,6 +850,34 @@ class SettingsView(QWidget):
         self._token_detail_cache_ttl_input.setText(str(settings.token_detail_cache_ttl_seconds))
         self._pricing_stale_age_input.setText(str(settings.pricing_max_stale_age_seconds))
         self._cache_max_size_input.setText(str(settings.cache_max_size_mb))
+        alchemy = settings.provider_preference(WalletDataProviderId.ALCHEMY)
+        ankr = settings.provider_preference(WalletDataProviderId.ANKR)
+        self._alchemy_enabled.setChecked(alchemy.enabled)
+        self._ankr_enabled.setChecked(ankr.enabled)
+        self._set_provider_priority(self._alchemy_priority, alchemy.priority)
+        self._set_provider_priority(self._ankr_priority, ankr.priority)
+
+    @staticmethod
+    def _set_provider_priority(combo: QComboBox, priority: int) -> None:
+        index = combo.findData(priority)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+
+def _provider_priority_combo(parent: QWidget) -> QComboBox:
+    combo = QComboBox(parent)
+    combo.addItem("1 (first)", 1)
+    combo.addItem("2 (second)", 2)
+    return combo
+
+
+def _provider_preference_row(enabled: QCheckBox, priority: QComboBox) -> QHBoxLayout:
+    row = QHBoxLayout()
+    row.addWidget(enabled)
+    row.addWidget(QLabel("Priority"))
+    row.addWidget(priority)
+    row.addStretch(1)
+    return row
 
 
 def _format_cache_diagnostics(diagnostics: CacheDiagnostics) -> str:

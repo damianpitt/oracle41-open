@@ -4,10 +4,14 @@
 
 Open the Settings tab and enter one or both provider keys:
 
-- Alchemy API key: primary provider when configured
-- Ankr API key: fallback provider or primary provider when Alchemy is absent
+- Alchemy API key
+- Ankr API key
 
 The keys are stored using the system keyring when available. They are not included in backup exports.
+
+The Wallet Data Providers section controls which configured provider is enabled and which one has priority 1. Priority 1 is tried first for a new request. A disabled provider is not added to the automatic wallet-data, pricing, or transaction-inspection runtime. Restart the application after changing enablement or priority.
+
+If the first provider returns a structured provider error, a new request can try the next enabled provider. A continuation page does not fail over because its cursor belongs to the provider that created it.
 
 Headless or temporary environments can provide keys without writing to the keyring:
 
@@ -19,17 +23,16 @@ oracle41-open
 
 A key stored in the system keyring takes precedence over the corresponding environment variable.
 
-### Planned Provider Choice
+### Planned Provider Expansion
 
-A future `0.4.0a2` update is planned to add Moralis and GoldRush beside Alchemy and Ankr. This functionality is not available in the current release.
+Version `0.4.0a2` provides ordered selection for Alchemy and Ankr. Moralis and GoldRush remain planned and are not available in the current release.
 
-The planned Settings design will allow users to:
+Later M6.2 updates will add:
 
-- Enable any subset of the four wallet-data providers.
-- Choose the order used for requests and failover.
-- Test each credential without saving it first.
-- See which chains and wallet features each provider supports.
-- Disable a provider completely so the application sends it no requests.
+- Credential fields and validation for Moralis and GoldRush.
+- One ordered list across all four wallet-data providers.
+- Chain and feature capability details for each provider.
+- Recorded fixtures and shared conformance tests for the new adapters.
 
 Provider selection will apply to indexed wallet balances and history. Custom JSON-RPC endpoints will remain separate because standard JSON-RPC does not provide a complete address-history index by itself.
 
