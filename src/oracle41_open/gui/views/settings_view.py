@@ -34,11 +34,15 @@ from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import Chain, ContractABIRecord, ValidationError
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationResult
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
+from oracle41_open.providers.capabilities import (
+    WalletDataProviderDescriptor,
+    WalletDataProviderId,
+    provider_descriptor,
+)
 from oracle41_open.storage.backup_restore import BackupMetadata
 from oracle41_open.storage.settings import (
     AppSettings,
     ProviderPreference,
-    WalletDataProviderId,
 )
 
 if TYPE_CHECKING:
@@ -112,6 +116,10 @@ class SettingsView(QWidget):
 
         self._alchemy_enabled = QCheckBox("Enabled", self)
         self._alchemy_priority = _provider_priority_combo(self)
+        self._alchemy_capabilities = _provider_capability_label(
+            provider_descriptor(WalletDataProviderId.ALCHEMY),
+            self,
+        )
         self._alchemy_key_input = QLineEdit(self)
         self._alchemy_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._alchemy_key_input.setPlaceholderText("Alchemy API Key")
@@ -121,6 +129,10 @@ class SettingsView(QWidget):
 
         self._ankr_enabled = QCheckBox("Enabled", self)
         self._ankr_priority = _provider_priority_combo(self)
+        self._ankr_capabilities = _provider_capability_label(
+            provider_descriptor(WalletDataProviderId.ANKR),
+            self,
+        )
         self._ankr_key_input = QLineEdit(self)
         self._ankr_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._ankr_key_input.setPlaceholderText("Ankr API Key")
@@ -218,10 +230,12 @@ class SettingsView(QWidget):
             "Alchemy",
             _provider_preference_row(self._alchemy_enabled, self._alchemy_priority),
         )
+        providers_form.addRow("", self._alchemy_capabilities)
         providers_form.addRow(
             "Ankr",
             _provider_preference_row(self._ankr_enabled, self._ankr_priority),
         )
+        providers_form.addRow("", self._ankr_capabilities)
         provider_note = QLabel(
             "Priority 1 is tried first. Disabled providers receive no automatic requests. "
             "Restart after changing this order.",
@@ -878,6 +892,23 @@ def _provider_preference_row(enabled: QCheckBox, priority: QComboBox) -> QHBoxLa
     row.addWidget(priority)
     row.addStretch(1)
     return row
+
+
+def _provider_capability_label(
+    descriptor: WalletDataProviderDescriptor,
+    parent: QWidget,
+) -> QLabel:
+    chains = ", ".join(chain.display_name for chain in descriptor.supported_chains)
+    features = ", ".join(feature.display_name for feature in descriptor.features)
+    destination = descriptor.validation_destination or "Not available"
+    label = QLabel(
+        f"Chains: {chains}\n"
+        f"Wallet features: {features}\n"
+        f"Credential check connects to: {destination}",
+        parent,
+    )
+    label.setWordWrap(True)
+    return label
 
 
 def _format_cache_diagnostics(diagnostics: CacheDiagnostics) -> str:

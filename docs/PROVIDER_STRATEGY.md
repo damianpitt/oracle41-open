@@ -27,19 +27,36 @@ The provider pool follows these rules:
 7. Canonical ledger records keep source and completeness metadata.
 8. Provider-specific labels or decoded summaries cannot replace raw evidence or local decoding.
 
-## Settings Design
+## Capability Catalog
 
-Version `0.4.0a2` shows enabled state and priority for Alchemy and Ankr. API keys keep their existing validation action. Later M6.2 slices will add Moralis and GoldRush and show these details for every provider:
+Version `0.4.0a3` has one local catalog for stable provider IDs, availability, supported chains, wallet features, and credential-check destinations. Alchemy and Ankr are available. Moralis and GoldRush are planned and claim no capabilities yet.
+
+Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr credential checks connect to `rpc.ankr.com`. The destination is shown before the user starts validation.
+
+Each available provider row shows:
 
 - Enabled state
 - Priority
-- Credential status
-- Test Connection action
 - Supported chains
-- Balances, history, approvals, NFTs, receipts, traces, and historical-state capabilities
-- Last validation time and a plain error message
+- Wallet balances, history, approvals, NFT, and pagination capabilities
+- Credential-check destination
+
+The existing Save API Keys action validates entered Alchemy and Ankr credentials. Later slices should add per-provider credential status and the last validation time. Receipt, trace, and historical-state support belongs to the separate transaction-provider capability view.
 
 API keys stay in the operating-system keyring. They are excluded from backups, exports, logs, diagnostics, and issue-report templates.
+
+## Shared Conformance Suite
+
+Alchemy and Ankr use separate recorded response fixtures with the same normalized expected results. The shared suite checks:
+
+- Native balance
+- Token balances and pagination markers
+- Wallet activity and source provenance
+- Token-specific history
+- ERC-721 and ERC-1155 categories
+- Chain identity
+
+The fixture format is versioned. Its public schema is `docs/schemas/data-provider-conformance-v1.schema.json`. New wallet-data adapters must add a fixture and pass this suite before they are marked available.
 
 ## Admission Requirements
 

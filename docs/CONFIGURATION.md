@@ -11,6 +11,14 @@ The keys are stored using the system keyring when available. They are not includ
 
 The Wallet Data Providers section controls which configured provider is enabled and which one has priority 1. Priority 1 is tried first for a new request. A disabled provider is not added to the automatic wallet-data, pricing, or transaction-inspection runtime. Restart the application after changing enablement or priority.
 
+Each available provider also shows:
+
+- Supported chains
+- Wallet features implemented by its adapter
+- The public host contacted when the credential is checked
+
+These details come from a local catalog. Opening Settings does not contact a provider.
+
 If the first provider returns a structured provider error, a new request can try the next enabled provider. A continuation page does not fail over because its cursor belongs to the provider that created it.
 
 Headless or temporary environments can provide keys without writing to the keyring:
@@ -25,13 +33,13 @@ A key stored in the system keyring takes precedence over the corresponding envir
 
 ### Planned Provider Expansion
 
-Version `0.4.0a2` provides ordered selection for Alchemy and Ankr. Moralis and GoldRush remain planned and are not available in the current release.
+Version `0.4.0a3` provides ordered selection and capability details for Alchemy and Ankr. Moralis and GoldRush remain planned and are not available in the current release.
 
 Later M6.2 updates will add:
 
 - Credential fields and validation for Moralis and GoldRush.
 - One ordered list across all four wallet-data providers.
-- Chain and feature capability details for each provider.
+- Chain and feature capability details for each new provider.
 - Recorded fixtures and shared conformance tests for the new adapters.
 
 Provider selection will apply to indexed wallet balances and history. Custom JSON-RPC endpoints will remain separate because standard JSON-RPC does not provide a complete address-history index by itself.

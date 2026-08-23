@@ -59,7 +59,11 @@ class StubDataProvider(DataProvider):
                 balance_decimal=Decimal("101.75"),
             ),
         ]
-        return TokenBalancePage(balances=balances, next_page_key=None)
+        return TokenBalancePage(
+            balances=balances,
+            next_page_key=None,
+            source_provider="stub",
+        )
 
     def get_activity(
         self,

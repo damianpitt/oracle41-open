@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a2` is an alpha release. It adds an ordered provider pool and local enablement and priority settings for Alchemy and Ankr. Pagination stays with the provider that created each cursor, so failover cannot silently mix pages from different services. The protocol-adapter foundation from `0.4.0a1` remains available, but production protocol integrations and position views are not included yet. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.4.0a3` is an alpha release. Settings shows the supported chains, wallet features, and credential-check destination for Alchemy and Ankr. Both adapters pass one recorded-fixture conformance suite over the same normalized wallet operations. Ordered failover and provider-owned pagination remain in place. Moralis, GoldRush, production protocol integrations, and position views are not included yet. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -15,6 +15,8 @@ Version `0.4.0a2` is an alpha release. It adds an ordered provider pool and loca
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
 - Alchemy and Ankr providers with user-controlled enablement, priority, and ordered failover
 - Provider-owned pagination cursors that prevent mixed-vendor continuation pages
+- Provider capability summaries with supported chains, wallet features, and validation destinations
+- Shared recorded-fixture conformance tests for available wallet-data adapters
 - Retry/backoff and structured rate-limit, timeout, and authentication errors
 - ENS wallet input and address-label resolution with caching
 - Token filtering for unverified, low-signal, and dust assets
@@ -151,7 +153,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Token metadata quality depends on provider responses and local filtering rules.
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
 - Protocol positions are an extension foundation; no production DeFi adapter or position screen is connected yet.
-- Moralis and GoldRush wallet-data adapters are planned but are not available in `0.4.0a2`.
+- Moralis and GoldRush wallet-data adapters are planned but are not available in `0.4.0a3`.
 - The application currently targets EVM-compatible chains supported by the configured providers.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.

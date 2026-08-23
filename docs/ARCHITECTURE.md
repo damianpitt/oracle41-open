@@ -32,6 +32,10 @@ Provider errors are normalized into domain error types. Failover is applied at t
 
 Wallet-data providers are placed in a pool using the enabled state and priority saved in Settings. A fresh request tries that order after structured provider errors. Every pagination cursor records its provider owner and operation. A continuation request returns only to that provider, even when another provider is available.
 
+The provider capability catalog is separate from network clients. It records stable IDs, availability, supported chains, wallet features, and the public host used for credential checks. Settings reads this catalog without creating a provider or making a request. Planned providers have no runtime capabilities until their adapters pass the shared conformance suite.
+
+The format-v1 provider conformance suite gives each adapter its own recorded response shapes and applies the same assertions to the normalized results. The suite covers all four `DataProvider` methods, pagination markers, source provenance, chain identity, and ERC-721/ERC-1155 history.
+
 Transaction providers report receipt, trace, historical-state, proxy, and revert capabilities separately. Trace support is learned from supported RPC methods. Historical-state support is learned only from successful block-specific reads or explicit node-pruning errors, so a timeout is not mistaken for a missing capability.
 
 The same pool works with one or more configured providers. Disabled providers are not added to the runtime. Demonstration providers are used only when no live wallet-data provider is configured and never receive failed live requests.

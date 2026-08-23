@@ -134,7 +134,11 @@ class AlchemyProvider(DataProvider):
 
         raw_next_page_key = result.get("pageKey")
         next_page_key = raw_next_page_key if isinstance(raw_next_page_key, str) and raw_next_page_key else None
-        return TokenBalancePage(balances=balances, next_page_key=next_page_key)
+        return TokenBalancePage(
+            balances=balances,
+            next_page_key=next_page_key,
+            source_provider="alchemy",
+        )
 
     def get_activity(
         self,

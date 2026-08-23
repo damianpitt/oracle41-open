@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a2] - Unreleased
+## [0.4.0a3] - Unreleased
+
+### Added
+
+- One public catalog for wallet-data provider availability, supported chains, features, and credential-validation destinations.
+- Plain capability summaries for Alchemy and Ankr in Settings.
+- Format-v1 recorded conformance fixtures for Alchemy and Ankr.
+- A shared conformance suite covering native balances, token balances, wallet activity, token history, pagination markers, provenance, and NFT categories.
+- A public JSON schema for future provider conformance fixtures.
+
+### Changed
+
+- Alchemy, Ankr, and demonstration token-balance pages now identify their source provider directly.
+- Planned providers claim no runtime capabilities until their adapters pass the shared suite.
+
+### Known Limitations
+
+- Moralis and GoldRush remain planned and unavailable.
+- The conformance suite uses recorded responses and does not replace opt-in live-provider testing.
+- Runtime capability reporting does not yet include credential status or the last validation time.
+
+## [0.4.0a2] - 2026-08-22
 
 ### Added
 

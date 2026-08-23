@@ -26,6 +26,7 @@ from oracle41_open.core.services.watchlist_service import WatchlistService
 from oracle41_open.providers.alchemy import AlchemyPricingProvider, AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.blockscout import BlockscoutABIProvider
+from oracle41_open.providers.capabilities import WalletDataProviderId
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.failover import OrderedDataProviderPool, ProviderPoolEntry
@@ -49,7 +50,7 @@ from oracle41_open.storage.db import (
     WatchlistRepository,
 )
 from oracle41_open.storage.secrets import SecretStore
-from oracle41_open.storage.settings import SettingsStore, WalletDataProviderId
+from oracle41_open.storage.settings import SettingsStore
 
 
 @dataclass

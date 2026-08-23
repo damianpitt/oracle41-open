@@ -391,4 +391,14 @@ M6.2 is complete only when any one configured provider can run the supported wal
 
 M6.2A replaces the fixed Alchemy/Ankr pair with an ordered provider pool. Settings now stores enabled state and priority for both available wallet-data providers. Fresh requests can fail over in that order, while balances, activity, and token-history cursors remain bound to the provider and operation that created them. Disabled providers are left out of automatic runtime setup.
 
-Moralis and GoldRush adapters, four-provider capability reporting, and the shared provider conformance suite remain open for the next M6.2 slices.
+At the end of M6.2A, Moralis and GoldRush adapters, capability reporting, and the shared provider conformance suite remained open.
+
+### Completed Slice: M6.2B
+
+**Status:** Complete in `0.4.0a3`.
+
+M6.2B adds one provider capability catalog and shows supported chains, wallet features, and credential-check destinations in Settings. Planned adapters remain explicitly unavailable and claim no support.
+
+Alchemy and Ankr now run through one format-v1 recorded-fixture conformance suite. The same assertions cover native balances, token balances, wallet activity, token history, pagination markers, provenance, chain identity, and NFT categories. A public JSON schema defines the fixture format for future adapters.
+
+Moralis and GoldRush implementations, their credentials, and four-provider runtime validation remain open.

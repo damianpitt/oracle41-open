@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from enum import Enum
 from pathlib import Path
 
 from platformdirs import user_config_dir
@@ -17,15 +16,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import Chain
-
-
-class WalletDataProviderId(str, Enum):
-    """Stable IDs used by provider preferences and cursor ownership."""
-
-    ALCHEMY = "alchemy"
-    ANKR = "ankr"
-    MORALIS = "moralis"
-    GOLDRUSH = "goldrush"
+from oracle41_open.providers.capabilities import WalletDataProviderId
 
 
 class ProviderPreference(BaseModel):

@@ -1,0 +1,147 @@
+{
+  "format": "oracle41-data-provider-conformance",
+  "version": 1,
+  "provider_id": "alchemy",
+  "operations": {
+    "native_balance": {
+      "responses": [
+        {
+          "method": "eth_getBalance",
+          "result": "0xde0b6b3a7640000"
+        }
+      ]
+    },
+    "token_balances": {
+      "responses": [
+        {
+          "method": "alchemy_getTokenBalances",
+          "result": {
+            "tokenBalances": [
+              {
+                "contractAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                "tokenBalance": "0x12c4b0"
+              }
+            ],
+            "pageKey": "balances-page-2"
+          }
+        },
+        {
+          "method": "alchemy_getTokenMetadata",
+          "result": {
+            "symbol": "USDC",
+            "name": "USD Coin",
+            "decimals": 6
+          }
+        }
+      ]
+    },
+    "activity": {
+      "responses": [
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [
+              {
+                "blockNum": "0x1234",
+                "hash": "0xactivity",
+                "logIndex": "0x1",
+                "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "asset": "USDC",
+                "category": "erc20",
+                "value": 1.5,
+                "rawContract": {
+                  "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                  "decimal": "0x6",
+                  "value": "0x16e360"
+                },
+                "metadata": {
+                  "blockTimestamp": "2026-01-20T10:00:00Z"
+                }
+              }
+            ],
+            "pageKey": "activity-page-2"
+          }
+        },
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [],
+            "pageKey": null
+          }
+        }
+      ]
+    },
+    "token_history": {
+      "responses": [
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [
+              {
+                "blockNum": "0x2001",
+                "hash": "0xnft721",
+                "logIndex": "0x1",
+                "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "asset": "NFT",
+                "category": "erc721",
+                "erc721TokenId": "0x7b",
+                "rawContract": {
+                  "address": "0x9999999999999999999999999999999999999999",
+                  "decimal": "0",
+                  "value": null
+                },
+                "metadata": {
+                  "blockTimestamp": "2026-01-20T10:01:00Z"
+                }
+              },
+              {
+                "blockNum": "0x2002",
+                "hash": "0xnft1155",
+                "logIndex": "0x2",
+                "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to": "0xcccccccccccccccccccccccccccccccccccccccc",
+                "asset": "NFT",
+                "category": "erc1155",
+                "erc1155Metadata": [
+                  {
+                    "tokenId": "0x1",
+                    "value": "0x3"
+                  }
+                ],
+                "rawContract": {
+                  "address": "0x9999999999999999999999999999999999999999",
+                  "decimal": "0",
+                  "value": null
+                },
+                "metadata": {
+                  "blockTimestamp": "2026-01-20T10:02:00Z"
+                }
+              }
+            ],
+            "pageKey": null
+          }
+        },
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [],
+            "pageKey": null
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "native_balance": "1",
+    "token_balance_symbol": "USDC",
+    "token_balance": "1.23",
+    "activity_hash": "0xactivity",
+    "activity_value": "1.5",
+    "token_history_categories": [
+      "erc721",
+      "erc1155"
+    ]
+  }
+}

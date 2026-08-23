@@ -224,6 +224,10 @@ def test_settings_gui_saves_provider_enablement_and_priority(
     _ = qt_application
     container = _container(monkeypatch, tmp_path)
     view = SettingsView(container)
+    assert "Ethereum" in view._alchemy_capabilities.text()
+    assert "ERC-721 / ERC-1155" in view._alchemy_capabilities.text()
+    assert "api.g.alchemy.com" in view._alchemy_capabilities.text()
+    assert "rpc.ankr.com" in view._ankr_capabilities.text()
     view._alchemy_enabled.setChecked(False)
     view._alchemy_priority.setCurrentIndex(view._alchemy_priority.findData(2))
     view._ankr_priority.setCurrentIndex(view._ankr_priority.findData(1))

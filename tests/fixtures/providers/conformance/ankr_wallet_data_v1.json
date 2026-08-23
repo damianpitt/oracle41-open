@@ -1,0 +1,112 @@
+{
+  "format": "oracle41-data-provider-conformance",
+  "version": 1,
+  "provider_id": "ankr",
+  "operations": {
+    "native_balance": {
+      "responses": [
+        {
+          "method": "eth_getBalance",
+          "result": "0xde0b6b3a7640000"
+        }
+      ]
+    },
+    "token_balances": {
+      "responses": [
+        {
+          "method": "ankr_getAccountBalance",
+          "result": {
+            "assets": [
+              {
+                "contractAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                "tokenSymbol": "USDC",
+                "tokenName": "USD Coin",
+                "tokenDecimals": 6,
+                "balanceRawInteger": "1230000",
+                "isSpam": false
+              }
+            ],
+            "nextPageToken": "balances-page-2"
+          }
+        }
+      ]
+    },
+    "activity": {
+      "responses": [
+        {
+          "method": "ankr_getTokenTransfers",
+          "result": {
+            "transfers": [
+              {
+                "transactionHash": "0xactivity",
+                "logIndex": "0x1",
+                "fromAddress": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "toAddress": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "blockHeight": 4660,
+                "blockTimestamp": "2026-01-20T10:00:00Z",
+                "value": "1.5",
+                "valueRawInteger": "1500000",
+                "tokenSymbol": "USDC",
+                "tokenDecimals": 6,
+                "contractAddress": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                "isSpam": false
+              }
+            ],
+            "nextPageToken": "activity-page-2"
+          }
+        }
+      ]
+    },
+    "token_history": {
+      "responses": [
+        {
+          "method": "ankr_getTokenTransfers",
+          "result": {
+            "transfers": [
+              {
+                "transactionHash": "0xnft721",
+                "logIndex": "0x1",
+                "fromAddress": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "toAddress": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "blockHeight": 8193,
+                "blockTimestamp": "2026-01-20T10:01:00Z",
+                "tokenType": "ERC721",
+                "tokenId": "123",
+                "tokenSymbol": "NFT",
+                "tokenDecimals": 0,
+                "contractAddress": "0x9999999999999999999999999999999999999999"
+              },
+              {
+                "transactionHash": "0xnft1155",
+                "logIndex": "0x2",
+                "fromAddress": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "toAddress": "0xcccccccccccccccccccccccccccccccccccccccc",
+                "blockHeight": 8194,
+                "blockTimestamp": "2026-01-20T10:02:00Z",
+                "tokenType": "ERC1155",
+                "tokenId": "1",
+                "value": "3",
+                "valueRawInteger": "3",
+                "tokenSymbol": "NFT",
+                "tokenDecimals": 0,
+                "contractAddress": "0x9999999999999999999999999999999999999999"
+              }
+            ],
+            "nextPageToken": null
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "native_balance": "1",
+    "token_balance_symbol": "USDC",
+    "token_balance": "1.23",
+    "activity_hash": "0xactivity",
+    "activity_value": "1.5",
+    "token_history_categories": [
+      "erc721",
+      "erc1155"
+    ]
+  }
+}
