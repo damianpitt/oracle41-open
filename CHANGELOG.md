@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a3] - Unreleased
+## [0.4.0a4] - Unreleased
+
+### Added
+
+- A Moralis wallet-data adapter for native balances, paginated token balances, decoded wallet activity, ERC-20 transfers, and ERC-721 / ERC-1155 transfers.
+- Active ERC-20 approval loading from the Moralis Wallet API, reported separately from complete approval history.
+- Moralis API key validation, keyring storage, environment-variable loading, Settings controls, and ordered-pool startup.
+- Recorded Moralis REST fixtures in the shared wallet-data provider conformance suite.
+- Structured Moralis authentication, rate-limit, timeout, network, malformed-response, and HTTP errors with bounded retry.
+
+### Changed
+
+- Three wallet-data providers can now be enabled and ordered in Settings.
+- The capability catalog distinguishes active approvals from complete approval history.
+
+### Known Limitations
+
+- Moralis returns current active ERC-20 approvals. It does not provide a complete archive of approvals that were later revoked through this adapter.
+- Moralis is an indexed wallet-data source only. Its Data API key is not added as a transaction JSON-RPC or pricing provider.
+- GoldRush remains planned and unavailable.
+
+## [0.4.0a3] - 2026-08-23
 
 ### Added
 

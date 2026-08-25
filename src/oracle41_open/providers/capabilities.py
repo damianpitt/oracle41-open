@@ -36,6 +36,7 @@ class WalletDataFeature(str, Enum):
     WALLET_ACTIVITY = "wallet_activity"
     TOKEN_HISTORY = "token_history"
     APPROVAL_HISTORY = "approval_history"
+    ACTIVE_APPROVALS = "active_approvals"
     NFT_TRANSFERS = "nft_transfers"
     PAGINATION = "pagination"
 
@@ -47,6 +48,7 @@ class WalletDataFeature(str, Enum):
             WalletDataFeature.WALLET_ACTIVITY: "Wallet activity",
             WalletDataFeature.TOKEN_HISTORY: "Token history",
             WalletDataFeature.APPROVAL_HISTORY: "Approvals",
+            WalletDataFeature.ACTIVE_APPROVALS: "Active ERC-20 approvals",
             WalletDataFeature.NFT_TRANSFERS: "ERC-721 / ERC-1155",
             WalletDataFeature.PAGINATION: "Pagination",
         }
@@ -75,7 +77,16 @@ class WalletDataProviderDescriptor:
 
 
 _CURRENT_CHAINS = tuple(Chain)
-_CURRENT_FEATURES = tuple(WalletDataFeature)
+_COMMON_FEATURES = (
+    WalletDataFeature.NATIVE_BALANCE,
+    WalletDataFeature.TOKEN_BALANCES,
+    WalletDataFeature.WALLET_ACTIVITY,
+    WalletDataFeature.TOKEN_HISTORY,
+    WalletDataFeature.NFT_TRANSFERS,
+    WalletDataFeature.PAGINATION,
+)
+_INDEXED_HISTORY_FEATURES = (*_COMMON_FEATURES, WalletDataFeature.APPROVAL_HISTORY)
+_MORALIS_FEATURES = (*_COMMON_FEATURES, WalletDataFeature.ACTIVE_APPROVALS)
 
 PROVIDER_DESCRIPTORS = (
     WalletDataProviderDescriptor(
@@ -83,7 +94,7 @@ PROVIDER_DESCRIPTORS = (
         display_name="Alchemy",
         availability=ProviderAvailability.AVAILABLE,
         supported_chains=_CURRENT_CHAINS,
-        features=_CURRENT_FEATURES,
+        features=_INDEXED_HISTORY_FEATURES,
         validation_destination="api.g.alchemy.com",
     ),
     WalletDataProviderDescriptor(
@@ -91,16 +102,16 @@ PROVIDER_DESCRIPTORS = (
         display_name="Ankr",
         availability=ProviderAvailability.AVAILABLE,
         supported_chains=_CURRENT_CHAINS,
-        features=_CURRENT_FEATURES,
+        features=_INDEXED_HISTORY_FEATURES,
         validation_destination="rpc.ankr.com",
     ),
     WalletDataProviderDescriptor(
         provider_id=WalletDataProviderId.MORALIS,
         display_name="Moralis",
-        availability=ProviderAvailability.PLANNED,
-        supported_chains=(),
-        features=(),
-        validation_destination=None,
+        availability=ProviderAvailability.AVAILABLE,
+        supported_chains=_CURRENT_CHAINS,
+        features=_MORALIS_FEATURES,
+        validation_destination="deep-index.moralis.io",
     ),
     WalletDataProviderDescriptor(
         provider_id=WalletDataProviderId.GOLDRUSH,

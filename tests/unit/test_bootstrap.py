@@ -114,3 +114,25 @@ def test_bootstrap_does_not_configure_disabled_provider(
 
     assert isinstance(container.data_provider, OrderedDataProviderPool)
     assert container.data_provider.provider_ids == ("ankr",)
+
+
+def test_bootstrap_configures_enabled_moralis_in_saved_order(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("ORACLE41_MORALIS_API_KEY", "moralis-test-key")
+    monkeypatch.setattr(SecretStore, "get_secret", lambda self, key: None)
+    settings = AppSettings()
+    settings.provider_preferences[0].enabled = False
+    settings.provider_preferences[1].enabled = False
+    settings.provider_preferences[2].enabled = True
+    SettingsStore.default().save(settings)
+
+    container = build_container()
+
+    assert isinstance(container.data_provider, OrderedDataProviderPool)
+    assert container.data_provider.provider_ids == ("moralis",)
+    assert container.uses_live_providers

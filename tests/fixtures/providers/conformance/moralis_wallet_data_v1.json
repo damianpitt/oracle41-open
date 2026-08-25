@@ -1,0 +1,135 @@
+{
+  "format": "oracle41-data-provider-conformance",
+  "version": 1,
+  "provider_id": "moralis",
+  "operations": {
+    "native_balance": {
+      "responses": [
+        {
+          "method": "/api/v2.2/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/balance",
+          "result": {
+            "balance": "1000000000000000000"
+          }
+        }
+      ]
+    },
+    "token_balances": {
+      "responses": [
+        {
+          "method": "/api/v2.2/wallets/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/tokens",
+          "result": {
+            "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "addressType": "evm",
+            "cursor": "balances-page-2",
+            "result": [
+              {
+                "token_address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                "balance": "1230000",
+                "name": "USD Coin",
+                "symbol": "USDC",
+                "decimals": 6,
+                "possible_spam": false,
+                "verified_contract": true,
+                "native_token": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "activity": {
+      "responses": [
+        {
+          "method": "/api/v2.2/wallets/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/history",
+          "result": {
+            "page": 1,
+            "page_size": 100,
+            "cursor": "activity-page-2",
+            "result": [
+              {
+                "hash": "0xactivity",
+                "block_number": "4660",
+                "block_timestamp": "2026-01-20T10:00:00Z",
+                "erc20_transfers": [
+                  {
+                    "transaction_hash": "0xactivity",
+                    "log_index": 1,
+                    "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "to_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                    "value": "1500000",
+                    "token_symbol": "USDC",
+                    "token_decimals": "6",
+                    "verified_contract": true
+                  }
+                ],
+                "nft_transfers": [],
+                "native_transfers": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "token_history": {
+      "responses": [
+        {
+          "method": "/api/v2.2/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/erc20/transfers",
+          "result": {
+            "page": 1,
+            "page_size": 100,
+            "cursor": null,
+            "result": []
+          }
+        },
+        {
+          "method": "/api/v2.2/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/nft/transfers",
+          "result": {
+            "page": 1,
+            "page_size": 100,
+            "cursor": null,
+            "result": [
+              {
+                "transaction_hash": "0xnft721",
+                "log_index": 1,
+                "block_number": "8193",
+                "block_timestamp": "2026-01-20T10:01:00Z",
+                "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "token_address": "0x9999999999999999999999999999999999999999",
+                "token_id": "123",
+                "amount": "1",
+                "contract_type": "ERC721",
+                "token_symbol": "NFT"
+              },
+              {
+                "transaction_hash": "0xnft1155",
+                "log_index": 2,
+                "block_number": "8194",
+                "block_timestamp": "2026-01-20T10:02:00Z",
+                "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to_address": "0xcccccccccccccccccccccccccccccccccccccccc",
+                "token_address": "0x9999999999999999999999999999999999999999",
+                "token_id": "1",
+                "amount": "3",
+                "contract_type": "ERC1155",
+                "token_symbol": "NFT"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "native_balance": "1",
+    "token_balance_symbol": "USDC",
+    "token_balance": "1.23",
+    "activity_hash": "0xactivity",
+    "activity_value": "1.5",
+    "token_history_categories": [
+      "erc721",
+      "erc1155"
+    ]
+  }
+}

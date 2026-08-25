@@ -2,10 +2,11 @@
 
 ## Provider Keys
 
-Open the Settings tab and enter one or both provider keys:
+Open the Settings tab and enter one or more provider keys:
 
 - Alchemy API key
 - Ankr API key
+- Moralis API key
 
 The keys are stored using the system keyring when available. They are not included in backup exports.
 
@@ -26,23 +27,26 @@ Headless or temporary environments can provide keys without writing to the keyri
 ```bash
 export ORACLE41_ALCHEMY_API_KEY="..."
 export ORACLE41_ANKR_API_KEY="..."
+export ORACLE41_MORALIS_API_KEY="..."
 oracle41-open
 ```
 
 A key stored in the system keyring takes precedence over the corresponding environment variable.
 
-### Planned Provider Expansion
+### Provider Expansion
 
-Version `0.4.0a3` provides ordered selection and capability details for Alchemy and Ankr. Moralis and GoldRush remain planned and are not available in the current release.
+Version `0.4.0a4` provides ordered selection and capability details for Alchemy, Ankr, and Moralis. GoldRush remains planned and is not available in the current release.
 
-Later M6.2 updates will add:
+The remaining M6.2 work will add:
 
-- Credential fields and validation for Moralis and GoldRush.
+- A credential field and validation for GoldRush.
 - One ordered list across all four wallet-data providers.
-- Chain and feature capability details for each new provider.
-- Recorded fixtures and shared conformance tests for the new adapters.
+- Chain and feature capability details for GoldRush.
+- Recorded fixtures and shared conformance tests for GoldRush.
 
 Provider selection will apply to indexed wallet balances and history. Custom JSON-RPC endpoints will remain separate because standard JSON-RPC does not provide a complete address-history index by itself.
+
+Moralis currently supplies active ERC-20 approvals. This is a current allowance view, not a complete record of approvals that were later revoked.
 
 ## Custom JSON-RPC Endpoints
 

@@ -30,6 +30,7 @@ from oracle41_open.providers.capabilities import WalletDataProviderId
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.failover import OrderedDataProviderPool, ProviderPoolEntry
+from oracle41_open.providers.moralis import MoralisProvider
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.providers.stub import (
     StubDataProvider,
@@ -119,6 +120,11 @@ def build_container() -> AppContainer:
         key_name="ankr_api_key",
         environment_name="ORACLE41_ANKR_API_KEY",
     )
+    moralis_api_key = _load_provider_key(
+        secret_store,
+        key_name="moralis_api_key",
+        environment_name="ORACLE41_MORALIS_API_KEY",
+    )
 
     enabled_provider_ids = settings.ordered_enabled_provider_ids()
     configured_providers: dict[WalletDataProviderId, DataProvider] = {}
@@ -131,6 +137,11 @@ def build_container() -> AppContainer:
     if ankr_api_key and WalletDataProviderId.ANKR in enabled_provider_ids:
         with suppress(ProviderError):
             configured_providers[WalletDataProviderId.ANKR] = AnkrProvider(api_key=ankr_api_key)
+    if moralis_api_key and WalletDataProviderId.MORALIS in enabled_provider_ids:
+        with suppress(ProviderError):
+            configured_providers[WalletDataProviderId.MORALIS] = MoralisProvider(
+                api_key=moralis_api_key
+            )
 
     data_provider: DataProvider
     pool_entries = [

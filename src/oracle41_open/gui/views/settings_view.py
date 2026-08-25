@@ -54,8 +54,10 @@ if TYPE_CHECKING:
 class _KeyValidationPayload:
     alchemy_value: str
     ankr_value: str
+    moralis_value: str
     alchemy_result: ProviderKeyValidationResult | None
     ankr_result: ProviderKeyValidationResult | None
+    moralis_result: ProviderKeyValidationResult | None
 
 
 @dataclass(frozen=True)
@@ -137,6 +139,19 @@ class SettingsView(QWidget):
         self._ankr_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._ankr_key_input.setPlaceholderText("Ankr API Key")
         self._ankr_key_input.setText(self._container.secret_store.get_secret("ankr_api_key") or "")
+
+        self._moralis_enabled = QCheckBox("Enabled", self)
+        self._moralis_priority = _provider_priority_combo(self)
+        self._moralis_capabilities = _provider_capability_label(
+            provider_descriptor(WalletDataProviderId.MORALIS),
+            self,
+        )
+        self._moralis_key_input = QLineEdit(self)
+        self._moralis_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._moralis_key_input.setPlaceholderText("Moralis API Key")
+        self._moralis_key_input.setText(
+            self._container.secret_store.get_secret("moralis_api_key") or ""
+        )
 
         self._rpc_chain_combo = QComboBox(self)
         for chain in Chain:
@@ -236,6 +251,11 @@ class SettingsView(QWidget):
             _provider_preference_row(self._ankr_enabled, self._ankr_priority),
         )
         providers_form.addRow("", self._ankr_capabilities)
+        providers_form.addRow(
+            "Moralis",
+            _provider_preference_row(self._moralis_enabled, self._moralis_priority),
+        )
+        providers_form.addRow("", self._moralis_capabilities)
         provider_note = QLabel(
             "Priority 1 is tried first. Disabled providers receive no automatic requests. "
             "Restart after changing this order.",
@@ -249,6 +269,7 @@ class SettingsView(QWidget):
         keys_form = QFormLayout()
         keys_form.addRow("Alchemy", self._alchemy_key_input)
         keys_form.addRow("Ankr", self._ankr_key_input)
+        keys_form.addRow("Moralis", self._moralis_key_input)
 
         button_row = QHBoxLayout()
         button_row.addWidget(self._save_keys_button)
@@ -436,8 +457,9 @@ class SettingsView(QWidget):
     def _provider_preferences_from_form(self) -> list[ProviderPreference] | None:
         alchemy_priority = int(self._alchemy_priority.currentData())
         ankr_priority = int(self._ankr_priority.currentData())
-        if alchemy_priority == ankr_priority:
-            self._status.setText("Alchemy and Ankr must use different priorities.")
+        moralis_priority = int(self._moralis_priority.currentData())
+        if len({alchemy_priority, ankr_priority, moralis_priority}) != 3:
+            self._status.setText("Alchemy, Ankr, and Moralis must use different priorities.")
             return None
 
         current_by_id = {
@@ -455,7 +477,11 @@ class SettingsView(QWidget):
                 enabled=self._ankr_enabled.isChecked(),
                 priority=ankr_priority,
             ),
-            current_by_id[WalletDataProviderId.MORALIS],
+            ProviderPreference(
+                provider_id=WalletDataProviderId.MORALIS,
+                enabled=self._moralis_enabled.isChecked(),
+                priority=moralis_priority,
+            ),
             current_by_id[WalletDataProviderId.GOLDRUSH],
         ]
 
@@ -464,6 +490,7 @@ class SettingsView(QWidget):
             return
         alchemy_value = self._alchemy_key_input.text().strip()
         ankr_value = self._ankr_key_input.text().strip()
+        moralis_value = self._moralis_key_input.text().strip()
 
         self._set_key_validation_loading(True)
 
@@ -473,11 +500,18 @@ class SettingsView(QWidget):
                 validation_service.validate_alchemy_key(alchemy_value) if alchemy_value else None
             )
             ankr_result = validation_service.validate_ankr_key(ankr_value) if ankr_value else None
+            moralis_result = (
+                validation_service.validate_moralis_key(moralis_value)
+                if moralis_value
+                else None
+            )
             return _KeyValidationPayload(
                 alchemy_value=alchemy_value,
                 ankr_value=ankr_value,
+                moralis_value=moralis_value,
                 alchemy_result=alchemy_result,
                 ankr_result=ankr_result,
+                moralis_result=moralis_result,
             )
 
         self._task_runner.start(validate_keys)
@@ -653,6 +687,14 @@ class SettingsView(QWidget):
             outcomes=outcomes,
             errors=errors,
         )
+        self._save_validated_key(
+            key_name="moralis_api_key",
+            provider_name="Moralis",
+            value=raw_result.moralis_value,
+            validation=raw_result.moralis_result,
+            outcomes=outcomes,
+            errors=errors,
+        )
 
         if errors:
             summary = "; ".join(outcomes) if outcomes else "No keys changed."
@@ -696,6 +738,7 @@ class SettingsView(QWidget):
         self._key_validation_in_progress = is_loading
         self._alchemy_key_input.setEnabled(not is_loading)
         self._ankr_key_input.setEnabled(not is_loading)
+        self._moralis_key_input.setEnabled(not is_loading)
         self._save_keys_button.setEnabled(not is_loading)
         if is_loading:
             self._status.setText("Validating provider keys...")
@@ -866,10 +909,13 @@ class SettingsView(QWidget):
         self._cache_max_size_input.setText(str(settings.cache_max_size_mb))
         alchemy = settings.provider_preference(WalletDataProviderId.ALCHEMY)
         ankr = settings.provider_preference(WalletDataProviderId.ANKR)
+        moralis = settings.provider_preference(WalletDataProviderId.MORALIS)
         self._alchemy_enabled.setChecked(alchemy.enabled)
         self._ankr_enabled.setChecked(ankr.enabled)
+        self._moralis_enabled.setChecked(moralis.enabled)
         self._set_provider_priority(self._alchemy_priority, alchemy.priority)
         self._set_provider_priority(self._ankr_priority, ankr.priority)
+        self._set_provider_priority(self._moralis_priority, moralis.priority)
 
     @staticmethod
     def _set_provider_priority(combo: QComboBox, priority: int) -> None:
@@ -882,6 +928,7 @@ def _provider_priority_combo(parent: QWidget) -> QComboBox:
     combo = QComboBox(parent)
     combo.addItem("1 (first)", 1)
     combo.addItem("2 (second)", 2)
+    combo.addItem("3 (third)", 3)
     return combo
 
 

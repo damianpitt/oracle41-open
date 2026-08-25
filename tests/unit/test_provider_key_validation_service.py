@@ -29,6 +29,22 @@ def test_provider_key_validation_service_trims_and_validates_alchemy_key() -> No
     assert calls == ["alchemy-test-key"]
 
 
+def test_provider_key_validation_service_validates_moralis_key() -> None:
+    calls: list[str] = []
+    service = ProviderKeyValidationService(
+        alchemy_probe=lambda _: None,
+        ankr_probe=lambda _: None,
+        moralis_probe=calls.append,
+    )
+
+    result = service.validate_moralis_key("  moralis-test-key  ")
+
+    assert result.provider == "Moralis"
+    assert result.is_valid
+    assert result.message == "Moralis key validated."
+    assert calls == ["moralis-test-key"]
+
+
 def test_provider_key_validation_service_rejects_empty_key() -> None:
     service = ProviderKeyValidationService(
         alchemy_probe=lambda _: None,

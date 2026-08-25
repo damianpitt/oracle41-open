@@ -402,3 +402,13 @@ M6.2B adds one provider capability catalog and shows supported chains, wallet fe
 Alchemy and Ankr now run through one format-v1 recorded-fixture conformance suite. The same assertions cover native balances, token balances, wallet activity, token history, pagination markers, provenance, chain identity, and NFT categories. A public JSON schema defines the fixture format for future adapters.
 
 Moralis and GoldRush implementations, their credentials, and four-provider runtime validation remain open.
+
+### Completed Slice: M6.2C
+
+**Status:** Complete in `0.4.0a4`.
+
+M6.2C adds Moralis as the third available wallet-data provider. The REST adapter loads native balances, paginated token balances, decoded wallet activity, ERC-20 transfers, and ERC-721 / ERC-1155 transfers on every current Oracle41 chain.
+
+Settings can save, validate, enable, disable, and order Moralis. Startup adds it to the provider pool only when it is enabled and has a key. Its Data API key is not treated as a transaction JSON-RPC or pricing source.
+
+Moralis also loads current active ERC-20 approvals. The capability catalog keeps this separate from complete approval history because revoked approvals are not returned by that endpoint. Recorded Moralis responses now pass the shared provider conformance suite. GoldRush and final four-provider validation remain open.

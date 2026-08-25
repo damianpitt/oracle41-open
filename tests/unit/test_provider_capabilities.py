@@ -31,6 +31,7 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
     assert [descriptor.provider_id for descriptor in available] == [
         WalletDataProviderId.ALCHEMY,
         WalletDataProviderId.ANKR,
+        WalletDataProviderId.MORALIS,
     ]
     for descriptor in available:
         assert descriptor.supported_chains == tuple(Chain)
@@ -46,10 +47,7 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
 
 
 def test_planned_providers_do_not_claim_runtime_support() -> None:
-    for provider_id in (
-        WalletDataProviderId.MORALIS,
-        WalletDataProviderId.GOLDRUSH,
-    ):
+    for provider_id in (WalletDataProviderId.GOLDRUSH,):
         descriptor = provider_descriptor(provider_id)
         assert descriptor.availability is ProviderAvailability.PLANNED
         assert descriptor.supported_chains == ()
