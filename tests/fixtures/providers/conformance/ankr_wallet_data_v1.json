@@ -102,6 +102,7 @@
     "native_balance": "1",
     "token_balance_symbol": "USDC",
     "token_balance": "1.23",
+    "token_balance_has_next": true,
     "activity_hash": "0xactivity",
     "activity_value": "1.5",
     "token_history_categories": [

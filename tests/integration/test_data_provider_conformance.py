@@ -19,6 +19,7 @@ from oracle41_open.core.models import Chain
 from oracle41_open.providers.alchemy import AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.data_provider import DataProvider
+from oracle41_open.providers.goldrush import GoldRushProvider
 from oracle41_open.providers.http_client import HTTPRequest, HTTPResponse
 from oracle41_open.providers.moralis import MoralisProvider
 
@@ -27,6 +28,7 @@ _FIXTURE_NAMES = (
     "alchemy_wallet_data_v1.json",
     "ankr_wallet_data_v1.json",
     "moralis_wallet_data_v1.json",
+    "goldrush_wallet_data_v1.json",
 )
 _WALLET = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 _TOKEN = "0x9999999999999999999999999999999999999999"
@@ -51,7 +53,8 @@ def test_provider_conformance_token_balances(fixture_name: str) -> None:
     page = provider.get_token_balances(_WALLET, Chain.ETHEREUM)
 
     assert page.source_provider == fixture.provider_id
-    assert isinstance(page.next_page_key, str)
+    has_next = fixture.expected_bool("token_balance_has_next")
+    assert (page.next_page_key is not None) is has_next
     assert len(page.balances) == 1
     assert page.balances[0].token.symbol == fixture.expected_string(
         "token_balance_symbol"
@@ -110,7 +113,7 @@ def test_provider_conformance_token_history_and_nfts(fixture_name: str) -> None:
 class _ConformanceFixture:
     provider_id: str
     operations: dict[str, Any]
-    expected: dict[str, str | list[str]]
+    expected: dict[str, str | bool | list[str]]
 
     def expected_string(self, key: str) -> str:
         value = self.expected.get(key)
@@ -124,6 +127,12 @@ class _ConformanceFixture:
             isinstance(item, str) for item in value
         ):
             raise AssertionError(f"Fixture expected value must be a string list: {key}.")
+        return value
+
+    def expected_bool(self, key: str) -> bool:
+        value = self.expected.get(key)
+        if not isinstance(value, bool):
+            raise AssertionError(f"Fixture expected value must be a boolean: {key}.")
         return value
 
 
@@ -209,4 +218,6 @@ def _provider_for(
         return AnkrProvider(api_key="fixture-key", rpc_client=client), client
     if fixture.provider_id == "moralis":
         return MoralisProvider(api_key="fixture-key", http_client=client), client
+    if fixture.provider_id == "goldrush":
+        return GoldRushProvider(api_key="fixture-key", http_client=client), client
     raise AssertionError(f"No provider factory exists for {fixture.provider_id}.")

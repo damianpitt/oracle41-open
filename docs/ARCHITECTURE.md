@@ -7,7 +7,7 @@ The application is organized into six boundaries:
 - `gui`: PySide6 windows and views. GUI code owns widgets, user interaction, and presentation.
 - `core`: domain models and services. Core code validates input, coordinates providers, applies filters, and produces domain results.
 - `core/protocols`: versioned protocol adapters, capability-based selection, and unknown-protocol fallback behavior.
-- `providers`: Alchemy, Ankr, ordered routing, retry, HTTP, JSON-RPC, pricing, and stub implementations.
+- `providers`: Alchemy, Ankr, Moralis, GoldRush, ordered routing, retry, HTTP, JSON-RPC, pricing, and stub implementations.
 - `storage`: settings, system-keyring access, SQLite repositories, cache persistence, backup/restore, and cache telemetry.
 - `exports`: CSV and JSON serialization for user-facing reports.
 
@@ -32,7 +32,7 @@ Provider errors are normalized into domain error types. Failover is applied at t
 
 Wallet-data providers are placed in a pool using the enabled state and priority saved in Settings. A fresh request tries that order after structured provider errors. Every pagination cursor records its provider owner and operation. A continuation request returns only to that provider, even when another provider is available.
 
-The provider capability catalog is separate from network clients. It records stable IDs, availability, supported chains, wallet features, and the public host used for credential checks. Settings reads this catalog without creating a provider or making a request. Planned providers have no runtime capabilities until their adapters pass the shared conformance suite.
+The provider capability catalog is separate from network clients. It records stable IDs, availability, supported chains, wallet features, and the public host used for credential checks. Settings reads this catalog without creating a provider or making a request. New providers have no runtime capabilities until their adapters pass the shared conformance suite.
 
 The format-v1 provider conformance suite gives each adapter its own recorded response shapes and applies the same assertions to the normalized results. The suite covers all four `DataProvider` methods, pagination markers, source provenance, chain identity, and ERC-721/ERC-1155 history.
 

@@ -136,3 +136,24 @@ def test_bootstrap_configures_enabled_moralis_in_saved_order(
     assert isinstance(container.data_provider, OrderedDataProviderPool)
     assert container.data_provider.provider_ids == ("moralis",)
     assert container.uses_live_providers
+
+
+def test_bootstrap_configures_enabled_goldrush(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("ORACLE41_GOLDRUSH_API_KEY", "goldrush-test-key")
+    monkeypatch.setattr(SecretStore, "get_secret", lambda self, key: None)
+    settings = AppSettings()
+    for preference in settings.provider_preferences:
+        preference.enabled = preference.provider_id is WalletDataProviderId.GOLDRUSH
+    SettingsStore.default().save(settings)
+
+    container = build_container()
+
+    assert isinstance(container.data_provider, OrderedDataProviderPool)
+    assert container.data_provider.provider_ids == ("goldrush",)
+    assert container.uses_live_providers

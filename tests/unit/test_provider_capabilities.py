@@ -1,6 +1,6 @@
 """Test the public wallet-data provider catalog.
 
-The cases keep stable IDs unique, prevent planned adapters from claiming support, and verify the public fixture schema.
+The cases keep stable IDs unique, confirm current feature coverage, and verify the public fixture schema.
 No provider client or network request is created here.
 """
 
@@ -10,7 +10,6 @@ from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import Chain
 from oracle41_open.providers.capabilities import (
     PROVIDER_DESCRIPTORS,
-    ProviderAvailability,
     WalletDataFeature,
     WalletDataProviderId,
     available_provider_descriptors,
@@ -32,6 +31,7 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
         WalletDataProviderId.ALCHEMY,
         WalletDataProviderId.ANKR,
         WalletDataProviderId.MORALIS,
+        WalletDataProviderId.GOLDRUSH,
     ]
     for descriptor in available:
         assert descriptor.supported_chains == tuple(Chain)
@@ -46,14 +46,11 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
         assert descriptor.validation_destination
 
 
-def test_planned_providers_do_not_claim_runtime_support() -> None:
-    for provider_id in (WalletDataProviderId.GOLDRUSH,):
-        descriptor = provider_descriptor(provider_id)
-        assert descriptor.availability is ProviderAvailability.PLANNED
-        assert descriptor.supported_chains == ()
-        assert descriptor.features == ()
-        assert descriptor.validation_destination is None
-        assert not descriptor.supports(WalletDataFeature.WALLET_ACTIVITY)
+def test_goldrush_reports_indexed_approval_history() -> None:
+    descriptor = provider_descriptor(WalletDataProviderId.GOLDRUSH)
+
+    assert descriptor.supports(WalletDataFeature.APPROVAL_HISTORY, Chain.ARBITRUM)
+    assert not descriptor.supports(WalletDataFeature.ACTIVE_APPROVALS)
 
 
 def test_data_provider_conformance_schema_is_published_as_version_one() -> None:

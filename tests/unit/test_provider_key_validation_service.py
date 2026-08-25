@@ -45,6 +45,22 @@ def test_provider_key_validation_service_validates_moralis_key() -> None:
     assert calls == ["moralis-test-key"]
 
 
+def test_provider_key_validation_service_validates_goldrush_key() -> None:
+    calls: list[str] = []
+    service = ProviderKeyValidationService(
+        alchemy_probe=lambda _: None,
+        ankr_probe=lambda _: None,
+        goldrush_probe=calls.append,
+    )
+
+    result = service.validate_goldrush_key("  goldrush-test-key  ")
+
+    assert result.provider == "GoldRush"
+    assert result.is_valid
+    assert result.message == "GoldRush key validated."
+    assert calls == ["goldrush-test-key"]
+
+
 def test_provider_key_validation_service_rejects_empty_key() -> None:
     service = ProviderKeyValidationService(
         alchemy_probe=lambda _: None,

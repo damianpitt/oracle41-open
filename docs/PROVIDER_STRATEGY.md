@@ -9,13 +9,14 @@ Oracle41 Open keeps provider-specific response formats outside its core services
 | Alchemy | Available | Available | API key, enabled state, priority |
 | Ankr | Available | Available | API key, enabled state, priority |
 | Moralis | Available | Not used as JSON-RPC | API key, enabled state, priority |
+| GoldRush | Available | Not used as JSON-RPC | API key, enabled state, priority |
 | Custom JSON-RPC | Not a complete indexed wallet source | Available | One endpoint per chain |
 
 Custom JSON-RPC is intentionally separate. Standard EVM nodes can return balances, receipts, logs, and traces, but they do not normally expose a complete indexed history for one address.
 
-## Planned Four-Provider Update
+## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and plans to add [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Moralis provides indexed balances and transaction history for the EVM chains Oracle41 supports. GoldRush still requires an API review and adapter validation before it can be enabled.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for the EVM chains Oracle41 supports.
 
 The provider pool follows these rules:
 
@@ -30,9 +31,9 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a4` has one local catalog for stable provider IDs, availability, supported chains, wallet features, and credential-check destinations. Alchemy, Ankr, and Moralis are available. GoldRush remains planned and claims no capabilities yet.
+Version `0.4.0a5` has one local catalog for stable provider IDs, availability, supported chains, wallet features, and credential-check destinations. Alchemy, Ankr, Moralis, and GoldRush are available.
 
-Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. These destinations are shown before the user starts validation.
+Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
 Each available provider row shows:
 
@@ -42,13 +43,13 @@ Each available provider row shows:
 - Wallet balances, history, approvals, NFT, and pagination capabilities
 - Credential-check destination
 
-The Save API Keys action validates entered Alchemy, Ankr, and Moralis credentials. A later slice should add saved credential status and the last validation time. Receipt, trace, and historical-state support belongs to the separate transaction-provider capability view.
+The Save API Keys action validates entered Alchemy, Ankr, Moralis, and GoldRush credentials. A later slice should add saved credential status and the last validation time. Receipt, trace, and historical-state support belongs to the separate transaction-provider capability view.
 
 API keys stay in the operating-system keyring. They are excluded from backups, exports, logs, diagnostics, and issue-report templates.
 
 ## Shared Conformance Suite
 
-Alchemy, Ankr, and Moralis use separate recorded response fixtures with the same normalized expected results. The shared suite checks:
+Alchemy, Ankr, Moralis, and GoldRush use separate recorded response fixtures with the same normalized expected results. The shared suite checks:
 
 - Native balance
 - Token balances and pagination markers
@@ -64,6 +65,12 @@ The fixture format is versioned. Its public schema is `docs/schemas/data-provide
 The Moralis adapter uses documented REST endpoints for native balance, token balance pages, decoded wallet history, ERC-20 transfers, NFT transfers, and active ERC-20 approvals. Its API key is sent only in the `X-API-Key` header.
 
 Moralis active approvals are a current allowance snapshot. They do not include approvals that were later revoked, so the capability catalog reports active approvals separately from complete approval history. The adapter is not registered as a JSON-RPC or pricing provider.
+
+## GoldRush Scope
+
+The GoldRush adapter uses the Foundational REST API for native balances, token holdings, decoded wallet history, token transfers, NFT transfers, and decoded approval history. Its API key is sent only in the bearer authorization header.
+
+The transaction endpoint is page based and does not accept Oracle41's block floor. The adapter filters old transactions after each page is loaded, so a deep sync can use more credits. GoldRush is not registered as a JSON-RPC or pricing provider.
 
 ## Admission Requirements
 

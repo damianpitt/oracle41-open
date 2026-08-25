@@ -7,6 +7,7 @@ Open the Settings tab and enter one or more provider keys:
 - Alchemy API key
 - Ankr API key
 - Moralis API key
+- GoldRush API key
 
 The keys are stored using the system keyring when available. They are not included in backup exports.
 
@@ -28,25 +29,21 @@ Headless or temporary environments can provide keys without writing to the keyri
 export ORACLE41_ALCHEMY_API_KEY="..."
 export ORACLE41_ANKR_API_KEY="..."
 export ORACLE41_MORALIS_API_KEY="..."
+export ORACLE41_GOLDRUSH_API_KEY="..."
 oracle41-open
 ```
 
 A key stored in the system keyring takes precedence over the corresponding environment variable.
 
-### Provider Expansion
+### Provider Selection
 
-Version `0.4.0a4` provides ordered selection and capability details for Alchemy, Ankr, and Moralis. GoldRush remains planned and is not available in the current release.
-
-The remaining M6.2 work will add:
-
-- A credential field and validation for GoldRush.
-- One ordered list across all four wallet-data providers.
-- Chain and feature capability details for GoldRush.
-- Recorded fixtures and shared conformance tests for GoldRush.
+Version `0.4.0a5` provides ordered selection and capability details for Alchemy, Ankr, Moralis, and GoldRush. Any configured subset can be enabled. GoldRush credentials are validated against `api.covalenthq.com` and sent only in the authorization header.
 
 Provider selection will apply to indexed wallet balances and history. Custom JSON-RPC endpoints will remain separate because standard JSON-RPC does not provide a complete address-history index by itself.
 
 Moralis currently supplies active ERC-20 approvals. This is a current allowance view, not a complete record of approvals that were later revoked.
+
+GoldRush supplies decoded approval events from wallet transaction history, including later revocations. Its transaction endpoint does not accept Oracle41's block floor directly, so the adapter filters returned pages locally. Loading a long history can therefore use more GoldRush credits.
 
 ## Custom JSON-RPC Endpoints
 

@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a4` is an alpha release. Alchemy, Ankr, and Moralis can be enabled and ordered in Settings. All three adapters pass the same recorded-fixture checks for normalized wallet operations. Ordered failover and provider-owned pagination remain in place. GoldRush, production protocol integrations, and position views are not included yet. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.4.0a5` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Ordered failover and provider-owned pagination remain in place. Production protocol integrations and position views are not included yet. Validate live provider behavior and installation on your target distribution before relying on it.
 
 ## Features
 
@@ -13,7 +13,7 @@ Version `0.4.0a4` is an alpha release. Alchemy, Ankr, and Moralis can be enabled
 - Ethereum, Optimism, Polygon, Base, and Arbitrum support
 - Activity feed with durable history, resumable pagination, lookback, and filters
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
-- Alchemy, Ankr, and Moralis wallet-data providers with user-controlled enablement, priority, and ordered failover
+- Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
 - Provider-owned pagination cursors that prevent mixed-vendor continuation pages
 - Provider capability summaries with supported chains, wallet features, and validation destinations
 - Shared recorded-fixture conformance tests for available wallet-data adapters
@@ -59,7 +59,7 @@ The complete M5 transaction-understanding test matrix and optional-provider fall
 | --- | --- |
 | Desktop interface | PySide6 screens for viewing wallets, activity, tokens, and settings. |
 | Core | Business rules, data models, validation, filtering, and analysis. |
-| Providers | Connections to Alchemy, Ankr, JSON-RPC endpoints, Blockscout, and ENS. |
+| Providers | Connections to Alchemy, Ankr, Moralis, GoldRush, JSON-RPC endpoints, Blockscout, and ENS. |
 | Local storage | SQLite data, settings, cache files, notes, saved views, and backups. |
 | Exports | CSV and JSON files created from the data shown by the application. |
 
@@ -75,7 +75,7 @@ More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - Linux with Python 3.11 or newer when installing from source
 - Qt-compatible desktop environment (the application installs the required PySide6 Essentials modules)
-- Alchemy, Ankr, or Moralis API key for live wallet data
+- Alchemy, Ankr, Moralis, or GoldRush API key for live wallet data
 - Optional system keyring integration for persistent provider keys
 
 The application can run with local stub providers when no live provider key is configured.
@@ -154,7 +154,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
 - Protocol positions are an extension foundation; no production DeFi adapter or position screen is connected yet.
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
-- GoldRush remains planned and is not available in `0.4.0a4`.
+- GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
 - The application currently targets EVM-compatible chains supported by the configured providers.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.

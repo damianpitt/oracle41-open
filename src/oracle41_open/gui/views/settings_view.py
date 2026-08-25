@@ -55,9 +55,11 @@ class _KeyValidationPayload:
     alchemy_value: str
     ankr_value: str
     moralis_value: str
+    goldrush_value: str
     alchemy_result: ProviderKeyValidationResult | None
     ankr_result: ProviderKeyValidationResult | None
     moralis_result: ProviderKeyValidationResult | None
+    goldrush_result: ProviderKeyValidationResult | None
 
 
 @dataclass(frozen=True)
@@ -151,6 +153,19 @@ class SettingsView(QWidget):
         self._moralis_key_input.setPlaceholderText("Moralis API Key")
         self._moralis_key_input.setText(
             self._container.secret_store.get_secret("moralis_api_key") or ""
+        )
+
+        self._goldrush_enabled = QCheckBox("Enabled", self)
+        self._goldrush_priority = _provider_priority_combo(self)
+        self._goldrush_capabilities = _provider_capability_label(
+            provider_descriptor(WalletDataProviderId.GOLDRUSH),
+            self,
+        )
+        self._goldrush_key_input = QLineEdit(self)
+        self._goldrush_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._goldrush_key_input.setPlaceholderText("GoldRush API Key")
+        self._goldrush_key_input.setText(
+            self._container.secret_store.get_secret("goldrush_api_key") or ""
         )
 
         self._rpc_chain_combo = QComboBox(self)
@@ -256,6 +271,11 @@ class SettingsView(QWidget):
             _provider_preference_row(self._moralis_enabled, self._moralis_priority),
         )
         providers_form.addRow("", self._moralis_capabilities)
+        providers_form.addRow(
+            "GoldRush",
+            _provider_preference_row(self._goldrush_enabled, self._goldrush_priority),
+        )
+        providers_form.addRow("", self._goldrush_capabilities)
         provider_note = QLabel(
             "Priority 1 is tried first. Disabled providers receive no automatic requests. "
             "Restart after changing this order.",
@@ -270,6 +290,7 @@ class SettingsView(QWidget):
         keys_form.addRow("Alchemy", self._alchemy_key_input)
         keys_form.addRow("Ankr", self._ankr_key_input)
         keys_form.addRow("Moralis", self._moralis_key_input)
+        keys_form.addRow("GoldRush", self._goldrush_key_input)
 
         button_row = QHBoxLayout()
         button_row.addWidget(self._save_keys_button)
@@ -458,14 +479,10 @@ class SettingsView(QWidget):
         alchemy_priority = int(self._alchemy_priority.currentData())
         ankr_priority = int(self._ankr_priority.currentData())
         moralis_priority = int(self._moralis_priority.currentData())
-        if len({alchemy_priority, ankr_priority, moralis_priority}) != 3:
-            self._status.setText("Alchemy, Ankr, and Moralis must use different priorities.")
+        goldrush_priority = int(self._goldrush_priority.currentData())
+        if len({alchemy_priority, ankr_priority, moralis_priority, goldrush_priority}) != 4:
+            self._status.setText("All wallet-data providers must use different priorities.")
             return None
-
-        current_by_id = {
-            preference.provider_id: preference
-            for preference in self._settings.provider_preferences
-        }
         return [
             ProviderPreference(
                 provider_id=WalletDataProviderId.ALCHEMY,
@@ -482,7 +499,11 @@ class SettingsView(QWidget):
                 enabled=self._moralis_enabled.isChecked(),
                 priority=moralis_priority,
             ),
-            current_by_id[WalletDataProviderId.GOLDRUSH],
+            ProviderPreference(
+                provider_id=WalletDataProviderId.GOLDRUSH,
+                enabled=self._goldrush_enabled.isChecked(),
+                priority=goldrush_priority,
+            ),
         ]
 
     def _save_keys(self) -> None:
@@ -491,6 +512,7 @@ class SettingsView(QWidget):
         alchemy_value = self._alchemy_key_input.text().strip()
         ankr_value = self._ankr_key_input.text().strip()
         moralis_value = self._moralis_key_input.text().strip()
+        goldrush_value = self._goldrush_key_input.text().strip()
 
         self._set_key_validation_loading(True)
 
@@ -505,13 +527,20 @@ class SettingsView(QWidget):
                 if moralis_value
                 else None
             )
+            goldrush_result = (
+                validation_service.validate_goldrush_key(goldrush_value)
+                if goldrush_value
+                else None
+            )
             return _KeyValidationPayload(
                 alchemy_value=alchemy_value,
                 ankr_value=ankr_value,
                 moralis_value=moralis_value,
+                goldrush_value=goldrush_value,
                 alchemy_result=alchemy_result,
                 ankr_result=ankr_result,
                 moralis_result=moralis_result,
+                goldrush_result=goldrush_result,
             )
 
         self._task_runner.start(validate_keys)
@@ -695,6 +724,14 @@ class SettingsView(QWidget):
             outcomes=outcomes,
             errors=errors,
         )
+        self._save_validated_key(
+            key_name="goldrush_api_key",
+            provider_name="GoldRush",
+            value=raw_result.goldrush_value,
+            validation=raw_result.goldrush_result,
+            outcomes=outcomes,
+            errors=errors,
+        )
 
         if errors:
             summary = "; ".join(outcomes) if outcomes else "No keys changed."
@@ -739,6 +776,7 @@ class SettingsView(QWidget):
         self._alchemy_key_input.setEnabled(not is_loading)
         self._ankr_key_input.setEnabled(not is_loading)
         self._moralis_key_input.setEnabled(not is_loading)
+        self._goldrush_key_input.setEnabled(not is_loading)
         self._save_keys_button.setEnabled(not is_loading)
         if is_loading:
             self._status.setText("Validating provider keys...")
@@ -910,12 +948,15 @@ class SettingsView(QWidget):
         alchemy = settings.provider_preference(WalletDataProviderId.ALCHEMY)
         ankr = settings.provider_preference(WalletDataProviderId.ANKR)
         moralis = settings.provider_preference(WalletDataProviderId.MORALIS)
+        goldrush = settings.provider_preference(WalletDataProviderId.GOLDRUSH)
         self._alchemy_enabled.setChecked(alchemy.enabled)
         self._ankr_enabled.setChecked(ankr.enabled)
         self._moralis_enabled.setChecked(moralis.enabled)
+        self._goldrush_enabled.setChecked(goldrush.enabled)
         self._set_provider_priority(self._alchemy_priority, alchemy.priority)
         self._set_provider_priority(self._ankr_priority, ankr.priority)
         self._set_provider_priority(self._moralis_priority, moralis.priority)
+        self._set_provider_priority(self._goldrush_priority, goldrush.priority)
 
     @staticmethod
     def _set_provider_priority(combo: QComboBox, priority: int) -> None:
@@ -929,6 +970,7 @@ def _provider_priority_combo(parent: QWidget) -> QComboBox:
     combo.addItem("1 (first)", 1)
     combo.addItem("2 (second)", 2)
     combo.addItem("3 (third)", 3)
+    combo.addItem("4 (fourth)", 4)
     return combo
 
 

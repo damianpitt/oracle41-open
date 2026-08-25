@@ -381,7 +381,7 @@ Expand wallet-data choice from two providers to four:
 6. Record provider provenance and completeness on every result so failover cannot silently mix incompatible pages.
 7. Add recorded fixtures for every provider and a shared conformance suite over the `DataProvider` contract.
 
-Moralis and GoldRush are the planned additions because both provide indexed wallet balances and history across the current Oracle41 chain set. Final inclusion remains conditional on API stability, licensing, free-tier usability, pagination quality, and fixture validation at implementation time.
+Moralis and GoldRush were selected because both provide indexed wallet balances and history across the current Oracle41 chain set. Their adapters remain subject to API stability, licensing, plan limits, and continued fixture validation.
 
 M6.2 is complete only when any one configured provider can run the supported wallet flows, an ordered subset can fail over safely, disabled providers make no requests, and Settings clearly reports feature gaps per provider and chain.
 
@@ -412,3 +412,13 @@ M6.2C adds Moralis as the third available wallet-data provider. The REST adapter
 Settings can save, validate, enable, disable, and order Moralis. Startup adds it to the provider pool only when it is enabled and has a key. Its Data API key is not treated as a transaction JSON-RPC or pricing source.
 
 Moralis also loads current active ERC-20 approvals. The capability catalog keeps this separate from complete approval history because revoked approvals are not returned by that endpoint. Recorded Moralis responses now pass the shared provider conformance suite. GoldRush and final four-provider validation remain open.
+
+### Completed Slice: M6.2D
+
+**Status:** Complete in `0.4.0a5`.
+
+M6.2D adds GoldRush as the fourth available wallet-data provider. The Foundational REST adapter loads native balances, token holdings, decoded wallet activity, ERC-20 transfers, ERC-721 transfers, ERC-1155 single and batch transfers, and decoded approval history on every current Oracle41 chain.
+
+Settings can save, validate, enable, disable, and order GoldRush. Startup adds it to the provider pool only when it is enabled and has a key. Its key is sent only as a bearer header and is not treated as a transaction JSON-RPC or pricing source.
+
+Recorded GoldRush responses pass the shared provider conformance suite. Unit tests cover chain names, authentication, credits, rate limits, timeouts, malformed data, retries, paging, approval revocations, and ERC-1155 batches. Final opt-in live validation across all four providers remains open.

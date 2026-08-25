@@ -116,10 +116,10 @@ PROVIDER_DESCRIPTORS = (
     WalletDataProviderDescriptor(
         provider_id=WalletDataProviderId.GOLDRUSH,
         display_name="GoldRush",
-        availability=ProviderAvailability.PLANNED,
-        supported_chains=(),
-        features=(),
-        validation_destination=None,
+        availability=ProviderAvailability.AVAILABLE,
+        supported_chains=_CURRENT_CHAINS,
+        features=_INDEXED_HISTORY_FEATURES,
+        validation_destination="api.covalenthq.com",
     ),
 )
 

@@ -30,6 +30,7 @@ from oracle41_open.providers.capabilities import WalletDataProviderId
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.failover import OrderedDataProviderPool, ProviderPoolEntry
+from oracle41_open.providers.goldrush import GoldRushProvider
 from oracle41_open.providers.moralis import MoralisProvider
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.providers.stub import (
@@ -125,6 +126,11 @@ def build_container() -> AppContainer:
         key_name="moralis_api_key",
         environment_name="ORACLE41_MORALIS_API_KEY",
     )
+    goldrush_api_key = _load_provider_key(
+        secret_store,
+        key_name="goldrush_api_key",
+        environment_name="ORACLE41_GOLDRUSH_API_KEY",
+    )
 
     enabled_provider_ids = settings.ordered_enabled_provider_ids()
     configured_providers: dict[WalletDataProviderId, DataProvider] = {}
@@ -141,6 +147,11 @@ def build_container() -> AppContainer:
         with suppress(ProviderError):
             configured_providers[WalletDataProviderId.MORALIS] = MoralisProvider(
                 api_key=moralis_api_key
+            )
+    if goldrush_api_key and WalletDataProviderId.GOLDRUSH in enabled_provider_ids:
+        with suppress(ProviderError):
+            configured_providers[WalletDataProviderId.GOLDRUSH] = GoldRushProvider(
+                api_key=goldrush_api_key
             )
 
     data_provider: DataProvider

@@ -57,6 +57,7 @@
         "native_balance",
         "token_balance_symbol",
         "token_balance",
+        "token_balance_has_next",
         "activity_hash",
         "activity_value",
         "token_history_categories"
@@ -70,6 +71,9 @@
         },
         "token_balance": {
           "type": "string"
+        },
+        "token_balance_has_next": {
+          "type": "boolean"
         },
         "activity_hash": {
           "type": "string"

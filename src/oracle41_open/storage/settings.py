@@ -28,7 +28,7 @@ class ProviderPreference(BaseModel):
 
 
 def _default_provider_preferences() -> list[ProviderPreference]:
-    # Future adapters stay disabled until they pass the shared provider tests.
+    # Optional providers stay disabled until a user adds a key and enables them.
     return [
         ProviderPreference(
             provider_id=WalletDataProviderId.ALCHEMY,

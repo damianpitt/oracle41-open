@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a4] - Unreleased
+## [0.4.0a5] - Unreleased
+
+### Added
+
+- A GoldRush wallet-data adapter for native balances, token holdings, decoded wallet activity, token-specific history, NFT transfers, and complete decoded approval history.
+- GoldRush API key validation, keyring storage, environment-variable loading, Settings controls, and ordered-pool startup.
+- Recorded GoldRush Foundational API fixtures in the shared wallet-data provider conformance suite.
+- Structured GoldRush authentication, credit-exhaustion, rate-limit, timeout, network, malformed-response, and HTTP errors with bounded retry.
+- ERC-1155 batch expansion and stable per-token action IDs for decoded GoldRush logs.
+
+### Changed
+
+- Four wallet-data providers can now be enabled and ordered in Settings.
+- The shared provider fixture contract records whether token-balance pagination is available.
+
+### Known Limitations
+
+- GoldRush transaction pages do not accept the application's block floor directly. Oracle41 filters each returned page locally, which can use more provider credits for older wallets.
+- GoldRush is an indexed wallet-data source only. Its API key is not added as a transaction JSON-RPC or pricing provider.
+- Live four-provider validation with private credentials remains opt-in and is not performed in public CI.
+
+## [0.4.0a4] - 2026-08-25
 
 ### Added
 
@@ -21,7 +42,6 @@ All notable changes to Oracle41 Open will be documented here.
 
 - Moralis returns current active ERC-20 approvals. It does not provide a complete archive of approvals that were later revoked through this adapter.
 - Moralis is an indexed wallet-data source only. Its Data API key is not added as a transaction JSON-RPC or pricing provider.
-- GoldRush remains planned and unavailable.
 
 ## [0.4.0a3] - 2026-08-23
 
