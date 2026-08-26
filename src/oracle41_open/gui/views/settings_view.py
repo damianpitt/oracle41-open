@@ -32,6 +32,9 @@ from PySide6.QtWidgets import (
 
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import Chain, ContractABIRecord, ValidationError
+from oracle41_open.core.services.provider_credential_diagnostics_service import (
+    ProviderCredentialStatus,
+)
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationResult
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
 from oracle41_open.providers.capabilities import (
@@ -42,6 +45,8 @@ from oracle41_open.providers.capabilities import (
 from oracle41_open.storage.backup_restore import BackupMetadata
 from oracle41_open.storage.settings import (
     AppSettings,
+    CredentialSource,
+    CredentialValidationState,
     ProviderPreference,
 )
 
@@ -124,6 +129,8 @@ class SettingsView(QWidget):
             provider_descriptor(WalletDataProviderId.ALCHEMY),
             self,
         )
+        self._alchemy_credential_status = QLabel(self)
+        self._alchemy_credential_status.setWordWrap(True)
         self._alchemy_key_input = QLineEdit(self)
         self._alchemy_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._alchemy_key_input.setPlaceholderText("Alchemy API Key")
@@ -137,6 +144,8 @@ class SettingsView(QWidget):
             provider_descriptor(WalletDataProviderId.ANKR),
             self,
         )
+        self._ankr_credential_status = QLabel(self)
+        self._ankr_credential_status.setWordWrap(True)
         self._ankr_key_input = QLineEdit(self)
         self._ankr_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._ankr_key_input.setPlaceholderText("Ankr API Key")
@@ -148,6 +157,8 @@ class SettingsView(QWidget):
             provider_descriptor(WalletDataProviderId.MORALIS),
             self,
         )
+        self._moralis_credential_status = QLabel(self)
+        self._moralis_credential_status.setWordWrap(True)
         self._moralis_key_input = QLineEdit(self)
         self._moralis_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._moralis_key_input.setPlaceholderText("Moralis API Key")
@@ -161,6 +172,8 @@ class SettingsView(QWidget):
             provider_descriptor(WalletDataProviderId.GOLDRUSH),
             self,
         )
+        self._goldrush_credential_status = QLabel(self)
+        self._goldrush_credential_status.setWordWrap(True)
         self._goldrush_key_input = QLineEdit(self)
         self._goldrush_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._goldrush_key_input.setPlaceholderText("GoldRush API Key")
@@ -236,6 +249,7 @@ class SettingsView(QWidget):
 
         self._init_layout()
         self._apply_settings_to_form(self._settings)
+        self._refresh_provider_credential_statuses()
         self._refresh_cache_diagnostics(set_status=False)
 
     def _init_layout(self) -> None:
@@ -261,21 +275,25 @@ class SettingsView(QWidget):
             _provider_preference_row(self._alchemy_enabled, self._alchemy_priority),
         )
         providers_form.addRow("", self._alchemy_capabilities)
+        providers_form.addRow("Credential", self._alchemy_credential_status)
         providers_form.addRow(
             "Ankr",
             _provider_preference_row(self._ankr_enabled, self._ankr_priority),
         )
         providers_form.addRow("", self._ankr_capabilities)
+        providers_form.addRow("Credential", self._ankr_credential_status)
         providers_form.addRow(
             "Moralis",
             _provider_preference_row(self._moralis_enabled, self._moralis_priority),
         )
         providers_form.addRow("", self._moralis_capabilities)
+        providers_form.addRow("Credential", self._moralis_credential_status)
         providers_form.addRow(
             "GoldRush",
             _provider_preference_row(self._goldrush_enabled, self._goldrush_priority),
         )
         providers_form.addRow("", self._goldrush_capabilities)
+        providers_form.addRow("Credential", self._goldrush_credential_status)
         provider_note = QLabel(
             "Priority 1 is tried first. Disabled providers receive no automatic requests. "
             "Restart after changing this order.",
@@ -464,6 +482,9 @@ class SettingsView(QWidget):
                     "pricing_max_stale_age_seconds": pricing_stale_age,
                     "cache_max_size_mb": cache_max_size,
                     "provider_preferences": provider_preferences,
+                    "provider_credential_diagnostics": (
+                        self._container.settings_store.load().provider_credential_diagnostics
+                    ),
                 }
             )
         except PydanticValidationError as error:
@@ -701,6 +722,7 @@ class SettingsView(QWidget):
         outcomes: list[str] = []
         errors: list[str] = []
         self._save_validated_key(
+            provider_id=WalletDataProviderId.ALCHEMY,
             key_name="alchemy_api_key",
             provider_name="Alchemy",
             value=raw_result.alchemy_value,
@@ -709,6 +731,7 @@ class SettingsView(QWidget):
             errors=errors,
         )
         self._save_validated_key(
+            provider_id=WalletDataProviderId.ANKR,
             key_name="ankr_api_key",
             provider_name="Ankr",
             value=raw_result.ankr_value,
@@ -717,6 +740,7 @@ class SettingsView(QWidget):
             errors=errors,
         )
         self._save_validated_key(
+            provider_id=WalletDataProviderId.MORALIS,
             key_name="moralis_api_key",
             provider_name="Moralis",
             value=raw_result.moralis_value,
@@ -725,6 +749,7 @@ class SettingsView(QWidget):
             errors=errors,
         )
         self._save_validated_key(
+            provider_id=WalletDataProviderId.GOLDRUSH,
             key_name="goldrush_api_key",
             provider_name="GoldRush",
             value=raw_result.goldrush_value,
@@ -732,6 +757,7 @@ class SettingsView(QWidget):
             outcomes=outcomes,
             errors=errors,
         )
+        self._refresh_provider_credential_statuses()
 
         if errors:
             summary = "; ".join(outcomes) if outcomes else "No keys changed."
@@ -745,6 +771,7 @@ class SettingsView(QWidget):
 
     def _save_validated_key(
         self,
+        provider_id: WalletDataProviderId,
         key_name: str,
         provider_name: str,
         value: str,
@@ -756,12 +783,33 @@ class SettingsView(QWidget):
             if validation is None or not validation.is_valid:
                 errors.append(validation.message if validation is not None else f"{provider_name} validation failed.")
             elif self._save_key(key_name, value):
+                self._container.provider_credential_diagnostics_service.record_success(
+                    provider_id
+                )
                 outcomes.append(f"{provider_name} key saved")
             else:
                 errors.append(f"Could not save {provider_name} key. Check keyring access.")
             return
+        current_status = self._container.provider_credential_diagnostics_service.status(
+            provider_id
+        )
+        if current_status.source is not CredentialSource.KEYRING:
+            self._container.provider_credential_diagnostics_service.clear(provider_id)
+            if current_status.source is CredentialSource.ENVIRONMENT:
+                outcomes.append(f"{provider_name} environment key unchanged")
+            else:
+                outcomes.append(f"{provider_name} key not configured")
+            return
         if self._save_key(key_name, ""):
-            outcomes.append(f"{provider_name} key removed")
+            remaining = self._container.provider_credential_diagnostics_service.clear(
+                provider_id
+            )
+            if remaining.source is CredentialSource.ENVIRONMENT:
+                outcomes.append(
+                    f"{provider_name} stored key removed; environment key is now active"
+                )
+            else:
+                outcomes.append(f"{provider_name} key removed")
         else:
             errors.append(f"Could not remove {provider_name} key. Check keyring access.")
 
@@ -831,6 +879,7 @@ class SettingsView(QWidget):
         if isinstance(result, _BackupRestorePayload):
             self._settings = result.settings
             self._apply_settings_to_form(result.settings)
+            self._refresh_provider_credential_statuses()
             self._refresh_cache_diagnostics(set_status=False)
             self._status.setText(
                 "Backup restored (settings + SQLite state). "
@@ -934,6 +983,17 @@ class SettingsView(QWidget):
             return self._container.secret_store.delete_secret(key)
         return self._container.secret_store.set_secret(key, trimmed)
 
+    def _refresh_provider_credential_statuses(self) -> None:
+        service = self._container.provider_credential_diagnostics_service
+        labels = {
+            WalletDataProviderId.ALCHEMY: self._alchemy_credential_status,
+            WalletDataProviderId.ANKR: self._ankr_credential_status,
+            WalletDataProviderId.MORALIS: self._moralis_credential_status,
+            WalletDataProviderId.GOLDRUSH: self._goldrush_credential_status,
+        }
+        for provider_id, label in labels.items():
+            label.setText(_format_provider_credential_status(service.status(provider_id)))
+
     def _apply_settings_to_form(self, settings: AppSettings) -> None:
         self._set_chain_selection(settings.selected_chain)
         self._hide_unverified.setChecked(settings.hide_unverified)
@@ -998,6 +1058,22 @@ def _provider_capability_label(
     )
     label.setWordWrap(True)
     return label
+
+
+def _format_provider_credential_status(status: ProviderCredentialStatus) -> str:
+    if status.source is None:
+        return "Not configured."
+    source = {
+        CredentialSource.KEYRING: "System keyring",
+        CredentialSource.ENVIRONMENT: "Environment variable",
+    }[status.source]
+    if (
+        status.state is CredentialValidationState.VALID
+        and status.validated_at is not None
+    ):
+        checked_at = status.validated_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        return f"{source}. Validated {checked_at}."
+    return f"{source}. Not validated for this source."
 
 
 def _format_cache_diagnostics(diagnostics: CacheDiagnostics) -> str:

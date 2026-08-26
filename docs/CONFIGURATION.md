@@ -37,7 +37,7 @@ A key stored in the system keyring takes precedence over the corresponding envir
 
 ### Provider Selection
 
-Version `0.4.0a5` provides ordered selection and capability details for Alchemy, Ankr, Moralis, and GoldRush. Any configured subset can be enabled. GoldRush credentials are validated against `api.covalenthq.com` and sent only in the authorization header.
+Version `0.4.0a6` provides ordered selection and capability details for Alchemy, Ankr, Moralis, and GoldRush. Any configured subset can be enabled. GoldRush credentials are validated against `api.covalenthq.com` and sent only in the authorization header.
 
 Provider selection will apply to indexed wallet balances and history. Custom JSON-RPC endpoints will remain separate because standard JSON-RPC does not provide a complete address-history index by itself.
 
@@ -60,6 +60,18 @@ The Wallet Data Providers order applies only to indexed wallet operations. It do
 For the simplest complete setup, configure Alchemy. For more wallet-data resilience, enable another wallet provider after it. Users who prefer Moralis or GoldRush can add a custom JSON-RPC endpoint for Transaction Inspector. Dedicated USD pricing still requires Alchemy in the current release.
 
 An endpoint may support basic transaction receipts but not internal-call traces or old contract state. These capabilities depend on the endpoint and provider plan. Transaction Inspector shows missing evidence when a method is unavailable.
+
+### Credential Diagnostics
+
+Each provider row reports one of these credential sources:
+
+- System keyring
+- Environment variable
+- Not configured
+
+After a key is successfully checked and saved, Settings records the provider ID, source type, and UTC validation time. It does not store the key, a key fingerprint, request URL, wallet data, or raw error. A validation recorded for a keyring credential does not apply when the application later falls back to an environment credential.
+
+Removing a stored key clears its validation metadata. A failed replacement key is not saved and does not overwrite the last successful status for the existing credential.
 
 ## Custom JSON-RPC Endpoints
 

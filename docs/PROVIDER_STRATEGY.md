@@ -52,7 +52,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a5` has one local catalog for stable provider IDs, availability, supported chains, wallet features, and credential-check destinations. Alchemy, Ankr, Moralis, and GoldRush are available.
+Version `0.4.0a6` has one local catalog for stable provider IDs, availability, supported chains, wallet features, and credential-check destinations. Alchemy, Ankr, Moralis, and GoldRush are available.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -64,9 +64,11 @@ Each available provider row shows:
 - Wallet balances, history, approvals, NFT, and pagination capabilities
 - Credential-check destination
 
-The Save API Keys action validates entered Alchemy, Ankr, Moralis, and GoldRush credentials. A later slice should add saved credential status and the last validation time. Receipt, trace, and historical-state support belongs to the separate transaction-provider capability view.
+The Save API Keys action validates entered Alchemy, Ankr, Moralis, and GoldRush credentials. Settings shows whether each key comes from the system keyring or environment and records the last successful validation time for that source. Receipt, trace, and historical-state support belongs to the separate transaction-provider capability view.
 
 API keys stay in the operating-system keyring. They are excluded from backups, exports, logs, diagnostics, and issue-report templates.
+
+Credential diagnostics contain only a provider ID, source label, successful state, and UTC timestamp. They contain no key, fingerprint, URL, wallet result, or raw error. These safe fields can be included in settings backups.
 
 ## Shared Conformance Suite
 
@@ -117,3 +119,25 @@ A provider is ready for public use only when it has:
 - Safe removal and key deletion from Settings
 
 The app must continue to work with one provider. Four configured providers improve choice and resilience, but they must never become a requirement.
+
+## Opt-in Live Validation
+
+Recorded fixtures remain the public CI requirement. Maintainers can separately run one bounded live page for native balance, token balances, wallet activity, and token history against every provider.
+
+The local command requires explicit opt-in and all four credentials:
+
+```bash
+export ORACLE41_RUN_LIVE_PROVIDER_VALIDATION=1
+export ORACLE41_LIVE_TEST_CHAIN="ethereum"
+export ORACLE41_LIVE_TEST_WALLET="0x..."
+export ORACLE41_LIVE_TEST_TOKEN="0x..."
+export ORACLE41_ALCHEMY_API_KEY="..."
+export ORACLE41_ANKR_API_KEY="..."
+export ORACLE41_MORALIS_API_KEY="..."
+export ORACLE41_GOLDRUSH_API_KEY="..."
+make validate-providers-live
+```
+
+Use only public test addresses. They are sent to each provider and may appear in provider account logs. The command does not print addresses, keys, request URLs, balances, activity, or raw transport errors. It returns `0` when all providers pass, `1` when a provider fails, and `2` when opt-in or configuration is missing.
+
+Live provider credentials remain off GitHub-hosted runners. Normal pushes and pull requests use recorded fixtures only.

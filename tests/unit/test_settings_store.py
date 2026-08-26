@@ -4,6 +4,7 @@ The cases cover defaults, round trips, invalid files, and supported preference b
 They confirm secrets are not part of the settings model.
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,9 @@ from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import Chain
 from oracle41_open.storage.settings import (
     AppSettings,
+    CredentialSource,
+    CredentialValidationState,
+    ProviderCredentialDiagnostic,
     ProviderPreference,
     SettingsStore,
     WalletDataProviderId,
@@ -32,6 +36,10 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     assert initial.ordered_enabled_provider_ids() == (
         WalletDataProviderId.ALCHEMY,
         WalletDataProviderId.ANKR,
+    )
+    assert all(
+        item.state is CredentialValidationState.NOT_CHECKED
+        for item in initial.provider_credential_diagnostics
     )
 
     updated = AppSettings(
@@ -67,6 +75,27 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
                 priority=4,
             ),
         ],
+        provider_credential_diagnostics=[
+            ProviderCredentialDiagnostic(
+                provider_id=provider_id,
+                state=(
+                    CredentialValidationState.VALID
+                    if provider_id is WalletDataProviderId.ANKR
+                    else CredentialValidationState.NOT_CHECKED
+                ),
+                source=(
+                    CredentialSource.KEYRING
+                    if provider_id is WalletDataProviderId.ANKR
+                    else None
+                ),
+                validated_at=(
+                    datetime(2026, 8, 26, 10, 0, tzinfo=UTC)
+                    if provider_id is WalletDataProviderId.ANKR
+                    else None
+                ),
+            )
+            for provider_id in WalletDataProviderId
+        ],
     )
     store.save(updated)
 
@@ -82,6 +111,10 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     assert loaded.pricing_max_stale_age_seconds == 172_800
     assert loaded.cache_max_size_mb == 220
     assert loaded.ordered_enabled_provider_ids() == (WalletDataProviderId.ANKR,)
+    assert (
+        loaded.credential_diagnostic(WalletDataProviderId.ANKR).state
+        is CredentialValidationState.VALID
+    )
 
 
 def test_settings_store_loads_legacy_payload_with_new_defaults(tmp_path: Path) -> None:
@@ -106,6 +139,7 @@ def test_settings_store_loads_legacy_payload_with_new_defaults(tmp_path: Path) -
         WalletDataProviderId.ALCHEMY,
         WalletDataProviderId.ANKR,
     )
+    assert len(loaded.provider_credential_diagnostics) == 4
 
 
 def test_settings_reject_duplicate_provider_priorities() -> None:

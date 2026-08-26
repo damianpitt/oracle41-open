@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: dev-setup test lint typecheck check
+.PHONY: dev-setup test lint typecheck check validate-providers-live
 
 dev-setup:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -15,3 +15,6 @@ typecheck:
 	$(PYTHON) -m mypy src
 
 check: lint typecheck test
+
+validate-providers-live:
+	$(PYTHON) -m oracle41_open.app.main --validate-providers-live

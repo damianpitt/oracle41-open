@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a5] - Unreleased
+## [0.4.0a6] - Unreleased
+
+### Added
+
+- Non-secret provider credential diagnostics with keyring/environment source, validation state, and UTC time of the last successful check.
+- Credential readiness details for Alchemy, Ankr, Moralis, and GoldRush in Settings.
+- An explicitly gated local `--validate-providers-live` command that exercises one bounded page of every wallet-data operation for all four providers.
+
+### Changed
+
+- Saving ordinary settings and restoring backups preserve safe credential diagnostic metadata.
+- Live validation output reports only provider IDs, operation counts, and redacted failure categories.
+
+### Security
+
+- Credential diagnostics never store keys, key fingerprints, request URLs, wallet results, or raw provider errors.
+- Live validation remains disabled unless `ORACLE41_RUN_LIVE_PROVIDER_VALIDATION=1` is set and every required input is present.
+- Provider credentials remain off hosted CI runners; live validation runs only in an explicitly configured local environment.
+
+### Known Limitations
+
+- Public CI remains fixture based and does not receive provider credentials.
+- A successful credential check confirms access at that time; provider plan, chain, trace, and historical-state capabilities can still vary.
+
+## [0.4.0a5] - 2026-08-26
 
 ### Added
 

@@ -7,7 +7,9 @@ Provider keys and private RPC URLs are not part of this settings file.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from enum import Enum
 from pathlib import Path
 
 from platformdirs import user_config_dir
@@ -25,6 +27,40 @@ class ProviderPreference(BaseModel):
     provider_id: WalletDataProviderId
     enabled: bool
     priority: int = Field(ge=1, le=4)
+
+
+class CredentialSource(str, Enum):
+    """Identify where a credential was found without storing its value."""
+
+    KEYRING = "keyring"
+    ENVIRONMENT = "environment"
+
+
+class CredentialValidationState(str, Enum):
+    """Record whether the current credential source has passed a check."""
+
+    NOT_CHECKED = "not_checked"
+    VALID = "valid"
+
+
+class ProviderCredentialDiagnostic(BaseModel):
+    """Persist safe validation metadata without credential-derived data."""
+
+    provider_id: WalletDataProviderId
+    state: CredentialValidationState = CredentialValidationState.NOT_CHECKED
+    source: CredentialSource | None = None
+    validated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _validate_state(self) -> ProviderCredentialDiagnostic:
+        if self.state is CredentialValidationState.VALID:
+            if self.source is None or self.validated_at is None:
+                raise ValueError("A valid credential diagnostic requires source and time.")
+            if self.validated_at.tzinfo is None:
+                raise ValueError("Credential validation time must include a timezone.")
+        elif self.source is not None or self.validated_at is not None:
+            raise ValueError("Unchecked credential diagnostics cannot include validation metadata.")
+        return self
 
 
 def _default_provider_preferences() -> list[ProviderPreference]:
@@ -53,6 +89,13 @@ def _default_provider_preferences() -> list[ProviderPreference]:
     ]
 
 
+def _default_credential_diagnostics() -> list[ProviderCredentialDiagnostic]:
+    return [
+        ProviderCredentialDiagnostic(provider_id=provider_id)
+        for provider_id in WalletDataProviderId
+    ]
+
+
 class AppSettings(BaseModel):
     selected_chain: Chain = Chain.ETHEREUM
     hide_unverified: bool = True
@@ -66,6 +109,9 @@ class AppSettings(BaseModel):
     cache_max_size_mb: int = Field(default=150, ge=10, le=500)
     provider_preferences: list[ProviderPreference] = Field(
         default_factory=_default_provider_preferences
+    )
+    provider_credential_diagnostics: list[ProviderCredentialDiagnostic] = Field(
+        default_factory=_default_credential_diagnostics
     )
 
     @field_validator("dust_threshold_usd")
@@ -97,6 +143,15 @@ class AppSettings(BaseModel):
             raise ValueError("Provider preferences must contain every supported provider ID.")
         if len(priorities) != len(set(priorities)):
             raise ValueError("Provider preferences contain duplicate priorities.")
+
+        diagnostic_ids = [
+            diagnostic.provider_id
+            for diagnostic in self.provider_credential_diagnostics
+        ]
+        if len(diagnostic_ids) != len(set(diagnostic_ids)):
+            raise ValueError("Credential diagnostics contain duplicate provider IDs.")
+        if set(diagnostic_ids) != expected_ids:
+            raise ValueError("Credential diagnostics must contain every supported provider ID.")
         return self
 
     def ordered_enabled_provider_ids(self) -> tuple[WalletDataProviderId, ...]:
@@ -112,6 +167,18 @@ class AppSettings(BaseModel):
             preference
             for preference in self.provider_preferences
             if preference.provider_id == provider_id
+        )
+
+    def credential_diagnostic(
+        self,
+        provider_id: WalletDataProviderId,
+    ) -> ProviderCredentialDiagnostic:
+        """Return safe validation metadata for one provider."""
+
+        return next(
+            diagnostic
+            for diagnostic in self.provider_credential_diagnostics
+            if diagnostic.provider_id == provider_id
         )
 
 

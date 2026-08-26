@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a5` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Ordered failover and provider-owned pagination remain in place. Production protocol integrations and position views are not included yet. Validate live provider behavior and installation on your target distribution before relying on it.
+Version `0.4.0a6` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Settings reports credential source and the last successful validation time without storing credential-derived data. A separate opt-in local command provides bounded live validation. Production protocol integrations and position views are not included yet.
 
 ## Features
 
@@ -16,6 +16,7 @@ Version `0.4.0a5` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can 
 - Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
 - Provider-owned pagination cursors that prevent mixed-vendor continuation pages
 - Provider capability summaries with supported chains, wallet features, and validation destinations
+- Non-secret credential source and last-validation diagnostics
 - Shared recorded-fixture conformance tests for available wallet-data adapters
 - Retry/backoff and structured rate-limit, timeout, and authentication errors
 - ENS wallet input and address-label resolution with caching
@@ -94,6 +95,24 @@ Common setups:
 - **Moralis or GoldRush only:** provides wallet balances and history; advanced transaction inspection and dedicated pricing are limited.
 
 Execution traces and historical contract reads can still depend on the provider plan and chain. Oracle41 reports unavailable evidence instead of presenting an incomplete transaction as complete. See [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md) for feature boundaries, failover rules, and provider-specific limitations.
+
+### Opt-in Live Validation
+
+Maintainers can test all four wallet-data adapters against one public wallet and token contract. The validator reads keys and test addresses from environment variables, performs only the first page of each operation, and does not print credentials, addresses, URLs, balances, or activity.
+
+```bash
+export ORACLE41_RUN_LIVE_PROVIDER_VALIDATION=1
+export ORACLE41_LIVE_TEST_CHAIN="ethereum"
+export ORACLE41_LIVE_TEST_WALLET="0x..."
+export ORACLE41_LIVE_TEST_TOKEN="0x..."
+export ORACLE41_ALCHEMY_API_KEY="..."
+export ORACLE41_ANKR_API_KEY="..."
+export ORACLE41_MORALIS_API_KEY="..."
+export ORACLE41_GOLDRUSH_API_KEY="..."
+make validate-providers-live
+```
+
+This command makes real provider requests and may consume API credits. It runs only on the local machine where it is explicitly enabled and never during normal CI. Full instructions are in [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md).
 
 ## Requirements
 

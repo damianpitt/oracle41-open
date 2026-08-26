@@ -17,6 +17,12 @@ def main(arguments: list[str] | None = None) -> int:
     if "--version" in application_arguments:
         print(f"Oracle41 Open {__version__}")
         return 0
+    if "--validate-providers-live" in application_arguments:
+        from oracle41_open.tools.validate_live_providers import (
+            run_live_provider_validation,
+        )
+
+        return run_live_provider_validation()
 
     smoke_test = "--smoke-test" in application_arguments
     application_arguments = [

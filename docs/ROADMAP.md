@@ -422,3 +422,13 @@ M6.2D adds GoldRush as the fourth available wallet-data provider. The Foundation
 Settings can save, validate, enable, disable, and order GoldRush. Startup adds it to the provider pool only when it is enabled and has a key. Its key is sent only as a bearer header and is not treated as a transaction JSON-RPC or pricing source.
 
 Recorded GoldRush responses pass the shared provider conformance suite. Unit tests cover chain names, authentication, credits, rate limits, timeouts, malformed data, retries, paging, approval revocations, and ERC-1155 batches. Final opt-in live validation across all four providers remains open.
+
+### Completed Slice: M6.2E
+
+**Status:** Complete in `0.4.0a6`.
+
+M6.2E adds safe credential diagnostics to Settings. Each provider reports whether its current credential comes from the system keyring or environment, whether that source has passed validation, and the UTC time of the last successful check. Persisted diagnostics contain no credential-derived value.
+
+An explicit local validator now exercises one bounded page of native balance, token balances, wallet activity, and token history for Alchemy, Ankr, Moralis, and GoldRush. It requires all inputs through environment variables, redacts output, and returns clear shell status codes.
+
+The M6.2 implementation is complete. Recorded conformance remains mandatory in public CI, while maintainers run live validation locally when provider credentials and API credits are intentionally available.

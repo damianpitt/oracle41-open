@@ -17,6 +17,9 @@ from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
 from oracle41_open.core.services.pricing_service import PricingService
+from oracle41_open.core.services.provider_credential_diagnostics_service import (
+    ProviderCredentialDiagnosticsService,
+)
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationService
 from oracle41_open.core.services.snapshot_compare_service import SnapshotCompareService
 from oracle41_open.core.services.token_detail_service import TokenDetailService
@@ -80,6 +83,7 @@ class AppContainer:
     contract_abi_service: ContractABIService
     label_resolution_service: LabelResolutionService
     provider_key_validation_service: ProviderKeyValidationService
+    provider_credential_diagnostics_service: ProviderCredentialDiagnosticsService
     snapshot_compare_service: SnapshotCompareService
     portfolio_service: PortfolioService
     uses_live_providers: bool
@@ -247,6 +251,10 @@ def build_container() -> AppContainer:
     )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
+    provider_credential_diagnostics_service = ProviderCredentialDiagnosticsService(
+        settings_store=settings_store,
+        secret_store=secret_store,
+    )
     snapshot_compare_service = SnapshotCompareService()
     portfolio_service = PortfolioService(
         watchlist_reader=watchlist_service,
@@ -277,6 +285,7 @@ def build_container() -> AppContainer:
         contract_abi_service=contract_abi_service,
         label_resolution_service=label_resolution_service,
         provider_key_validation_service=provider_key_validation_service,
+        provider_credential_diagnostics_service=provider_credential_diagnostics_service,
         snapshot_compare_service=snapshot_compare_service,
         portfolio_service=portfolio_service,
         uses_live_providers=uses_live_providers,

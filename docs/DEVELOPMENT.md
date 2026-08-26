@@ -60,3 +60,13 @@ When adding a new view:
 ## Local Data
 
 Tests should use temporary paths for SQLite, settings, and cache data. Never test against a personal installation database.
+
+## Live Provider Validation
+
+Normal development and CI use recorded provider responses. To intentionally exercise all four live wallet-data adapters, configure the environment described in [PROVIDER_STRATEGY.md](PROVIDER_STRATEGY.md) and run:
+
+```bash
+make validate-providers-live
+```
+
+The command consumes provider API credits. Run it only on a trusted local machine, use public test addresses, and do not paste credentials into command arguments, logs, issues, or screenshots.
