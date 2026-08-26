@@ -45,6 +45,22 @@ Moralis currently supplies active ERC-20 approvals. This is a current allowance 
 
 GoldRush supplies decoded approval events from wallet transaction history, including later revocations. Its transaction endpoint does not accept Oracle41's block floor directly, so the adapter filters returned pages locally. Loading a long history can therefore use more GoldRush credits.
 
+### Provider Roles
+
+The Wallet Data Providers order applies only to indexed wallet operations. It does not make Moralis or GoldRush into JSON-RPC or pricing providers.
+
+| Provider | Indexed wallet data | Transaction inspection | Market pricing |
+| --- | --- | --- | --- |
+| Alchemy | Yes | Yes | Yes |
+| Ankr | Yes | Yes | No |
+| Moralis | Yes | No | No |
+| GoldRush | Yes | No | No |
+| Custom JSON-RPC endpoint | No complete wallet index | Yes | No |
+
+For the simplest complete setup, configure Alchemy. For more wallet-data resilience, enable another wallet provider after it. Users who prefer Moralis or GoldRush can add a custom JSON-RPC endpoint for Transaction Inspector. Dedicated USD pricing still requires Alchemy in the current release.
+
+An endpoint may support basic transaction receipts but not internal-call traces or old contract state. These capabilities depend on the endpoint and provider plan. Transaction Inspector shows missing evidence when a method is unavailable.
+
 ## Custom JSON-RPC Endpoints
 
 Settings can store one standard JSON-RPC endpoint per chain. Custom endpoints take priority for Transaction Inspector and are kept in the OS keyring because URLs may contain credentials. They are excluded from backup exports, and changes require an application restart.

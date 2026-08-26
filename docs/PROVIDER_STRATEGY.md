@@ -2,17 +2,38 @@
 
 Oracle41 Open keeps provider-specific response formats outside its core services. Every wallet-data adapter must produce the same domain models and preserve provider, fetch time, pagination, and completeness information.
 
-## Current Providers
+## Provider Roles
 
-| Provider | Wallet balances and history | Transaction JSON-RPC | Settings support |
-| --- | --- | --- | --- |
-| Alchemy | Available | Available | API key, enabled state, priority |
-| Ankr | Available | Available | API key, enabled state, priority |
-| Moralis | Available | Not used as JSON-RPC | API key, enabled state, priority |
-| GoldRush | Available | Not used as JSON-RPC | API key, enabled state, priority |
-| Custom JSON-RPC | Not a complete indexed wallet source | Available | One endpoint per chain |
+Oracle41 separates network access into three roles:
+
+- **Wallet data:** indexed balances, token holdings, activity, NFTs, and token history for one address.
+- **Transaction inspection:** receipts, logs, contract reads, proxy checks, revert data, and optional internal-call traces.
+- **Pricing:** current market prices used for portfolio values.
+
+| Provider | Wallet balances and history | Transaction inspection | Market pricing | Settings support |
+| --- | --- | --- | --- | --- |
+| Alchemy | Available | Available | Available | API key, enabled state, priority |
+| Ankr | Available | Available | Not used | API key, enabled state, priority |
+| Moralis | Available | Not used | Not used | API key, enabled state, priority |
+| GoldRush | Available | Not used | Not used | API key, enabled state, priority |
+| Custom JSON-RPC | No complete wallet index | Available | Not used | One endpoint per chain |
 
 Custom JSON-RPC is intentionally separate. Standard EVM nodes can return balances, receipts, logs, and traces, but they do not normally expose a complete indexed history for one address.
+
+"Available" means the role is implemented in Oracle41. It does not guarantee that every provider account or endpoint exposes traces and historical state. These features can depend on the selected chain, provider plan, node configuration, and retention policy.
+
+## Choosing a Setup
+
+| Setup | Wallet analytics | Transaction inspection | Pricing | Main trade-off |
+| --- | --- | --- | --- | --- |
+| Alchemy only | Yes | Yes | Yes | One account supplies every current role. |
+| Ankr only | Yes | Yes | No | Portfolio market values need another pricing source. |
+| Moralis only | Yes | No | No | Indexed analytics work, but advanced inspection and pricing are limited. |
+| GoldRush only | Yes | No | No | Indexed analytics work, but advanced inspection and pricing are limited. |
+| Moralis or GoldRush plus custom JSON-RPC | Yes | Yes | No | Good provider independence, without a dedicated pricing feed. |
+| Alchemy plus any other wallet provider | Yes, with failover | Yes | Yes | Broader resilience, with more than one account to configure. |
+
+Alchemy currently gives the broadest single-provider experience. It is not required: users can combine a specialized wallet-data provider with a custom JSON-RPC endpoint. Oracle41 keeps these roles separate so a provider is used only for capabilities its public API supports.
 
 ## Four-Provider Wallet Data
 
@@ -71,6 +92,18 @@ Moralis active approvals are a current allowance snapshot. They do not include a
 The GoldRush adapter uses the Foundational REST API for native balances, token holdings, decoded wallet history, token transfers, NFT transfers, and decoded approval history. Its API key is sent only in the bearer authorization header.
 
 The transaction endpoint is page based and does not accept Oracle41's block floor. The adapter filters old transactions after each page is loaded, so a deep sync can use more credits. GoldRush is not registered as a JSON-RPC or pricing provider.
+
+## Transaction Inspection Scope
+
+Alchemy, Ankr, and custom JSON-RPC endpoints can supply standard transaction data. Oracle41 can request receipts, raw logs, contract storage, proxy information, revert evidence, and internal-call traces through these endpoints.
+
+Trace and historical-state methods are not universal JSON-RPC features. Some endpoints disable them, retain only recent state, or require a paid plan. Oracle41 learns these capabilities per chain and reports missing evidence in Transaction Inspector.
+
+## Pricing Scope
+
+The current dedicated pricing adapter uses Alchemy. Wallet providers may return vendor-specific quote fields, but Oracle41 does not treat those values as a shared pricing source. This avoids silently mixing prices with different timestamps, currencies, or methodologies.
+
+When no pricing provider is configured, balances and token quantities remain available. USD portfolio values may be missing or may use a previously cached value when the configured cache policy allows it.
 
 ## Admission Requirements
 

@@ -71,6 +71,30 @@ Wallet history is saved in SQLite. If a sync stops early, it can continue later 
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Data Sources and Providers
+
+Oracle41 Open uses separate provider roles. A wallet-data provider supplies indexed balances and history. A transaction provider supplies receipts, logs, contract reads, and optional execution traces through JSON-RPC. A pricing provider supplies market prices. One service does not need to fill every role.
+
+| Provider | Wallet balances and history | Transaction inspection | Market pricing |
+| --- | --- | --- | --- |
+| Alchemy | Yes | Yes | Yes |
+| Ankr | Yes | Yes | No |
+| Moralis | Yes | No | No |
+| GoldRush | Yes | No | No |
+| Custom JSON-RPC endpoint | No complete wallet index | Yes | No |
+
+Alchemy currently offers the broadest coverage from one account. Ankr can supply wallet data and transaction inspection but not Oracle41's dedicated market-price feed. Moralis and GoldRush specialize in indexed wallet analytics. A custom JSON-RPC endpoint can complete transaction inspection when Moralis or GoldRush supplies wallet history.
+
+Common setups:
+
+- **Alchemy only:** covers the complete current feature set with one provider.
+- **Alchemy plus another wallet provider:** adds wallet-data failover while keeping transaction inspection and pricing available.
+- **Ankr plus Alchemy:** provides full current coverage and indexed wallet-data failover.
+- **Moralis or GoldRush plus custom JSON-RPC:** provides wallet analytics and transaction inspection, but dedicated market pricing remains unavailable.
+- **Moralis or GoldRush only:** provides wallet balances and history; advanced transaction inspection and dedicated pricing are limited.
+
+Execution traces and historical contract reads can still depend on the provider plan and chain. Oracle41 reports unavailable evidence instead of presenting an incomplete transaction as complete. See [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md) for feature boundaries, failover rules, and provider-specific limitations.
+
 ## Requirements
 
 - Linux with Python 3.11 or newer when installing from source

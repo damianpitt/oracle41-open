@@ -16,6 +16,7 @@ All notable changes to Oracle41 Open will be documented here.
 
 - Four wallet-data providers can now be enabled and ordered in Settings.
 - The shared provider fixture contract records whether token-balance pagination is available.
+- Provider documentation now separates indexed wallet data, transaction inspection, and market pricing, with practical setup combinations and provider-specific limits.
 
 ### Known Limitations
 
