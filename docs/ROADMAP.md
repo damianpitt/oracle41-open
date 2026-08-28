@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.1 is complete in `0.4.0a1`. Versioned position models, adapter capabilities, deterministic registry selection, a reference adapter, an unknown-protocol fallback, and format-v1 conformance fixtures are available. Production protocol integrations and position views remain open.
+**Implementation status:** M6.3A is complete in `0.4.0a7`. The first production adapter normalizes recorded Aave V3 reserve and account-health snapshots on every supported chain. Automatic snapshot collection, persistence, portfolio integration, and position views remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -367,7 +367,7 @@ M6.1 is complete only when a reference adapter and an unknown-protocol fixture p
 
 **Status:** Complete in `0.4.0a1`. The reference lending and unknown-protocol fixtures use the same deterministic conformance path. Unknown evidence preserves token balances, decoded events, actions, and raw records. Registry ambiguity is rejected before analysis.
 
-## Current Milestone: M6.2
+## Completed Milestone: M6.2
 
 **Release series:** `0.4.0` alpha
 
@@ -432,3 +432,28 @@ M6.2E adds safe credential diagnostics to Settings. Each provider reports whethe
 An explicit local validator now exercises one bounded page of native balance, token balances, wallet activity, and token history for Alchemy, Ankr, Moralis, and GoldRush. It requires all inputs through environment variables, redacts output, and returns clear shell status codes.
 
 The M6.2 implementation is complete. Recorded conformance remains mandatory in public CI, while maintainers run live validation locally when provider credentials and API credits are intentionally available.
+
+## Current Milestone: M6.3
+
+**Release series:** `0.4.0` alpha
+
+Turn protocol evidence into useful, reproducible DeFi positions:
+
+1. Add production adapters for lending, DEX liquidity, liquid staking, and common vaults.
+2. Collect protocol snapshots at one explicit block through transaction providers.
+3. Save positions, risk metrics, source references, and completeness in SQLite.
+4. Add protocol assets and liabilities to portfolio totals without double counting receipt tokens.
+5. Show positions, debt, rewards, health data, missing prices, and stale data in the desktop interface.
+6. Add versioned protocol-position CSV and JSON exports.
+
+M6.3 is complete only when a wallet can load, resume, store, display, and export supported positions with raw evidence and clear partial-data states.
+
+### Completed Slice: M6.3A
+
+**Status:** Complete in `0.4.0a7`.
+
+M6.3A adds the first production protocol normalizer. `AaveV3Adapter` recognizes official Aave V3 deployments on Ethereum, Optimism, Polygon, Base, and Arbitrum. It converts recorded reserve snapshots into supplied, collateral, and debt positions and reports raw account collateral, debt, available borrow, loan-to-value, liquidation threshold, and health factor values.
+
+Collateral-enabled supply is emitted once as collateral instead of being duplicated as supplied. Stable and variable debt are combined for the same underlying reserve. Missing or malformed snapshots return a partial result without inventing values. Recorded fixtures and tests cover complete, partial, malformed, zero-debt, below-threshold, and cross-chain matching cases.
+
+Automatic contract-call collection, SQLite persistence, portfolio integration, exports, and the desktop position view remain open for M6.3B and later slices.

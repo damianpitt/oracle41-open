@@ -63,9 +63,24 @@ Examples are in `tests/fixtures/protocols`. Fixtures must not contain API keys, 
 
 Use it to understand the minimum structure, not as a template for protocol-specific financial assumptions.
 
+## Aave V3 Adapter
+
+`AaveV3Adapter` is the first production protocol normalizer. It recognizes the official Aave V3 Pool, Pool Addresses Provider, and Protocol Data Provider contracts on Ethereum, Optimism, Polygon, Base, and Arbitrum. Deployment addresses were checked against the [Aave DAO address book](https://github.com/aave-dao/aave-address-book) on 2026-08-28 and must be reviewed when Aave adds or replaces a market.
+
+The adapter expects two kinds of block-specific evidence:
+
+- `aave_v3_reserve_position` records `getUserReserveData` values for one underlying reserve.
+- `aave_v3_account_data` records `getUserAccountData` values and the oracle base-currency unit.
+
+A supplied reserve is reported as collateral when Aave says collateral is enabled. It is otherwise reported as supplied. The adapter combines stable and variable debt into one debt position for the same underlying asset. This avoids showing the same supplied balance twice and keeps portfolio totals safe for later work.
+
+Account health values remain raw integers. Health factor uses Aave's 18-decimal WAD unit. Oracle41 reports whether it is below `1.0`, equal to or above `1.0`, or has no debt. It does not create extra risk grades or financial recommendations.
+
+Version `0.4.0a7` does not make the required contract calls automatically. A later M6.3 slice will collect these snapshots through a transaction provider, save them, and connect them to portfolio and desktop views.
+
 ## Adding an Adapter
 
-1. Record the protocol contracts and supported chains.
+1. Record protocol contracts and supported chains from an official source.
 2. Define which saved calls, events, traces, and balances are required.
 3. Preserve raw values and source references.
 4. Return `partial` with plain warnings when required evidence is missing.

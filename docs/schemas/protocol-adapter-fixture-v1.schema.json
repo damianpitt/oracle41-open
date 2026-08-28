@@ -92,6 +92,15 @@
           "type": "array",
           "items": { "$ref": "#/$defs/unsigned_integer_string" }
         },
+        "risk_state": {
+          "enum": [
+            "no_debt",
+            "above_or_equal_liquidation_threshold",
+            "below_liquidation_threshold",
+            "unknown",
+            null
+          ]
+        },
         "source_balance_count": { "type": "integer", "minimum": 0 },
         "source_event_count": { "type": "integer", "minimum": 0 },
         "raw_evidence_count": { "type": "integer", "minimum": 0 }

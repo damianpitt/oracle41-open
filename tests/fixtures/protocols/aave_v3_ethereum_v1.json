@@ -1,0 +1,64 @@
+{
+  "format": "oracle41-protocol-adapter-fixture",
+  "format_version": 1,
+  "case_id": "aave-v3-ethereum-complete",
+  "input": {
+    "wallet_address": "0x1111111111111111111111111111111111111111",
+    "chain": "ethereum",
+    "block_number": 24000000,
+    "contract_addresses": [
+      "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2"
+    ],
+    "source_provider": "recorded-json-rpc",
+    "observed_at": "2026-08-28T00:00:00+00:00",
+    "token_balances": [],
+    "decoded_events": [],
+    "raw_evidence": [
+      {
+        "kind": "aave_v3_reserve_position",
+        "reference": "eth_call:getUserReserveData:usdc",
+        "contract_address": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
+        "tx_hash": null,
+        "signature": "getUserReserveData(address,address)",
+        "values": {
+          "reserve_contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "symbol": "USDC",
+          "decimals": "6",
+          "current_a_token_balance": "125000000",
+          "current_stable_debt": "5000000",
+          "current_variable_debt": "20000000",
+          "collateral_enabled": "true",
+          "a_token_contract": "0x98c23e9d8f34fefeaaba7d1bfee3b5b2720c4a39",
+          "variable_debt_token_contract": "0x72e95bcba2c5d0fe2291e84a3081dbe01fabd900"
+        }
+      },
+      {
+        "kind": "aave_v3_account_data",
+        "reference": "eth_call:getUserAccountData",
+        "contract_address": "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+        "tx_hash": null,
+        "signature": "getUserAccountData(address)",
+        "values": {
+          "total_collateral_base": "12500000000",
+          "total_debt_base": "2500000000",
+          "available_borrows_base": "6500000000",
+          "liquidation_threshold_bps": "8250",
+          "ltv_bps": "8000",
+          "health_factor_wad": "4125000000000000000",
+          "base_currency_unit": "100000000"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "status": "matched",
+    "adapter_id": "oracle41.aave-v3",
+    "protocol_id": "aave-v3",
+    "position_kinds": ["collateral", "debt"],
+    "raw_amounts": ["125000000", "25000000"],
+    "risk_state": "above_or_equal_liquidation_threshold",
+    "source_balance_count": 0,
+    "source_event_count": 0,
+    "raw_evidence_count": 2
+  }
+}

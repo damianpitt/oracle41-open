@@ -26,15 +26,19 @@ from oracle41_open.core.models import (
     ProtocolAdapterStatus,
     ProtocolContract,
     ProtocolEvidenceValue,
+    ProtocolPositionKind,
     ProtocolRawEvidence,
+    ProtocolRiskState,
     Token,
     TokenBalance,
 )
 from oracle41_open.core.protocols import (
+    AaveV3Adapter,
     ProtocolAdapter,
     ProtocolAdapterRegistry,
     ReferenceLendingAdapter,
     UnknownProtocolAdapter,
+    production_protocol_registry,
 )
 
 _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "protocols"
@@ -42,12 +46,16 @@ _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "protocols"
 
 @pytest.mark.parametrize(
     "fixture_name",
-    ("reference_lending_v1.json", "unknown_protocol_v1.json"),
+    (
+        "reference_lending_v1.json",
+        "aave_v3_ethereum_v1.json",
+        "unknown_protocol_v1.json",
+    ),
 )
 def test_protocol_fixture_conformance(fixture_name: str) -> None:
     fixture = _load_fixture(fixture_name)
     context = _context_from_fixture(fixture)
-    registry = ProtocolAdapterRegistry((ReferenceLendingAdapter(),))
+    registry = ProtocolAdapterRegistry((ReferenceLendingAdapter(), AaveV3Adapter()))
 
     first = registry.analyze(context)
     second = registry.analyze(context)
@@ -76,6 +84,141 @@ def test_reference_adapter_exposes_explicit_capabilities() -> None:
             address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         ),
     )
+
+
+def test_aave_adapter_exposes_official_supported_market_contracts() -> None:
+    adapter = AaveV3Adapter()
+
+    assert isinstance(adapter, ProtocolAdapter)
+    assert adapter.capabilities.chains == frozenset(Chain)
+    assert {item.value for item in adapter.capabilities.position_kinds} == {
+        "supplied",
+        "collateral",
+        "debt",
+    }
+    assert len(adapter.capabilities.contracts) == 15
+    assert ProtocolContract(
+        chain=Chain.ETHEREUM,
+        address="0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+    ) in adapter.capabilities.contracts
+    assert ProtocolContract(
+        chain=Chain.BASE,
+        address="0xa238dd80c259a72e81d7e4664a9801593f98d1c5",
+    ) in adapter.capabilities.contracts
+
+
+@pytest.mark.parametrize(
+    ("chain", "pool"),
+    (
+        (Chain.ETHEREUM, "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2"),
+        (Chain.OPTIMISM, "0x794a61358d6845594f94dc1db02a252b5b4814ad"),
+        (Chain.POLYGON, "0x794a61358d6845594f94dc1db02a252b5b4814ad"),
+        (Chain.BASE, "0xa238dd80c259a72e81d7e4664a9801593f98d1c5"),
+        (Chain.ARBITRUM, "0x794a61358d6845594f94dc1db02a252b5b4814ad"),
+    ),
+)
+def test_aave_adapter_matches_each_supported_pool(chain: Chain, pool: str) -> None:
+    context = replace(
+        _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json")),
+        chain=chain,
+        contract_addresses=(pool.upper(),),
+        raw_evidence=(),
+    )
+
+    assert AaveV3Adapter().supports(context)
+
+
+def test_production_registry_contains_aave_v3() -> None:
+    registry = production_protocol_registry()
+
+    assert [item.adapter_id for item in registry.capabilities] == ["oracle41.aave-v3"]
+
+
+def test_aave_missing_account_snapshot_returns_partial_positions() -> None:
+    context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
+    context = replace(
+        context,
+        raw_evidence=tuple(item for item in context.raw_evidence if "reserve" in item.kind),
+    )
+
+    result = AaveV3Adapter().analyze(context)
+
+    assert result.status is ProtocolAdapterStatus.PARTIAL
+    assert [position.kind for position in result.positions] == [
+        ProtocolPositionKind.COLLATERAL,
+        ProtocolPositionKind.DEBT,
+    ]
+    assert result.risk_snapshot is None
+    assert "account health data is missing" in result.warnings[-1]
+
+
+def test_aave_malformed_reserve_does_not_invent_a_position() -> None:
+    context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
+    reserve = context.raw_evidence[0]
+    malformed_values = tuple(
+        replace(item, value="not-an-integer") if item.name == "current_a_token_balance" else item
+        for item in reserve.values
+    )
+    context = replace(
+        context,
+        raw_evidence=(replace(reserve, values=malformed_values), context.raw_evidence[1]),
+    )
+
+    result = AaveV3Adapter().analyze(context)
+
+    assert result.status is ProtocolAdapterStatus.PARTIAL
+    assert result.positions == ()
+    assert result.risk_snapshot is not None
+    assert "malformed required fields" in result.warnings[0]
+
+
+def test_aave_health_factor_below_one_is_reported_from_raw_value() -> None:
+    context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
+    account = context.raw_evidence[1]
+    values = tuple(
+        replace(item, value="999999999999999999")
+        if item.name == "health_factor_wad"
+        else item
+        for item in account.values
+    )
+    context = replace(context, raw_evidence=(context.raw_evidence[0], replace(account, values=values)))
+
+    result = AaveV3Adapter().analyze(context)
+
+    assert result.risk_snapshot is not None
+    assert result.risk_snapshot.health_factor_wad == "999999999999999999"
+    assert result.risk_snapshot.state is ProtocolRiskState.BELOW_LIQUIDATION_THRESHOLD
+
+
+def test_aave_malformed_account_snapshot_is_partial() -> None:
+    context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
+    account = context.raw_evidence[1]
+    values = tuple(
+        replace(item, value="10001") if item.name == "ltv_bps" else item
+        for item in account.values
+    )
+    context = replace(context, raw_evidence=(context.raw_evidence[0], replace(account, values=values)))
+
+    result = AaveV3Adapter().analyze(context)
+
+    assert result.status is ProtocolAdapterStatus.PARTIAL
+    assert result.risk_snapshot is None
+    assert "account health snapshot is missing or malformed" in result.warnings[0]
+
+
+def test_aave_zero_debt_has_no_debt_risk_state() -> None:
+    context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
+    account = context.raw_evidence[1]
+    values = tuple(
+        replace(item, value="0") if item.name == "total_debt_base" else item
+        for item in account.values
+    )
+    context = replace(context, raw_evidence=(context.raw_evidence[0], replace(account, values=values)))
+
+    result = AaveV3Adapter().analyze(context)
+
+    assert result.risk_snapshot is not None
+    assert result.risk_snapshot.state is ProtocolRiskState.NO_DEBT
 
 
 def test_fixture_schema_is_published_with_format_version_one() -> None:
@@ -276,6 +419,11 @@ def _result_snapshot(result: ProtocolAdapterResult) -> dict[str, Any]:
         "protocol_id": result.protocol_id,
         "position_kinds": [position.kind.value for position in result.positions],
         "raw_amounts": [position.assets[0].raw_amount for position in result.positions],
+        **(
+            {"risk_state": result.risk_snapshot.state.value}
+            if result.risk_snapshot is not None
+            else {}
+        ),
         "source_balance_count": len(result.source_balances),
         "source_event_count": len(result.source_events),
         "raw_evidence_count": len(result.raw_evidence),

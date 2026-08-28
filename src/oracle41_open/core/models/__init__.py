@@ -66,6 +66,8 @@ from oracle41_open.core.models.protocol_position import (
     ProtocolPositionKind,
     ProtocolPositionProvenance,
     ProtocolRawEvidence,
+    ProtocolRiskSnapshot,
+    ProtocolRiskState,
 )
 from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
@@ -150,6 +152,8 @@ __all__ = [
     "ProtocolPositionKind",
     "ProtocolPositionProvenance",
     "ProtocolRawEvidence",
+    "ProtocolRiskSnapshot",
+    "ProtocolRiskState",
     "ProxyKind",
     "ProxyResolution",
     "ProxyResolutionStatus",

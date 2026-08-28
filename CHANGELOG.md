@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a6] - Unreleased
+## [0.4.0a7] - Unreleased
+
+### Added
+
+- A production Aave V3 adapter for supplied assets, collateral, and debt on Ethereum, Optimism, Polygon, Base, and Arbitrum.
+- Raw Aave account-health snapshots with collateral, debt, available borrow, loan-to-value, liquidation threshold, health factor, and base-currency unit.
+- An explicit liquidation-threshold state that distinguishes no debt, health factor below `1.0`, and health factor at or above `1.0` without adding financial advice.
+- A production protocol registry and a recorded Aave V3 conformance fixture.
+
+### Changed
+
+- Collateral-enabled Aave supply is emitted once as collateral instead of being duplicated as supplied.
+- Stable and variable Aave debt are combined into one underlying-asset debt position while raw evidence remains available.
+- Protocol adapter validation now checks that risk snapshots match the wallet, chain, block, protocol, and adapter context.
+
+### Known Limitations
+
+- The application does not yet collect Aave contract snapshots automatically.
+- Protocol positions and risk snapshots are not yet persisted, priced, aggregated, exported, or shown in the desktop interface.
+- Account values remain in Aave's raw base-currency units and should not be presented as USD without verified oracle metadata.
+
+## [0.4.0a6] - 2026-08-28
 
 ### Added
 

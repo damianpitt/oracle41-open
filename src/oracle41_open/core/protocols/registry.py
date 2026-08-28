@@ -81,6 +81,13 @@ class ProtocolAdapterRegistry:
         return result
 
 
+def production_protocol_registry() -> ProtocolAdapterRegistry:
+    """Return the adapters that are ready for production evidence."""
+    from oracle41_open.core.protocols.aave_v3 import AaveV3Adapter
+
+    return ProtocolAdapterRegistry((AaveV3Adapter(),))
+
+
 def _validate_adapter_set(adapters: tuple[ProtocolAdapter, ...]) -> None:
     adapter_ids: set[str] = set()
     claimed_contracts: dict[tuple[Chain, str], str] = {}
@@ -160,3 +167,16 @@ def _validate_adapter_result(
             raise ValueError(
                 f"Protocol adapter {capabilities.adapter_id} returned a position outside its context."
             )
+
+    risk = result.risk_snapshot
+    if risk is not None and (
+        risk.wallet_address.lower() != expected_wallet
+        or risk.chain is not context.chain
+        or risk.block_number != context.block_number
+        or risk.protocol_id != capabilities.protocol_id
+        or risk.provenance.adapter_id != capabilities.adapter_id
+        or risk.provenance.adapter_version != capabilities.adapter_version
+    ):
+        raise ValueError(
+            f"Protocol adapter {capabilities.adapter_id} returned risk data outside its context."
+        )

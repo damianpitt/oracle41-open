@@ -48,6 +48,15 @@ class ProtocolAdapterStatus(str, Enum):
     UNKNOWN_PROTOCOL = "unknown_protocol"
 
 
+class ProtocolRiskState(str, Enum):
+    """Describe liquidation-threshold state without giving financial advice."""
+
+    NO_DEBT = "no_debt"
+    ABOVE_OR_EQUAL_LIQUIDATION_THRESHOLD = "above_or_equal_liquidation_threshold"
+    BELOW_LIQUIDATION_THRESHOLD = "below_liquidation_threshold"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True)
 class ProtocolEvidenceValue:
     name: str
@@ -86,6 +95,25 @@ class ProtocolPositionProvenance:
     source_provider: str
     source_reference: str
     observed_at: datetime
+
+
+@dataclass(frozen=True)
+class ProtocolRiskSnapshot:
+    """Keep protocol account metrics in their original base-currency units."""
+
+    wallet_address: str
+    chain: Chain
+    block_number: int
+    protocol_id: str
+    total_collateral_base: str
+    total_debt_base: str
+    available_borrow_base: str
+    liquidation_threshold_bps: int
+    ltv_bps: int
+    health_factor_wad: str
+    base_currency_unit: str
+    state: ProtocolRiskState
+    provenance: ProtocolPositionProvenance
 
 
 @dataclass(frozen=True)
@@ -151,3 +179,4 @@ class ProtocolAdapterResult:
     source_events: tuple[DecodedEvent, ...]
     raw_evidence: tuple[ProtocolRawEvidence, ...]
     warnings: tuple[str, ...]
+    risk_snapshot: ProtocolRiskSnapshot | None = None
