@@ -10,6 +10,7 @@ from typing import Protocol
 
 from oracle41_open.core.models import (
     Chain,
+    ContractReadResult,
     ProviderCapabilities,
     ProxyResolution,
     TransactionInspection,
@@ -26,6 +27,15 @@ class TransactionDataProvider(Protocol):
         tx_hash: str,
         chain: Chain,
     ) -> TransactionInspection:
+        ...
+
+    def read_contract(
+        self,
+        contract_address: str,
+        call_data: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ContractReadResult:
         ...
 
     def resolve_proxy(

@@ -76,7 +76,13 @@ A supplied reserve is reported as collateral when Aave says collateral is enable
 
 Account health values remain raw integers. Health factor uses Aave's 18-decimal WAD unit. Oracle41 reports whether it is below `1.0`, equal to or above `1.0`, or has no debt. It does not create extra risk grades or financial recommendations.
 
-Version `0.4.0a7` does not make the required contract calls automatically. A later M6.3 slice will collect these snapshots through a transaction provider, save them, and connect them to portfolio and desktop views.
+Version `0.4.0a8` uses `ProtocolPositionService` to make the required calls through the configured transaction-provider pool. It discovers reserves with `getAllReservesTokens()`, reads each wallet reserve with `getUserReserveData()`, and loads configuration and token addresses only when needed. It also reads `getUserAccountData()`, the active price oracle, and its base-currency unit.
+
+All calls use one explicit block number. Successful reads in one snapshot must come from the same provider. Reserve discovery is required because Oracle41 cannot know which assets to inspect without it. A later reserve or account read can fail without losing the rest of the snapshot; the result is marked partial and includes a plain collection warning. The service limits one market snapshot to 128 reserves to reject unreasonable responses.
+
+The collector supports configured transaction providers that can perform historical `eth_call`, including Alchemy, Ankr, and custom JSON-RPC endpoints. Historical state may depend on the provider plan and node retention. Moralis and GoldRush remain wallet-data providers and do not perform these contract reads.
+
+Collection is now automatic at the service layer. SQLite persistence, portfolio integration, exports, and the desktop position view remain later M6.3 work.
 
 ## Adding an Adapter
 

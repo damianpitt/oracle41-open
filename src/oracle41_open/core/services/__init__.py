@@ -21,6 +21,7 @@ from oracle41_open.core.services.portfolio_service import (
     PortfolioWalletResult,
 )
 from oracle41_open.core.services.pricing_service import PricingService
+from oracle41_open.core.services.protocol_position_service import ProtocolPositionService
 from oracle41_open.core.services.provider_key_validation_service import (
     ProviderKeyValidationResult,
     ProviderKeyValidationService,
@@ -54,6 +55,7 @@ __all__ = [
     "PortfolioTokenAggregate",
     "PortfolioWalletResult",
     "PricingService",
+    "ProtocolPositionService",
     "ProviderKeyValidationResult",
     "ProviderKeyValidationService",
     "SnapshotCompareService",

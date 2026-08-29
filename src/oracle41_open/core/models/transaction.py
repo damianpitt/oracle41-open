@@ -25,6 +25,18 @@ class ProviderCapabilities:
 
 
 @dataclass(frozen=True)
+class ContractReadResult:
+    """Preserve one block-specific contract call and its provider provenance."""
+
+    chain: Chain
+    contract_address: str
+    block_number: int
+    data: str
+    source_provider: str
+    fetched_at: datetime
+
+
+@dataclass(frozen=True)
 class RawTransactionLog:
     log_index: int
     address: str

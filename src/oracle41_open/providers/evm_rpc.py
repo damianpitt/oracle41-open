@@ -15,6 +15,7 @@ from typing import Any, TypeVar
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import (
     Chain,
+    ContractReadResult,
     ProviderAuthError,
     ProviderCapabilities,
     ProviderError,
@@ -132,6 +133,34 @@ class EVMJSONRPCProvider:
         if not isinstance(raw_transaction, dict) or not isinstance(raw_receipt, dict):
             raise ProviderResponseError("JSON-RPC returned an invalid transaction receipt payload.")
         return self._map_inspection(chain, normalized_hash, raw_transaction, raw_receipt)
+
+    def read_contract(
+        self,
+        contract_address: str,
+        call_data: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ContractReadResult:
+        """Run one read-only contract call against an explicit historical block."""
+        address = _require_address(contract_address, "contract")
+        data = _require_hex_data(call_data, "contract call data")
+        if block_number < 0:
+            raise ProviderResponseError("Contract read block number must not be negative.")
+        endpoint = self._endpoint_for(chain)
+        raw_result = self._historical_rpc_call(
+            chain,
+            endpoint,
+            "eth_call",
+            [{"to": address, "data": data}, hex(block_number)],
+        )
+        return ContractReadResult(
+            chain=chain,
+            contract_address=address,
+            block_number=block_number,
+            data=_require_hex_data(raw_result, "contract call result"),
+            source_provider=self._source_name,
+            fetched_at=datetime.now(tz=UTC),
+        )
 
     def resolve_proxy(
         self,
@@ -505,6 +534,25 @@ class FailoverTransactionDataProvider:
                 f"No transaction receipt provider is configured for {chain.display_name}."
             )
         raise ProviderError("All transaction receipt providers failed: " + "; ".join(errors))
+
+    def read_contract(
+        self,
+        contract_address: str,
+        call_data: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ContractReadResult:
+        return self._first_success(
+            chain,
+            "historical contract read",
+            lambda provider: provider.read_contract(
+                contract_address,
+                call_data,
+                chain,
+                block_number,
+            ),
+            capability="transaction_lookup",
+        )
 
     def resolve_proxy(
         self,

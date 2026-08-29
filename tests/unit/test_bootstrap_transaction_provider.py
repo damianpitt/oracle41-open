@@ -29,3 +29,4 @@ def test_bootstrap_configures_chain_specific_transaction_provider_from_environme
 
     assert container.transaction_inspection_service.capabilities(Chain.BASE).receipts
     assert not container.transaction_inspection_service.capabilities(Chain.ETHEREUM).receipts
+    assert container.protocol_position_service is not None

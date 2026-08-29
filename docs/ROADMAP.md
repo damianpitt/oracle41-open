@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3A is complete in `0.4.0a7`. The first production adapter normalizes recorded Aave V3 reserve and account-health snapshots on every supported chain. Automatic snapshot collection, persistence, portfolio integration, and position views remain open.
+**Implementation status:** M6.3B is complete in `0.4.0a8`. Oracle41 now collects and normalizes Aave V3 reserve and account-health snapshots at an explicit block on every supported chain. Persistence, portfolio integration, exports, and position views remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -456,4 +456,14 @@ M6.3A adds the first production protocol normalizer. `AaveV3Adapter` recognizes 
 
 Collateral-enabled supply is emitted once as collateral instead of being duplicated as supplied. Stable and variable debt are combined for the same underlying reserve. Missing or malformed snapshots return a partial result without inventing values. Recorded fixtures and tests cover complete, partial, malformed, zero-debt, below-threshold, and cross-chain matching cases.
 
-Automatic contract-call collection, SQLite persistence, portfolio integration, exports, and the desktop position view remain open for M6.3B and later slices.
+Automatic contract-call collection is completed in M6.3B. SQLite persistence, portfolio integration, exports, and the desktop position view remain open for later slices.
+
+### Completed Slice: M6.3B
+
+**Status:** Complete in `0.4.0a8`.
+
+M6.3B adds automatic Aave V3 snapshot collection through the shared transaction-provider pool. The service discovers market reserves and reads wallet reserve balances, reserve settings, account health, and the oracle base-currency unit at one requested block. It works on Ethereum, Optimism, Polygon, Base, and Arbitrum.
+
+One snapshot cannot mix successful responses from different providers. Reserve discovery must succeed, while later failures produce a partial result and keep all valid evidence. Tests cover exact-block calls, provider failover, zero positions, malformed reserve data, mixed-provider protection, structured partial failures, and invalid input.
+
+SQLite persistence, resumable protocol sync, pricing, portfolio totals, exports, and the desktop position view remain open for M6.3C and later slices.

@@ -17,6 +17,7 @@ from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
 from oracle41_open.core.services.pricing_service import PricingService
+from oracle41_open.core.services.protocol_position_service import ProtocolPositionService
 from oracle41_open.core.services.provider_credential_diagnostics_service import (
     ProviderCredentialDiagnosticsService,
 )
@@ -80,6 +81,7 @@ class AppContainer:
     activity_service: ActivityService
     token_detail_service: TokenDetailService
     transaction_inspection_service: TransactionInspectionService
+    protocol_position_service: ProtocolPositionService
     contract_abi_service: ContractABIService
     label_resolution_service: LabelResolutionService
     provider_key_validation_service: ProviderKeyValidationService
@@ -240,8 +242,9 @@ def build_container() -> AppContainer:
                 source_name="ankr",
             )
         )
+    transaction_data_provider = FailoverTransactionDataProvider(transaction_providers)
     transaction_inspection_service = TransactionInspectionService(
-        provider=FailoverTransactionDataProvider(transaction_providers),
+        provider=transaction_data_provider,
         repository=transaction_repository,
         decoder=StandardABIDecoder(),
         abi_registry_provider=contract_abi_service,
@@ -249,6 +252,7 @@ def build_container() -> AppContainer:
         enrichment_provider=blockscout_provider,
         enrichment_repository=transaction_enrichment_repository,
     )
+    protocol_position_service = ProtocolPositionService(provider=transaction_data_provider)
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
     provider_credential_diagnostics_service = ProviderCredentialDiagnosticsService(
@@ -282,6 +286,7 @@ def build_container() -> AppContainer:
         activity_service=activity_service,
         token_detail_service=token_detail_service,
         transaction_inspection_service=transaction_inspection_service,
+        protocol_position_service=protocol_position_service,
         contract_abi_service=contract_abi_service,
         label_resolution_service=label_resolution_service,
         provider_key_validation_service=provider_key_validation_service,

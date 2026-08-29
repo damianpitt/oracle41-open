@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a7] - Unreleased
+## [0.4.0a8] - Unreleased
+
+### Added
+
+- Block-specific contract reads through the shared transaction-provider interface.
+- Automatic Aave V3 reserve discovery and user-position collection on Ethereum, Optimism, Polygon, Base, and Arbitrum.
+- Automatic Aave account-health collection from the Pool, Addresses Provider, and price oracle at one explicit block.
+- Source-provider and observation-time provenance for every collected snapshot.
+
+### Changed
+
+- Optional Aave read failures now produce partial results with structured collection warnings instead of discarding all valid evidence.
+- A snapshot rejects successful responses from different providers so one result cannot silently mix blockchain states.
+- Zero-balance reserves skip unnecessary reserve-token address reads.
+
+### Known Limitations
+
+- Protocol positions and risk snapshots are not yet persisted, priced, aggregated, exported, or shown in the desktop interface.
+- Historical reads depend on the selected transaction provider, chain, account plan, and archive-state availability.
+- Account values remain in Aave's raw base-currency units and should not be presented as USD without verified oracle metadata.
+
+## [0.4.0a7] - 2026-08-29
 
 ### Added
 
@@ -19,8 +40,8 @@ All notable changes to Oracle41 Open will be documented here.
 
 ### Known Limitations
 
-- The application does not yet collect Aave contract snapshots automatically.
-- Protocol positions and risk snapshots are not yet persisted, priced, aggregated, exported, or shown in the desktop interface.
+- The application does not collect Aave contract snapshots automatically in this version.
+- Protocol positions and risk snapshots are not persisted, priced, aggregated, exported, or shown in the desktop interface.
 - Account values remain in Aave's raw base-currency units and should not be presented as USD without verified oracle metadata.
 
 ## [0.4.0a6] - 2026-08-28

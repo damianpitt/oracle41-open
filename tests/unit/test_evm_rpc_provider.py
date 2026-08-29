@@ -111,6 +111,60 @@ def test_evm_rpc_capabilities_are_chain_specific() -> None:
     assert provider.capabilities(Chain.ETHEREUM).archive_queries is False
 
 
+def test_evm_rpc_provider_reads_contract_at_explicit_block() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["eth_call"] = "0x1234"
+    provider = EVMJSONRPCProvider(
+        {Chain.ETHEREUM: "https://rpc.example"},
+        source_name="archive-rpc",
+        rpc_client=rpc,
+    )
+
+    result = provider.read_contract(_TO.upper(), "0xabcdef", Chain.ETHEREUM, 24_000_000)
+
+    assert result.contract_address == _TO
+    assert result.data == "0x1234"
+    assert result.block_number == 24_000_000
+    assert result.source_provider == "archive-rpc"
+    assert rpc.calls == [
+        (
+            "eth_call",
+            [{"to": _TO, "data": "0xabcdef"}, hex(24_000_000)],
+        )
+    ]
+    assert provider.capabilities(Chain.ETHEREUM).archive_queries is True
+
+
+def test_contract_read_failover_returns_second_provider_provenance() -> None:
+    first_rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    first_rpc.errors_by_method["eth_call"] = JSONRPCRemoteError(
+        "historical state unavailable",
+        code=-32000,
+    )
+    second_rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    second_rpc.responses_by_method["eth_call"] = "0x1234"
+    provider = FailoverTransactionDataProvider(
+        [
+            EVMJSONRPCProvider(
+                {Chain.ETHEREUM: "https://first.example"},
+                source_name="first",
+                rpc_client=first_rpc,
+                retry_attempts=1,
+            ),
+            EVMJSONRPCProvider(
+                {Chain.ETHEREUM: "https://second.example"},
+                source_name="second",
+                rpc_client=second_rpc,
+            ),
+        ]
+    )
+
+    result = provider.read_contract(_TO, "0xabcdef", Chain.ETHEREUM, 1)
+
+    assert result.data == "0x1234"
+    assert result.source_provider == "second"
+
+
 def test_evm_rpc_provider_resolves_eip1167_minimal_proxy() -> None:
     rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
     rpc.responses_by_method["eth_getCode"] = (

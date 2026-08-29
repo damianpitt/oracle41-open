@@ -30,11 +30,14 @@ from oracle41_open.core.models.protocol_position import (
 
 _RESERVE_EVIDENCE_KIND = "aave_v3_reserve_position"
 _ACCOUNT_EVIDENCE_KIND = "aave_v3_account_data"
+_COLLECTION_ISSUE_KIND = "aave_v3_collection_issue"
 _WAD = 10**18
 
 
 @dataclass(frozen=True)
-class _AaveV3Market:
+class AaveV3Deployment:
+    """List the official contracts needed to collect one Aave V3 snapshot."""
+
     pool_addresses_provider: str
     pool: str
     protocol_data_provider: str
@@ -47,32 +50,40 @@ class _AaveV3Market:
 # Addresses were checked against the generated Aave DAO address book on 2026-08-28. Matching is
 # chain-specific because Optimism, Polygon, and Arbitrum use the same deterministic Pool addresses.
 _MARKETS = {
-    Chain.ETHEREUM: _AaveV3Market(
+    Chain.ETHEREUM: AaveV3Deployment(
         pool_addresses_provider="0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
         pool="0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
         protocol_data_provider="0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
     ),
-    Chain.OPTIMISM: _AaveV3Market(
+    Chain.OPTIMISM: AaveV3Deployment(
         pool_addresses_provider="0xa97684ead0e402dc232d5a977953df7ecbab3cdb",
         pool="0x794a61358d6845594f94dc1db02a252b5b4814ad",
         protocol_data_provider="0x243aa95cac2a25651eda86e80bee66114413c43b",
     ),
-    Chain.POLYGON: _AaveV3Market(
+    Chain.POLYGON: AaveV3Deployment(
         pool_addresses_provider="0xa97684ead0e402dc232d5a977953df7ecbab3cdb",
         pool="0x794a61358d6845594f94dc1db02a252b5b4814ad",
         protocol_data_provider="0x243aa95cac2a25651eda86e80bee66114413c43b",
     ),
-    Chain.BASE: _AaveV3Market(
+    Chain.BASE: AaveV3Deployment(
         pool_addresses_provider="0xe20fcbdbffc4dd138ce8b2e6fbb6cb49777ad64d",
         pool="0xa238dd80c259a72e81d7e4664a9801593f98d1c5",
         protocol_data_provider="0x0f43731eb8d45a581f4a36dd74f5f358bc90c73a",
     ),
-    Chain.ARBITRUM: _AaveV3Market(
+    Chain.ARBITRUM: AaveV3Deployment(
         pool_addresses_provider="0xa97684ead0e402dc232d5a977953df7ecbab3cdb",
         pool="0x794a61358d6845594f94dc1db02a252b5b4814ad",
         protocol_data_provider="0x243aa95cac2a25651eda86e80bee66114413c43b",
     ),
 }
+
+
+def aave_v3_deployment(chain: Chain) -> AaveV3Deployment:
+    """Return one immutable deployment or fail clearly for an unsupported chain."""
+    try:
+        return _MARKETS[chain]
+    except KeyError as error:
+        raise ValueError(f"Aave V3 is not configured for {chain.display_name}.") from error
 
 
 class AaveV3Adapter:
@@ -119,8 +130,9 @@ class AaveV3Adapter:
         )
         reserve_evidence = tuple(item for item in evidence if item.kind == _RESERVE_EVIDENCE_KIND)
         account_evidence = tuple(item for item in evidence if item.kind == _ACCOUNT_EVIDENCE_KIND)
+        collection_issues = tuple(item for item in evidence if item.kind == _COLLECTION_ISSUE_KIND)
 
-        warnings: list[str] = []
+        warnings = [_collection_issue_warning(item) for item in collection_issues]
         positions: list[ProtocolPosition] = []
         for item in reserve_evidence:
             item_positions, item_warnings = self._reserve_positions(context, market, item)
@@ -159,7 +171,7 @@ class AaveV3Adapter:
     def _reserve_positions(
         self,
         context: ProtocolAdapterContext,
-        market: _AaveV3Market,
+        market: AaveV3Deployment,
         evidence: ProtocolRawEvidence,
     ) -> tuple[tuple[ProtocolPosition, ...], tuple[str, ...]]:
         reserve = _normalize_address(evidence.value("reserve_contract"))
@@ -218,7 +230,7 @@ class AaveV3Adapter:
     def _position(
         self,
         context: ProtocolAdapterContext,
-        market: _AaveV3Market,
+        market: AaveV3Deployment,
         evidence: ProtocolRawEvidence,
         kind: ProtocolPositionKind,
         role: ProtocolAssetRole,
@@ -383,3 +395,10 @@ def _normalize_address(value: str | None) -> str | None:
     except ValueError:
         return None
     return normalized
+
+
+def _collection_issue_warning(evidence: ProtocolRawEvidence) -> str:
+    stage = evidence.value("stage") or "unknown call"
+    reserve = evidence.value("reserve_contract")
+    target = f" for reserve {reserve}" if reserve is not None else ""
+    return f"Aave V3 snapshot collection could not complete {stage}{target}."
