@@ -180,3 +180,33 @@ class ProtocolAdapterResult:
     raw_evidence: tuple[ProtocolRawEvidence, ...]
     warnings: tuple[str, ...]
     risk_snapshot: ProtocolRiskSnapshot | None = None
+
+
+@dataclass(frozen=True)
+class ProtocolCollectionCheckpoint:
+    """Keep enough Aave collection state to continue after an interruption."""
+
+    wallet_address: str
+    chain: Chain
+    protocol_id: str
+    block_number: int
+    reserves: tuple[tuple[str, str], ...]
+    next_reserve_index: int
+    raw_evidence: tuple[ProtocolRawEvidence, ...]
+    source_provider: str
+    observed_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class StoredProtocolSnapshot:
+    """Return one durable protocol result with its storage time."""
+
+    wallet_address: str
+    chain: Chain
+    protocol_id: str
+    block_number: int
+    result: ProtocolAdapterResult
+    source_provider: str
+    observed_at: datetime
+    saved_at: datetime

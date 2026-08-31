@@ -59,6 +59,7 @@ from oracle41_open.core.models.protocol_position import (
     ProtocolAdapterStatus,
     ProtocolAsset,
     ProtocolAssetRole,
+    ProtocolCollectionCheckpoint,
     ProtocolContract,
     ProtocolEvidenceValue,
     ProtocolPosition,
@@ -68,6 +69,7 @@ from oracle41_open.core.models.protocol_position import (
     ProtocolRawEvidence,
     ProtocolRiskSnapshot,
     ProtocolRiskState,
+    StoredProtocolSnapshot,
 )
 from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
@@ -147,6 +149,7 @@ __all__ = [
     "ProtocolAdapterStatus",
     "ProtocolAsset",
     "ProtocolAssetRole",
+    "ProtocolCollectionCheckpoint",
     "ProtocolContract",
     "ProtocolEvidenceValue",
     "ProtocolPosition",
@@ -156,6 +159,7 @@ __all__ = [
     "ProtocolRawEvidence",
     "ProtocolRiskSnapshot",
     "ProtocolRiskState",
+    "StoredProtocolSnapshot",
     "ProxyKind",
     "ProxyResolution",
     "ProxyResolutionStatus",

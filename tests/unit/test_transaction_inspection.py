@@ -74,6 +74,8 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE protocol_sync_checkpoints")
+        conn.execute("DROP TABLE protocol_snapshots")
         conn.execute("DROP TABLE transaction_enrichments")
         conn.execute("DROP TABLE transaction_actions")
         conn.execute("DROP TABLE transaction_trace_calls")
@@ -97,7 +99,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("9",)
+    assert version == ("10",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
 

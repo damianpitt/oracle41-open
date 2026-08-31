@@ -42,7 +42,7 @@ The same pool works with one or more configured providers. Disabled providers ar
 
 ## Persistence
 
-SQLite schema v9 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, internal calls, decoded calls/events/reverts, wallet actions, contract ABIs, block-specific proxy and beacon resolutions, optional explorer context, and source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
+SQLite schema v10 stores normalized transactions, events, assets, movements, approvals, fees, query scopes, synchronization checkpoints, ingestion runs, transaction metadata, receipts, ordered raw logs, internal calls, decoded calls/events/reverts, wallet actions, contract ABIs, block-specific proxy and beacon resolutions, protocol snapshots, protocol collection checkpoints, optional explorer context, and source provenance. Activity and Token Detail read the same canonical ledger. Event upserts, query-scope links, and checkpoints share one transaction so an interrupted write leaves the previous checkpoint valid.
 
 `TransactionInspectionService` loads immutable transaction and receipt data through a standard JSON-RPC provider and persists it through `TransactionRepository`. Transaction metadata, receipt, raw logs, and the derived native fee share one transaction. The provider checks for Geth-compatible or Parity-compatible trace methods and converts either format into the same internal-call model. Trace status is stored separately from its calls, so partial data and unsupported endpoints cannot look complete. Full raw trace payloads remain available for future decoders.
 
@@ -58,13 +58,15 @@ Protocol adapters receive immutable actions, balances, decoded events, and raw e
 
 `ProtocolPositionService` collects Aave V3 state through the shared transaction-provider interface. It discovers reserves, reads user reserve balances and configuration, and reads account-health and oracle-unit values at one explicit block. Every successful read in one snapshot must come from the same provider. This prevents failover from silently combining state returned by different nodes. Reserve discovery is required; later read failures produce a partial result while keeping valid evidence.
 
+`ProtocolPositionRepository` saves finished results by wallet, chain, protocol, and block. Its versioned payload keeps positions, nested assets, risk metrics, completeness, warnings, raw evidence, and provider provenance together. During collection, it saves the discovered reserve list, the next reserve index, and completed evidence after each reserve. A restarted service continues from that index instead of repeating completed calls. Writing the final snapshot and deleting its checkpoint happen in one transaction. If finalization fails, SQLite rolls back the new snapshot and keeps the checkpoint.
+
 The Aave V3 adapter recognizes official Pool deployments on Ethereum, Optimism, Polygon, Base, and Arbitrum. It converts the collected reserve calls into supplied, collateral, and debt positions. A collateral position is still one supplied balance, so it is not also emitted as a second supplied position. Stable and variable debt use the same underlying token and are combined into one debt amount. Account totals, loan-to-value, liquidation threshold, and health factor stay in Aave's original integer units. The adapter does not calculate prices or give financial advice. Protocol positions are not yet stored or connected to the desktop interface.
 
 SQLite also stores watchlists, notes, tags, saved views, and snapshots. The JSON cache is separate, disposable, and guarded by a lock for thread-safe service access. Completed ledger results older than the freshness threshold are reported as stale; partial results retain their partial status.
 
 Activity JSON exports use `oracle41-activity` format version 2. GUI-created CSV exports carry the same format/version, completeness, provider, fetch time, queried block range, and persistence fields.
 
-Backup files include settings and the complete SQLite state, including event-ledger checkpoints, transaction traces, and normalized actions. Provider secrets are intentionally excluded. A schema-v1 backup is accepted and migrated forward after restore.
+Backup files include settings and the complete SQLite state, including event-ledger checkpoints, transaction traces, normalized actions, protocol snapshots, and protocol resume checkpoints. Provider secrets are intentionally excluded. A schema-v1 backup is accepted and migrated forward after restore.
 
 ## Extension Points
 

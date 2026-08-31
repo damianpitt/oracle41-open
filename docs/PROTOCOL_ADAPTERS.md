@@ -82,7 +82,9 @@ All calls use one explicit block number. Successful reads in one snapshot must c
 
 The collector supports configured transaction providers that can perform historical `eth_call`, including Alchemy, Ankr, and custom JSON-RPC endpoints. Historical state may depend on the provider plan and node retention. Moralis and GoldRush remain wallet-data providers and do not perform these contract reads.
 
-Collection is now automatic at the service layer. SQLite persistence, portfolio integration, exports, and the desktop position view remain later M6.3 work.
+Collection is automatic at the service layer. Version `0.4.0a9` also saves completed snapshots in SQLite and checkpoints progress after every reserve. Restarting the same wallet, chain, protocol, and block continues from the next unfinished reserve. A completed snapshot is reused without another provider request.
+
+The stored snapshot keeps normalized positions, assets, risk values, completeness, warnings, raw evidence, adapter version, source provider, and observation time. Final snapshot storage and checkpoint removal are atomic. If the final write fails, the checkpoint remains available for another attempt. Portfolio integration, pricing, exports, and the desktop position view remain later M6.3 work.
 
 ## Adding an Adapter
 

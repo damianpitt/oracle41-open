@@ -2,7 +2,29 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a8] - Unreleased
+## [0.4.0a9] - Unreleased
+
+### Added
+
+- SQLite schema v10 with durable protocol snapshots and in-progress collection checkpoints.
+- Exact round-trip storage for protocol positions, nested assets, risk metrics, raw evidence, warnings, completeness, and provider provenance.
+- Per-reserve Aave V3 checkpoints that continue from the next unfinished reserve after an interruption.
+- Snapshot history queries by wallet, chain, protocol, and block.
+
+### Changed
+
+- Finished snapshots are returned from SQLite without repeating provider calls for the same block.
+- Final snapshot replacement and checkpoint deletion now share one atomic transaction.
+- Application startup now gives `ProtocolPositionService` the shared protocol-position repository.
+- Local backups include finished and in-progress protocol state through the existing SQLite snapshot.
+
+### Known Limitations
+
+- Stored protocol positions are not yet priced, included in portfolio totals, exported, or shown in the desktop interface.
+- Resume checkpoints require the same source provider to preserve one coherent provenance chain.
+- Account values remain in Aave's raw base-currency units and should not be presented as USD without verified oracle metadata.
+
+## [0.4.0a8] - 2026-08-29
 
 ### Added
 

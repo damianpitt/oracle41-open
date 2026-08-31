@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 9
+_SCHEMA_VERSION = 10
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -463,6 +463,44 @@ _SCHEMA_V9_SQL = """
 ALTER TABLE proxy_resolutions ADD COLUMN beacon_address TEXT;
 """
 
+_SCHEMA_V10_SQL = """
+CREATE TABLE protocol_snapshots (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    protocol_id TEXT NOT NULL,
+    block_number INTEGER NOT NULL,
+    adapter_id TEXT NOT NULL,
+    adapter_version TEXT NOT NULL,
+    status TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    saved_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, protocol_id, block_number)
+);
+CREATE INDEX idx_protocol_snapshots_wallet_chain_block
+    ON protocol_snapshots(wallet_address, chain, block_number DESC);
+CREATE INDEX idx_protocol_snapshots_protocol_block
+    ON protocol_snapshots(protocol_id, chain, block_number DESC);
+
+CREATE TABLE protocol_sync_checkpoints (
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    protocol_id TEXT NOT NULL,
+    block_number INTEGER NOT NULL,
+    reserves_json TEXT NOT NULL,
+    next_reserve_index INTEGER NOT NULL,
+    evidence_json TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(wallet_address, chain, protocol_id, block_number),
+    CHECK(next_reserve_index >= 0)
+);
+CREATE INDEX idx_protocol_sync_checkpoints_updated
+    ON protocol_sync_checkpoints(updated_at);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -473,6 +511,7 @@ _MIGRATIONS = {
     7: _SCHEMA_V7_SQL,
     8: _SCHEMA_V8_SQL,
     9: _SCHEMA_V9_SQL,
+    10: _SCHEMA_V10_SQL,
 }
 
 

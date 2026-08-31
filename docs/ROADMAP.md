@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3B is complete in `0.4.0a8`. Oracle41 now collects and normalizes Aave V3 reserve and account-health snapshots at an explicit block on every supported chain. Persistence, portfolio integration, exports, and position views remain open.
+**Implementation status:** M6.3C is complete in `0.4.0a9`. Oracle41 collects, resumes, normalizes, and stores Aave V3 reserve and account-health snapshots at an explicit block on every supported chain. Portfolio integration, pricing, exports, and position views remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -466,4 +466,14 @@ M6.3B adds automatic Aave V3 snapshot collection through the shared transaction-
 
 One snapshot cannot mix successful responses from different providers. Reserve discovery must succeed, while later failures produce a partial result and keep all valid evidence. Tests cover exact-block calls, provider failover, zero positions, malformed reserve data, mixed-provider protection, structured partial failures, and invalid input.
 
-SQLite persistence, resumable protocol sync, pricing, portfolio totals, exports, and the desktop position view remain open for M6.3C and later slices.
+At the end of M6.3B, SQLite persistence and resumable protocol sync were assigned to M6.3C. Pricing, portfolio totals, exports, and the desktop position view remained later work.
+
+### Completed Slice: M6.3C
+
+**Status:** Complete in `0.4.0a9`.
+
+M6.3C adds SQLite schema v10 and a dedicated protocol-position repository. Finished snapshots keep positions, assets, risk metrics, raw evidence, completeness, warnings, adapter details, provider provenance, and observation time. Snapshot history can be read by wallet, chain, protocol, and exact block.
+
+Aave collection now saves a checkpoint after reserve discovery and after every completed reserve. If the process stops, the next run continues from the next reserve instead of starting over. Finished snapshot storage and checkpoint deletion use one transaction, so a failed final write leaves the previous checkpoint safe. A finished snapshot is reused without making the same network calls again.
+
+Tests cover v9-to-v10 migration, checkpoint and snapshot round trips, restart behavior, cached reads, newest-first history, and rollback during finalization. Pricing, portfolio totals, exports, and the desktop position view remain open for M6.3D and later slices.

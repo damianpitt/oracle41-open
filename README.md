@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a8` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect and normalize block-specific Aave V3 supplied assets, collateral, debt, and account health data on every supported chain. Protocol positions are not yet saved or shown in the desktop interface.
+Version `0.4.0a9` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, and save block-specific Aave V3 supplied assets, collateral, debt, and account health data on every supported chain. Protocol positions are not yet included in portfolio totals or shown in the desktop interface.
 
 ## Features
 
@@ -41,6 +41,7 @@ Version `0.4.0a8` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can 
 - Versioned protocol-position models, capability registry, fixture schema, reference adapter, and evidence-preserving unknown fallback
 - Aave V3 supplied, collateral, and debt normalization with raw account-health metrics on every supported chain
 - Exact-block Aave V3 snapshot collection through configured JSON-RPC transaction providers
+- Durable Aave V3 snapshots with per-reserve resume checkpoints and provider provenance
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 The complete M5 transaction-understanding test matrix and optional-provider fallbacks are documented in [docs/M5_VALIDATION.md](docs/M5_VALIDATION.md).
@@ -197,7 +198,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Provider APIs and rate limits vary by chain and account.
 - Token metadata quality depends on provider responses and local filtering rules.
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
-- Aave V3 snapshots can be loaded and normalized, but the application does not store, price, aggregate, export, or display protocol positions yet.
+- Aave V3 snapshots can be loaded, resumed, normalized, and stored, but the application does not price, aggregate, export, or display protocol positions yet.
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
 - The application currently targets EVM-compatible chains supported by the configured providers.

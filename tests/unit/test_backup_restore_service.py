@@ -1,6 +1,7 @@
 """Test local backup and restore behavior.
 
-The cases verify settings, ledger data, transaction inspection, traces, actions, decoding, ABIs, manifests, and SQLite integrity checks.
+The cases verify settings, ledger data, protocol checkpoints, transaction inspection, traces,
+actions, decoding, ABIs, manifests, and SQLite integrity checks.
 They also reject incomplete or unsupported backup bundles.
 """
 
@@ -24,6 +25,7 @@ from oracle41_open.core.models import (
     ContractABIRecord,
     DataProvenance,
     InternalCall,
+    ProtocolCollectionCheckpoint,
     RawTransactionLog,
     SignatureProvenance,
     SignatureSourceKind,
@@ -38,6 +40,7 @@ from oracle41_open.storage.backup_restore import BackupRestoreError, BackupResto
 from oracle41_open.storage.db import (
     ContractABIRepository,
     EventLedgerRepository,
+    ProtocolPositionRepository,
     SQLiteDatabase,
     TransactionRepository,
     WatchlistRepository,
@@ -52,6 +55,7 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
     event_ledger_repository = EventLedgerRepository(sqlite_database)
     transaction_repository = TransactionRepository(sqlite_database)
     contract_abi_repository = ContractABIRepository(sqlite_database)
+    protocol_position_repository = ProtocolPositionRepository(sqlite_database)
     service = BackupRestoreService(settings_store=settings_store, sqlite_database=sqlite_database)
 
     source_settings = AppSettings(
@@ -117,6 +121,19 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         imported_at=datetime(2026, 8, 12, tzinfo=UTC),
     )
     contract_abi_repository.upsert_contract_abi(source_abi)
+    protocol_checkpoint = ProtocolCollectionCheckpoint(
+        wallet_address=source_address,
+        chain=Chain.ETHEREUM,
+        protocol_id="aave-v3",
+        block_number=24_000_000,
+        reserves=(("USDC", "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),),
+        next_reserve_index=0,
+        raw_evidence=(),
+        source_provider="alchemy",
+        observed_at=datetime(2026, 8, 31, tzinfo=UTC),
+        updated_at=datetime(2026, 8, 31, tzinfo=UTC),
+    )
+    protocol_position_repository.save_checkpoint(protocol_checkpoint)
 
     backup_path = tmp_path / "oracle41-backup.zip"
     service.export_backup(backup_path)
@@ -169,6 +186,12 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         Chain.ETHEREUM,
         source_abi.contract_address,
     ) == source_abi
+    assert ProtocolPositionRepository(sqlite_database).get_checkpoint(
+        source_address,
+        Chain.ETHEREUM,
+        "aave-v3",
+        24_000_000,
+    ) == protocol_checkpoint
 
 
 def test_export_backup_bundle_contains_manifest_and_payload_files(tmp_path: Path) -> None:

@@ -7,7 +7,7 @@ reserve discovery remains mandatory because an incomplete reserve list could hid
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol, cast
 
 from eth_abi.abi import decode as abi_decode
@@ -20,10 +20,12 @@ from oracle41_open.core.models import (
     ContractReadResult,
     ProtocolAdapterContext,
     ProtocolAdapterResult,
+    ProtocolCollectionCheckpoint,
     ProtocolEvidenceValue,
     ProtocolRawEvidence,
     ProviderError,
     ProviderResponseError,
+    StoredProtocolSnapshot,
     ValidationError,
 )
 from oracle41_open.core.protocols import (
@@ -35,6 +37,7 @@ from oracle41_open.core.services.address_validator import AddressValidator
 
 _MAX_AAVE_RESERVES = 128
 _ZERO_ADDRESS = "0x" + "00" * 20
+_AAVE_V3_PROTOCOL_ID = "aave-v3"
 
 
 class ContractStateReader(Protocol):
@@ -48,6 +51,43 @@ class ContractStateReader(Protocol):
         ...
 
 
+class ProtocolSnapshotRepository(Protocol):
+    """Describe the durable methods used by protocol collection."""
+
+    def get_snapshot(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        protocol_id: str,
+        block_number: int,
+    ) -> StoredProtocolSnapshot | None:
+        ...
+
+    def get_checkpoint(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        protocol_id: str,
+        block_number: int,
+    ) -> ProtocolCollectionCheckpoint | None:
+        ...
+
+    def save_checkpoint(self, checkpoint: ProtocolCollectionCheckpoint) -> None:
+        ...
+
+    def save_snapshot(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        protocol_id: str,
+        block_number: int,
+        result: ProtocolAdapterResult,
+        source_provider: str,
+        observed_at: datetime,
+    ) -> StoredProtocolSnapshot:
+        ...
+
+
 class ProtocolPositionService:
     """Load provider-neutral snapshots and pass them to the production registry."""
 
@@ -55,9 +95,11 @@ class ProtocolPositionService:
         self,
         provider: ContractStateReader,
         registry: ProtocolAdapterRegistry | None = None,
+        repository: ProtocolSnapshotRepository | None = None,
     ) -> None:
         self._provider = provider
         self._registry = registry or production_protocol_registry()
+        self._repository = repository
 
     def load_aave_v3_positions(
         self,
@@ -71,12 +113,38 @@ class ProtocolPositionService:
         if block_number < 0:
             raise ValidationError("Protocol snapshot block number must not be negative.")
 
-        deployment = aave_v3_deployment(chain)
-        tracker = _SnapshotReadTracker(self._provider, chain, block_number)
-        reserves = self._load_reserves(tracker, deployment.protocol_data_provider)
-        evidence: list[ProtocolRawEvidence] = []
+        if self._repository is not None:
+            stored = self._repository.get_snapshot(
+                wallet,
+                chain,
+                _AAVE_V3_PROTOCOL_ID,
+                block_number,
+            )
+            if stored is not None:
+                return stored.result
 
-        for symbol, reserve in reserves:
+        deployment = aave_v3_deployment(chain)
+        checkpoint = self._load_checkpoint(wallet, chain, block_number)
+        if checkpoint is None:
+            tracker = _SnapshotReadTracker(self._provider, chain, block_number)
+            reserves = self._load_reserves(tracker, deployment.protocol_data_provider)
+            evidence: list[ProtocolRawEvidence] = []
+            next_reserve_index = 0
+            self._save_checkpoint(wallet, chain, block_number, reserves, 0, evidence, tracker)
+        else:
+            tracker = _SnapshotReadTracker(
+                self._provider,
+                chain,
+                block_number,
+                source_provider=checkpoint.source_provider,
+                observed_at=checkpoint.observed_at,
+            )
+            reserves = checkpoint.reserves
+            evidence = list(checkpoint.raw_evidence)
+            next_reserve_index = checkpoint.next_reserve_index
+
+        for reserve_index in range(next_reserve_index, len(reserves)):
+            symbol, reserve = reserves[reserve_index]
             evidence.extend(
                 self._load_reserve_evidence(
                     tracker,
@@ -85,6 +153,15 @@ class ProtocolPositionService:
                     reserve,
                     wallet,
                 )
+            )
+            self._save_checkpoint(
+                wallet,
+                chain,
+                block_number,
+                reserves,
+                reserve_index + 1,
+                evidence,
+                tracker,
             )
 
         evidence.extend(
@@ -95,7 +172,7 @@ class ProtocolPositionService:
                 wallet,
             )
         )
-        return self._registry.analyze(
+        result = self._registry.analyze(
             ProtocolAdapterContext(
                 wallet_address=wallet,
                 chain=chain,
@@ -107,6 +184,59 @@ class ProtocolPositionService:
                 raw_evidence=tuple(evidence),
                 source_provider=tracker.source_provider,
                 observed_at=tracker.observed_at,
+            )
+        )
+        if self._repository is not None:
+            self._repository.save_snapshot(
+                wallet,
+                chain,
+                _AAVE_V3_PROTOCOL_ID,
+                block_number,
+                result,
+                tracker.source_provider,
+                tracker.observed_at,
+            )
+        return result
+
+    def _load_checkpoint(
+        self,
+        wallet: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ProtocolCollectionCheckpoint | None:
+        if self._repository is None:
+            return None
+        return self._repository.get_checkpoint(
+            wallet,
+            chain,
+            _AAVE_V3_PROTOCOL_ID,
+            block_number,
+        )
+
+    def _save_checkpoint(
+        self,
+        wallet: str,
+        chain: Chain,
+        block_number: int,
+        reserves: tuple[tuple[str, str], ...],
+        next_reserve_index: int,
+        evidence: list[ProtocolRawEvidence],
+        tracker: _SnapshotReadTracker,
+    ) -> None:
+        if self._repository is None:
+            return
+        self._repository.save_checkpoint(
+            ProtocolCollectionCheckpoint(
+                wallet_address=wallet,
+                chain=chain,
+                protocol_id=_AAVE_V3_PROTOCOL_ID,
+                block_number=block_number,
+                reserves=reserves,
+                next_reserve_index=next_reserve_index,
+                raw_evidence=tuple(evidence),
+                source_provider=tracker.source_provider,
+                observed_at=tracker.observed_at,
+                updated_at=datetime.now(tz=UTC),
             )
         )
 
@@ -280,12 +410,19 @@ class ProtocolPositionService:
 class _SnapshotReadTracker:
     """Require all successful calls in one snapshot to use the same provider."""
 
-    def __init__(self, provider: ContractStateReader, chain: Chain, block_number: int) -> None:
+    def __init__(
+        self,
+        provider: ContractStateReader,
+        chain: Chain,
+        block_number: int,
+        source_provider: str | None = None,
+        observed_at: datetime | None = None,
+    ) -> None:
         self._provider = provider
         self._chain = chain
         self.block_number = block_number
-        self._source_provider: str | None = None
-        self._observed_at: datetime | None = None
+        self._source_provider = source_provider
+        self._observed_at = observed_at
 
     @property
     def source_provider(self) -> str:

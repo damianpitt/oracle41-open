@@ -47,6 +47,7 @@ from oracle41_open.storage.cache_store import DiskCacheStore
 from oracle41_open.storage.db import (
     ContractABIRepository,
     EventLedgerRepository,
+    ProtocolPositionRepository,
     SavedViewsRepository,
     SnapshotsRepository,
     SQLiteDatabase,
@@ -71,6 +72,7 @@ class AppContainer:
     saved_views_repository: SavedViewsRepository
     snapshots_repository: SnapshotsRepository
     event_ledger_repository: EventLedgerRepository
+    protocol_position_repository: ProtocolPositionRepository
     transaction_repository: TransactionRepository
     transaction_enrichment_repository: TransactionEnrichmentRepository
     contract_abi_repository: ContractABIRepository
@@ -106,6 +108,7 @@ def build_container() -> AppContainer:
     saved_views_repository = SavedViewsRepository(sqlite_database)
     snapshots_repository = SnapshotsRepository(sqlite_database)
     event_ledger_repository = EventLedgerRepository(sqlite_database)
+    protocol_position_repository = ProtocolPositionRepository(sqlite_database)
     transaction_repository = TransactionRepository(sqlite_database)
     transaction_enrichment_repository = TransactionEnrichmentRepository(sqlite_database)
     contract_abi_repository = ContractABIRepository(sqlite_database)
@@ -252,7 +255,10 @@ def build_container() -> AppContainer:
         enrichment_provider=blockscout_provider,
         enrichment_repository=transaction_enrichment_repository,
     )
-    protocol_position_service = ProtocolPositionService(provider=transaction_data_provider)
+    protocol_position_service = ProtocolPositionService(
+        provider=transaction_data_provider,
+        repository=protocol_position_repository,
+    )
     label_resolution_service = LabelResolutionService(cache_store=cache_store)
     provider_key_validation_service = ProviderKeyValidationService()
     provider_credential_diagnostics_service = ProviderCredentialDiagnosticsService(
@@ -276,6 +282,7 @@ def build_container() -> AppContainer:
         saved_views_repository=saved_views_repository,
         snapshots_repository=snapshots_repository,
         event_ledger_repository=event_ledger_repository,
+        protocol_position_repository=protocol_position_repository,
         transaction_repository=transaction_repository,
         transaction_enrichment_repository=transaction_enrichment_repository,
         contract_abi_repository=contract_abi_repository,

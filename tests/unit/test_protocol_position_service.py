@@ -7,6 +7,7 @@ positions, partial reserve failures, mandatory discovery, malformed data, and in
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from eth_abi.abi import encode as abi_encode
@@ -23,6 +24,7 @@ from oracle41_open.core.models import (
 )
 from oracle41_open.core.protocols import aave_v3_deployment
 from oracle41_open.core.services.protocol_position_service import ProtocolPositionService
+from oracle41_open.storage.db import ProtocolPositionRepository, SQLiteDatabase
 
 _WALLET = "0x1111111111111111111111111111111111111111"
 _RESERVE = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
@@ -181,6 +183,53 @@ def test_aave_collector_validates_context(wallet: str, block_number: int) -> Non
         )
 
 
+def test_aave_collector_resumes_after_completed_reserve(tmp_path: Path) -> None:
+    deployment = aave_v3_deployment(Chain.ETHEREUM)
+    repository = ProtocolPositionRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    interrupted_provider = _InterruptingContractReader(
+        _responses(),
+        interrupt_contract=deployment.pool,
+    )
+
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        ProtocolPositionService(
+            interrupted_provider,
+            repository=repository,
+        ).load_aave_v3_positions(_WALLET, Chain.ETHEREUM, _BLOCK)
+
+    checkpoint = repository.get_checkpoint(_WALLET, Chain.ETHEREUM, "aave-v3", _BLOCK)
+    assert checkpoint is not None
+    assert checkpoint.next_reserve_index == 1
+    resumed_provider = _FakeContractReader(_responses())
+    result = ProtocolPositionService(
+        resumed_provider,
+        repository=repository,
+    ).load_aave_v3_positions(_WALLET, Chain.ETHEREUM, _BLOCK)
+
+    assert result.status is ProtocolAdapterStatus.MATCHED
+    assert all(call[0] != deployment.protocol_data_provider for call in resumed_provider.calls)
+    assert repository.get_checkpoint(_WALLET, Chain.ETHEREUM, "aave-v3", _BLOCK) is None
+    assert repository.get_snapshot(_WALLET, Chain.ETHEREUM, "aave-v3", _BLOCK) is not None
+
+
+def test_aave_collector_reuses_finished_snapshot_without_network(tmp_path: Path) -> None:
+    repository = ProtocolPositionRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    initial_provider = _FakeContractReader(_responses())
+    first = ProtocolPositionService(
+        initial_provider,
+        repository=repository,
+    ).load_aave_v3_positions(_WALLET, Chain.ETHEREUM, _BLOCK)
+    offline_provider = _FakeContractReader({})
+
+    second = ProtocolPositionService(
+        offline_provider,
+        repository=repository,
+    ).load_aave_v3_positions(_WALLET, Chain.ETHEREUM, _BLOCK)
+
+    assert second == first
+    assert offline_provider.calls == []
+
+
 class _FakeContractReader:
     def __init__(
         self,
@@ -216,6 +265,23 @@ class _FakeContractReader:
             source_provider=self._source_overrides.get(key, "primary"),
             fetched_at=_OBSERVED_AT,
         )
+
+
+class _InterruptingContractReader(_FakeContractReader):
+    def __init__(self, responses: dict[tuple[str, str], str], interrupt_contract: str) -> None:
+        super().__init__(responses)
+        self._interrupt_contract = interrupt_contract
+
+    def read_contract(
+        self,
+        contract_address: str,
+        call_data: str,
+        chain: Chain,
+        block_number: int,
+    ) -> ContractReadResult:
+        if contract_address == self._interrupt_contract:
+            raise RuntimeError("simulated interruption")
+        return super().read_contract(contract_address, call_data, chain, block_number)
 
 
 def _responses() -> dict[tuple[str, str], str]:
