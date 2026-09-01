@@ -6,11 +6,25 @@ One failed wallet does not hide successful portfolio results from other wallets.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Protocol
 
-from oracle41_open.core.models import Chain, TokenBalance, WalletOverviewResult, WatchlistEntry
+from oracle41_open.core.models import (
+    Chain,
+    StoredProtocolSnapshot,
+    TokenBalance,
+    WalletOverviewResult,
+    WatchlistEntry,
+)
+from oracle41_open.core.services.protocol_portfolio_service import (
+    ProtocolAggregateValuation,
+    ProtocolPortfolioInput,
+    ProtocolPortfolioService,
+    ProtocolPositionValuation,
+    adjusted_wallet_total,
+    protocol_receipt_token_addresses,
+)
 
 
 class WatchlistReader(Protocol):
@@ -31,11 +45,24 @@ class WalletOverviewLoader(Protocol):
         ...
 
 
+class ProtocolSnapshotReader(Protocol):
+    def list_latest_snapshots(
+        self,
+        wallet_address: str,
+        chain: Chain,
+    ) -> tuple[StoredProtocolSnapshot, ...]:
+        ...
+
+
 @dataclass(frozen=True)
 class PortfolioWalletResult:
     entry: WatchlistEntry
     overview: WalletOverviewResult | None
     error: str | None
+    protocol_snapshots: tuple[StoredProtocolSnapshot, ...] = ()
+    protocol_error: str | None = None
+    adjusted_wallet_total_usd: Decimal | None = None
+    excluded_receipt_token_count: int = 0
 
     @property
     def is_loaded(self) -> bool:
@@ -82,6 +109,16 @@ class PortfolioLoadResult:
     chain_aggregates: list[PortfolioChainAggregate]
     token_aggregates: list[PortfolioTokenAggregate]
     wallet_results: list[PortfolioWalletResult]
+    protocol_snapshot_count: int = 0
+    partial_protocol_snapshot_count: int = 0
+    protocol_failed_wallet_count: int = 0
+    protocol_unpriced_position_count: int = 0
+    excluded_receipt_token_count: int = 0
+    protocol_asset_usd_total: Decimal = Decimal("0")
+    protocol_liability_usd_total: Decimal = Decimal("0")
+    protocol_net_usd: Decimal = Decimal("0")
+    protocol_positions: list[ProtocolPositionValuation] = field(default_factory=list)
+    protocol_aggregates: list[ProtocolAggregateValuation] = field(default_factory=list)
 
 
 @dataclass
@@ -98,9 +135,19 @@ class _MutableTokenAggregate:
 
 
 class PortfolioService:
-    def __init__(self, watchlist_reader: WatchlistReader, wallet_loader: WalletOverviewLoader) -> None:
+    def __init__(
+        self,
+        watchlist_reader: WatchlistReader,
+        wallet_loader: WalletOverviewLoader,
+        protocol_snapshot_reader: ProtocolSnapshotReader | None = None,
+        protocol_valuator: ProtocolPortfolioService | None = None,
+    ) -> None:
+        if (protocol_snapshot_reader is None) != (protocol_valuator is None):
+            raise ValueError("Protocol snapshot reading and valuation must be configured together.")
         self._watchlist_reader = watchlist_reader
         self._wallet_loader = wallet_loader
+        self._protocol_snapshot_reader = protocol_snapshot_reader
+        self._protocol_valuator = protocol_valuator
 
     def load_portfolio(
         self,
@@ -121,7 +168,9 @@ class PortfolioService:
         failed_wallet_count = 0
         truncated_wallet_count = 0
         wallets_missing_total_usd_count = 0
+        protocol_failed_wallet_count = 0
         known_total_usd = Decimal("0")
+        protocol_inputs: list[ProtocolPortfolioInput] = []
 
         chain_wallet_count: dict[Chain, int] = {}
         chain_native_balance_total: dict[Chain, Decimal] = {}
@@ -149,12 +198,52 @@ class PortfolioService:
             loaded_wallet_count += 1
             if overview.token_balances_truncated:
                 truncated_wallet_count += 1
-            wallet_results.append(PortfolioWalletResult(entry=entry, overview=overview, error=None))
+            protocol_snapshots: tuple[StoredProtocolSnapshot, ...] = ()
+            protocol_error: str | None = None
+            excluded_receipt_tokens: set[str] = set()
+            if self._protocol_snapshot_reader is not None:
+                try:
+                    protocol_snapshots = self._protocol_snapshot_reader.list_latest_snapshots(
+                        entry.address,
+                        entry.chain,
+                    )
+                except Exception as error:
+                    protocol_failed_wallet_count += 1
+                    protocol_error = str(error)
+                for protocol_snapshot in protocol_snapshots:
+                    protocol_inputs.append(
+                        ProtocolPortfolioInput(
+                            wallet_address=entry.address,
+                            chain=entry.chain,
+                            overview=overview,
+                            snapshot=protocol_snapshot,
+                        )
+                    )
+                    excluded_receipt_tokens.update(
+                        protocol_receipt_token_addresses(protocol_snapshot)
+                    )
 
-            if overview.total_usd is None:
+            adjusted_total = adjusted_wallet_total(overview, excluded_receipt_tokens)
+            wallet_results.append(
+                PortfolioWalletResult(
+                    entry=entry,
+                    overview=overview,
+                    error=None,
+                    protocol_snapshots=protocol_snapshots,
+                    protocol_error=protocol_error,
+                    adjusted_wallet_total_usd=adjusted_total,
+                    excluded_receipt_token_count=sum(
+                        1
+                        for balance in overview.token_balances
+                        if balance.token.contract_address.lower() in excluded_receipt_tokens
+                    ),
+                )
+            )
+
+            if adjusted_total is None:
                 wallets_missing_total_usd_count += 1
             else:
-                known_total_usd += overview.total_usd
+                known_total_usd += adjusted_total
 
             chain_wallet_count[entry.chain] = chain_wallet_count.get(entry.chain, 0) + 1
             chain_native_balance_total[entry.chain] = (
@@ -171,7 +260,16 @@ class PortfolioService:
                 token_aggregates_by_key,
                 chain=entry.chain,
                 token_balances=overview.token_balances,
+                excluded_contracts=excluded_receipt_tokens,
             )
+
+        protocol_valuation = (
+            self._protocol_valuator.value(tuple(protocol_inputs))
+            if self._protocol_valuator is not None
+            else None
+        )
+        if protocol_valuation is not None:
+            known_total_usd += protocol_valuation.net_usd
 
         chain_aggregates: list[PortfolioChainAggregate] = []
         for chain_key in sorted(chain_wallet_count.keys(), key=lambda current: current.display_name):
@@ -209,7 +307,17 @@ class PortfolioService:
         )
 
         complete_total_usd: Decimal | None
-        if loaded_wallet_count == 0 or failed_wallet_count > 0 or wallets_missing_total_usd_count > 0:
+        protocol_is_incomplete = protocol_valuation is not None and (
+            protocol_valuation.partial_snapshot_count > 0
+            or protocol_valuation.unpriced_position_count > 0
+        )
+        if (
+            loaded_wallet_count == 0
+            or failed_wallet_count > 0
+            or wallets_missing_total_usd_count > 0
+            or protocol_failed_wallet_count > 0
+            or protocol_is_incomplete
+        ):
             complete_total_usd = None
         else:
             complete_total_usd = known_total_usd
@@ -226,6 +334,42 @@ class PortfolioService:
             chain_aggregates=chain_aggregates,
             token_aggregates=token_aggregates,
             wallet_results=wallet_results,
+            protocol_snapshot_count=(
+                protocol_valuation.snapshot_count if protocol_valuation is not None else 0
+            ),
+            partial_protocol_snapshot_count=(
+                protocol_valuation.partial_snapshot_count if protocol_valuation is not None else 0
+            ),
+            protocol_failed_wallet_count=protocol_failed_wallet_count,
+            protocol_unpriced_position_count=(
+                protocol_valuation.unpriced_position_count if protocol_valuation is not None else 0
+            ),
+            excluded_receipt_token_count=(
+                protocol_valuation.excluded_receipt_token_count
+                if protocol_valuation is not None
+                else 0
+            ),
+            protocol_asset_usd_total=(
+                protocol_valuation.asset_usd_total
+                if protocol_valuation is not None
+                else Decimal("0")
+            ),
+            protocol_liability_usd_total=(
+                protocol_valuation.liability_usd_total
+                if protocol_valuation is not None
+                else Decimal("0")
+            ),
+            protocol_net_usd=(
+                protocol_valuation.net_usd
+                if protocol_valuation is not None
+                else Decimal("0")
+            ),
+            protocol_positions=(
+                list(protocol_valuation.positions) if protocol_valuation is not None else []
+            ),
+            protocol_aggregates=(
+                list(protocol_valuation.aggregates) if protocol_valuation is not None else []
+            ),
         )
 
     def _merge_token_balances(
@@ -233,10 +377,14 @@ class PortfolioService:
         token_aggregates_by_key: dict[tuple[Chain, str], _MutableTokenAggregate],
         chain: Chain,
         token_balances: list[TokenBalance],
+        excluded_contracts: set[str] | None = None,
     ) -> None:
+        excluded = excluded_contracts or set()
         touched_keys: set[tuple[Chain, str]] = set()
         for balance in token_balances:
             key = (chain, balance.token.contract_address.lower())
+            if key[1] in excluded:
+                continue
             aggregate = token_aggregates_by_key.get(key)
             if aggregate is None:
                 aggregate = _MutableTokenAggregate(

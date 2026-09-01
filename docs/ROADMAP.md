@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3C is complete in `0.4.0a9`. Oracle41 collects, resumes, normalizes, and stores Aave V3 reserve and account-health snapshots at an explicit block on every supported chain. Portfolio integration, pricing, exports, and position views remain open.
+**Implementation status:** M6.3D is complete in `0.4.0a10`. Oracle41 collects, resumes, stores, prices, and aggregates Aave V3 positions with liabilities and receipt-token double-count protection. Dedicated position exports, historical prices, and broader protocol coverage remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -477,3 +477,15 @@ M6.3C adds SQLite schema v10 and a dedicated protocol-position repository. Finis
 Aave collection now saves a checkpoint after reserve discovery and after every completed reserve. If the process stops, the next run continues from the next reserve instead of starting over. Finished snapshot storage and checkpoint deletion use one transaction, so a failed final write leaves the previous checkpoint safe. A finished snapshot is reused without making the same network calls again.
 
 Tests cover v9-to-v10 migration, checkpoint and snapshot round trips, restart behavior, cached reads, newest-first history, and rollback during finalization. Pricing, portfolio totals, exports, and the desktop position view remain open for M6.3D and later slices.
+
+### Completed Slice: M6.3D
+
+**Status:** Complete in `0.4.0a10`.
+
+M6.3D adds protocol-aware portfolio valuation. Oracle41 loads the newest stored snapshot for every protocol on each selected wallet and chain, batches prices by chain and underlying token, adds supplied assets and collateral, and subtracts debt as a liability. Known values remain available when another position cannot be priced.
+
+Aave receipt and debt tokens are excluded only when positive snapshot evidence identifies the matching position. This prevents double counting while preserving unrelated wallet tokens. Partial snapshots, missing prices, and storage failures make the complete total unavailable instead of silently understating risk.
+
+The Portfolio view and summary/wallet exports report protocol assets, liabilities, net value, unpriced positions, partial snapshots, excluded token counts, block numbers, providers, and observation times. Tests cover signed debt, batched prices, missing quotes, partial evidence, storage failure, latest-snapshot selection, and receipt-token exclusion.
+
+Dedicated protocol-position export templates, historical price-at-block valuation, and additional protocol adapters remain open for M6.3E and later slices.

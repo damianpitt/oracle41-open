@@ -2,7 +2,30 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a9] - Unreleased
+## [0.4.0a10] - Unreleased
+
+### Added
+
+- Current USD valuation for stored protocol assets through the existing cached pricing service.
+- Explicit protocol asset, liability, and signed net totals in portfolio results.
+- Newest-snapshot selection for every stored protocol on each wallet and chain.
+- Protocol block, provider, observation time, unpriced count, and partial-state details in the Portfolio view and summary/wallet exports.
+- Aave receipt-token and debt-token exclusion derived from positive snapshot balances.
+
+### Changed
+
+- Debt positions reduce net portfolio value instead of appearing as positive holdings.
+- Wallet token aggregates exclude receipt-token balances when the matching economic position is included.
+- A complete portfolio total is withheld when protocol storage fails, a snapshot is partial, or a position lacks a safe price.
+- Protocol prices are loaded once per chain and underlying contract instead of once per wallet position.
+
+### Known Limitations
+
+- Current prices are applied to amounts recorded at the stored snapshot block. Historical price-at-block valuation is not included.
+- Dedicated protocol-position CSV and JSON templates are not included yet; summary and wallet exports contain protocol accounting metadata.
+- Aave V3 is still the only production protocol adapter.
+
+## [0.4.0a9] - 2026-08-31
 
 ### Added
 

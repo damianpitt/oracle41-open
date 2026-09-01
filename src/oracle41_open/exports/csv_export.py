@@ -103,6 +103,14 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "wallets_missing_total_usd_count",
         "total_usd",
         "known_total_usd",
+        "protocol_snapshot_count",
+        "partial_protocol_snapshot_count",
+        "protocol_failed_wallet_count",
+        "protocol_unpriced_position_count",
+        "excluded_receipt_token_count",
+        "protocol_asset_usd_total",
+        "protocol_liability_usd_total",
+        "protocol_net_usd",
     ],
     PortfolioExportTemplate.CHAINS: [
         "chain",
@@ -136,6 +144,13 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "token_balance_page_count",
         "token_balances_truncated",
         "updated_at",
+        "adjusted_wallet_total_usd",
+        "protocol_ids",
+        "protocol_snapshot_blocks",
+        "protocol_source_providers",
+        "protocol_observed_at",
+        "protocol_error",
+        "excluded_receipt_token_count",
     ],
 }
 
@@ -374,6 +389,14 @@ def _portfolio_summary_row(result: PortfolioLoadResult) -> dict[str, str]:
         "wallets_missing_total_usd_count": str(result.wallets_missing_total_usd_count),
         "total_usd": "" if result.total_usd is None else str(result.total_usd),
         "known_total_usd": "" if result.known_total_usd is None else str(result.known_total_usd),
+        "protocol_snapshot_count": str(result.protocol_snapshot_count),
+        "partial_protocol_snapshot_count": str(result.partial_protocol_snapshot_count),
+        "protocol_failed_wallet_count": str(result.protocol_failed_wallet_count),
+        "protocol_unpriced_position_count": str(result.protocol_unpriced_position_count),
+        "excluded_receipt_token_count": str(result.excluded_receipt_token_count),
+        "protocol_asset_usd_total": str(result.protocol_asset_usd_total),
+        "protocol_liability_usd_total": str(result.protocol_liability_usd_total),
+        "protocol_net_usd": str(result.protocol_net_usd),
     }
 
 
@@ -393,6 +416,13 @@ def _portfolio_wallet_row(wallet: PortfolioWalletResult) -> dict[str, str]:
             "token_balance_page_count": "",
             "token_balances_truncated": "",
             "updated_at": "",
+            "adjusted_wallet_total_usd": "",
+            "protocol_ids": "",
+            "protocol_snapshot_blocks": "",
+            "protocol_source_providers": "",
+            "protocol_observed_at": "",
+            "protocol_error": "" if wallet.protocol_error is None else wallet.protocol_error,
+            "excluded_receipt_token_count": str(wallet.excluded_receipt_token_count),
         }
     return {
         "entry_id": str(wallet.entry.id),
@@ -410,6 +440,21 @@ def _portfolio_wallet_row(wallet: PortfolioWalletResult) -> dict[str, str]:
         "token_balance_page_count": str(wallet.overview.token_balance_page_count),
         "token_balances_truncated": "true" if wallet.overview.token_balances_truncated else "false",
         "updated_at": wallet.overview.updated_at.isoformat(),
+        "adjusted_wallet_total_usd": (
+            "" if wallet.adjusted_wallet_total_usd is None else str(wallet.adjusted_wallet_total_usd)
+        ),
+        "protocol_ids": ";".join(item.protocol_id for item in wallet.protocol_snapshots),
+        "protocol_snapshot_blocks": ";".join(
+            str(item.block_number) for item in wallet.protocol_snapshots
+        ),
+        "protocol_source_providers": ";".join(
+            item.source_provider for item in wallet.protocol_snapshots
+        ),
+        "protocol_observed_at": ";".join(
+            item.observed_at.isoformat() for item in wallet.protocol_snapshots
+        ),
+        "protocol_error": "" if wallet.protocol_error is None else wallet.protocol_error,
+        "excluded_receipt_token_count": str(wallet.excluded_receipt_token_count),
     }
 
 

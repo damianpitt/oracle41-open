@@ -247,7 +247,16 @@ def test_portfolio_exports_support_all_templates() -> None:
         "wallets_missing_total_usd_count",
         "total_usd",
         "known_total_usd",
+        "protocol_snapshot_count",
+        "partial_protocol_snapshot_count",
+        "protocol_failed_wallet_count",
+        "protocol_unpriced_position_count",
+        "excluded_receipt_token_count",
+        "protocol_asset_usd_total",
+        "protocol_liability_usd_total",
+        "protocol_net_usd",
     ]
+    assert summary_rows[1][-3:] == ["0", "0", "0"]
 
     chain_rows = list(
         csv.reader(

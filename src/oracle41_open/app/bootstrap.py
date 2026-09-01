@@ -17,6 +17,7 @@ from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
 from oracle41_open.core.services.pricing_service import PricingService
+from oracle41_open.core.services.protocol_portfolio_service import ProtocolPortfolioService
 from oracle41_open.core.services.protocol_position_service import ProtocolPositionService
 from oracle41_open.core.services.provider_credential_diagnostics_service import (
     ProviderCredentialDiagnosticsService,
@@ -269,6 +270,8 @@ def build_container() -> AppContainer:
     portfolio_service = PortfolioService(
         watchlist_reader=watchlist_service,
         wallet_loader=wallet_service,
+        protocol_snapshot_reader=protocol_position_repository,
+        protocol_valuator=ProtocolPortfolioService(pricing_service),
     )
 
     return AppContainer(

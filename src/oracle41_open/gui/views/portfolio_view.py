@@ -400,6 +400,14 @@ def _render_result(result: PortfolioLoadResult) -> str:
         f"- Wallets missing total USD: {result.wallets_missing_total_usd_count}",
         f"- Total USD (complete): {_fmt_decimal(result.total_usd)}",
         f"- Known USD (partial): {_fmt_decimal(result.known_total_usd)}",
+        f"- Protocol snapshots: {result.protocol_snapshot_count}",
+        f"- Partial protocol snapshots: {result.partial_protocol_snapshot_count}",
+        f"- Protocol load failures: {result.protocol_failed_wallet_count}",
+        f"- Unpriced protocol positions: {result.protocol_unpriced_position_count}",
+        f"- Excluded receipt-token balances: {result.excluded_receipt_token_count}",
+        f"- Protocol assets USD: {_fmt_decimal(result.protocol_asset_usd_total)}",
+        f"- Protocol liabilities USD: {_fmt_decimal(result.protocol_liability_usd_total)}",
+        f"- Protocol net USD: {_fmt_decimal(result.protocol_net_usd)}",
         "",
         "Chain Aggregates:",
     ]
@@ -437,6 +445,37 @@ def _render_result(result: PortfolioLoadResult) -> str:
         if remaining > 0:
             lines.append(f"- ... {remaining} more aggregate token row(s) omitted.")
 
+    lines.extend(["", "Protocol Aggregates:"])
+    if not result.protocol_aggregates:
+        lines.append("- none")
+    else:
+        for aggregate in result.protocol_aggregates:
+            lines.append(
+                f"- [{aggregate.chain.display_name}] {aggregate.protocol_name} | "
+                f"positions={aggregate.position_count} | "
+                f"assets_usd={aggregate.asset_usd_total:.6f} | "
+                f"liabilities_usd={aggregate.liability_usd_total:.6f} | "
+                f"net_usd={aggregate.net_usd:.6f} | "
+                f"unpriced={aggregate.unpriced_position_count}"
+            )
+
+    lines.extend(["", "Protocol Positions:"])
+    if not result.protocol_positions:
+        lines.append("- none")
+    else:
+        for position in result.protocol_positions[:200]:
+            liability_label = "liability" if position.is_liability else "asset"
+            lines.append(
+                f"- [{position.chain.display_name}] {position.label} | {liability_label} | "
+                f"amount={_fmt_decimal(position.amount)} {position.symbol or 'unknown'} | "
+                f"price_usd={_fmt_decimal(position.price_usd)} | "
+                f"net_usd={_fmt_decimal(position.net_value_usd)} | "
+                f"block={position.block_number} | provider={position.source_provider}"
+            )
+        remaining_positions = len(result.protocol_positions) - 200
+        if remaining_positions > 0:
+            lines.append(f"- ... {remaining_positions} more protocol position row(s) omitted.")
+
     lines.extend(["", "Wallet Results:"])
     if not result.wallet_results:
         lines.append("- none")
@@ -453,10 +492,23 @@ def _render_wallet_result(wallet: PortfolioWalletResult) -> str:
     if wallet.overview is None:
         return f"- [{wallet.entry.chain.display_name}] {wallet.entry.address} | {label_text} | no overview data"
     truncation_note = " | truncated" if wallet.overview.token_balances_truncated else ""
+    protocol_note = ""
+    if wallet.protocol_error is not None:
+        protocol_note = f" | protocol error={wallet.protocol_error}"
+    elif wallet.protocol_snapshots:
+        snapshots = ", ".join(
+            f"{item.protocol_id}@{item.block_number} via {item.source_provider}"
+            for item in wallet.protocol_snapshots
+        )
+        protocol_note = (
+            f" | protocols={snapshots}"
+            f" | excluded_receipts={wallet.excluded_receipt_token_count}"
+        )
     return (
         f"- [{wallet.entry.chain.display_name}] {wallet.entry.address} | {label_text} | "
         f"native={wallet.overview.native_balance:.6f} {wallet.entry.chain.native_symbol} | "
-        f"total_usd={_fmt_decimal(wallet.overview.total_usd)}{truncation_note}"
+        f"wallet_usd_after_exclusions={_fmt_decimal(wallet.adjusted_wallet_total_usd)}"
+        f"{truncation_note}{protocol_note}"
     )
 
 

@@ -256,6 +256,93 @@ class ProtocolPositionRepository:
             for row in rows
         )
 
+    def get_latest_snapshot(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        protocol_id: str | None = None,
+    ) -> StoredProtocolSnapshot | None:
+        """Return the newest stored block without loading the complete history."""
+        wallet = normalize_address_or_raise(wallet_address)
+        query = """
+            SELECT protocol_id, block_number, payload_json, source_provider, observed_at, saved_at
+            FROM protocol_snapshots
+            WHERE wallet_address = ? AND chain = ?
+        """
+        parameters: tuple[object, ...] = (wallet, chain.value)
+        if protocol_id is not None:
+            query += " AND protocol_id = ?"
+            parameters = (*parameters, protocol_id)
+        query += " ORDER BY block_number DESC, protocol_id LIMIT 1"
+        with self._database.connection() as conn:
+            row = conn.execute(query, parameters).fetchone()
+        if row is None:
+            return None
+        stored_protocol_id = _text(row["protocol_id"], "protocol ID")
+        block_number = _integer(row["block_number"], "protocol block number")
+        result = _result_from_payload(_json_mapping(row["payload_json"], "protocol snapshot"))
+        _validate_result_context(wallet, chain, stored_protocol_id, block_number, result)
+        return StoredProtocolSnapshot(
+            wallet_address=wallet,
+            chain=chain,
+            protocol_id=stored_protocol_id,
+            block_number=block_number,
+            result=result,
+            source_provider=_text(row["source_provider"], "protocol snapshot provider"),
+            observed_at=parse_datetime(row["observed_at"]),
+            saved_at=parse_datetime(row["saved_at"]),
+        )
+
+    def list_latest_snapshots(
+        self,
+        wallet_address: str,
+        chain: Chain,
+    ) -> tuple[StoredProtocolSnapshot, ...]:
+        """Return the newest stored block for every protocol on one wallet and chain."""
+        wallet = normalize_address_or_raise(wallet_address)
+        with self._database.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT current.protocol_id, current.block_number, current.payload_json,
+                       current.source_provider, current.observed_at, current.saved_at
+                FROM protocol_snapshots AS current
+                WHERE current.wallet_address = ? AND current.chain = ?
+                  AND current.block_number = (
+                      SELECT MAX(candidate.block_number)
+                      FROM protocol_snapshots AS candidate
+                      WHERE candidate.wallet_address = current.wallet_address
+                        AND candidate.chain = current.chain
+                        AND candidate.protocol_id = current.protocol_id
+                  )
+                ORDER BY current.protocol_id
+                """,
+                (wallet, chain.value),
+            ).fetchall()
+        snapshots: list[StoredProtocolSnapshot] = []
+        for row in rows:
+            protocol_id = _text(row["protocol_id"], "protocol ID")
+            block_number = _integer(row["block_number"], "protocol block number")
+            result = _result_from_payload(
+                _json_mapping(row["payload_json"], "protocol snapshot")
+            )
+            _validate_result_context(wallet, chain, protocol_id, block_number, result)
+            snapshots.append(
+                StoredProtocolSnapshot(
+                    wallet_address=wallet,
+                    chain=chain,
+                    protocol_id=protocol_id,
+                    block_number=block_number,
+                    result=result,
+                    source_provider=_text(
+                        row["source_provider"],
+                        "protocol snapshot provider",
+                    ),
+                    observed_at=parse_datetime(row["observed_at"]),
+                    saved_at=parse_datetime(row["saved_at"]),
+                )
+            )
+        return tuple(snapshots)
+
 
 def _validate_result_context(
     wallet: str,

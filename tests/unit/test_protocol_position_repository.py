@@ -140,10 +140,32 @@ def test_snapshot_list_is_newest_first_and_can_filter_protocol(tmp_path: Path) -
             "alchemy",
             _OBSERVED_AT,
         )
+    reference_result = _result(
+        _BLOCK - 1,
+        protocol_id="reference-lending",
+        protocol_name="Reference Lending",
+    )
+    repository.save_snapshot(
+        _WALLET,
+        Chain.ETHEREUM,
+        "reference-lending",
+        _BLOCK - 1,
+        reference_result,
+        "alchemy",
+        _OBSERVED_AT,
+    )
 
     snapshots = repository.list_snapshots(_WALLET, Chain.ETHEREUM, "aave-v3")
+    latest = repository.get_latest_snapshot(_WALLET, Chain.ETHEREUM, "aave-v3")
+    latest_by_protocol = repository.list_latest_snapshots(_WALLET, Chain.ETHEREUM)
 
     assert [item.block_number for item in snapshots] == [_BLOCK + 1, _BLOCK]
+    assert latest is not None
+    assert latest.block_number == _BLOCK + 1
+    assert [(item.protocol_id, item.block_number) for item in latest_by_protocol] == [
+        ("aave-v3", _BLOCK + 1),
+        ("reference-lending", _BLOCK - 1),
+    ]
 
 
 def _checkpoint() -> ProtocolCollectionCheckpoint:
@@ -169,9 +191,14 @@ def _checkpoint() -> ProtocolCollectionCheckpoint:
     )
 
 
-def _result(block_number: int = _BLOCK) -> ProtocolAdapterResult:
+def _result(
+    block_number: int = _BLOCK,
+    *,
+    protocol_id: str = "aave-v3",
+    protocol_name: str = "Aave V3",
+) -> ProtocolAdapterResult:
     provenance = ProtocolPositionProvenance(
-        adapter_id="oracle41.aave-v3",
+        adapter_id=f"oracle41.{protocol_id}",
         adapter_version="1",
         source_provider="alchemy",
         source_reference=f"eth_call:getUserReserveData:block:{block_number}",
@@ -190,12 +217,12 @@ def _result(block_number: int = _BLOCK) -> ProtocolAdapterResult:
     )
     position = ProtocolPosition(
         schema_version=1,
-        position_id=f"aave-v3:{block_number}:usdc",
+        position_id=f"{protocol_id}:{block_number}:usdc",
         wallet_address=_WALLET,
         chain=Chain.ETHEREUM,
         block_number=block_number,
-        protocol_id="aave-v3",
-        protocol_name="Aave V3",
+        protocol_id=protocol_id,
+        protocol_name=protocol_name,
         kind=ProtocolPositionKind.COLLATERAL,
         label="USDC collateral",
         assets=(
@@ -218,7 +245,7 @@ def _result(block_number: int = _BLOCK) -> ProtocolAdapterResult:
         wallet_address=_WALLET,
         chain=Chain.ETHEREUM,
         block_number=block_number,
-        protocol_id="aave-v3",
+        protocol_id=protocol_id,
         total_collateral_base="12500000000",
         total_debt_base="2500000000",
         available_borrow_base="6500000000",
@@ -232,10 +259,10 @@ def _result(block_number: int = _BLOCK) -> ProtocolAdapterResult:
     return ProtocolAdapterResult(
         schema_version=1,
         status=ProtocolAdapterStatus.MATCHED,
-        adapter_id="oracle41.aave-v3",
+        adapter_id=f"oracle41.{protocol_id}",
         adapter_version="1",
-        protocol_id="aave-v3",
-        protocol_name="Aave V3",
+        protocol_id=protocol_id,
+        protocol_name=protocol_name,
         positions=(position,),
         source_actions=(),
         source_balances=(),

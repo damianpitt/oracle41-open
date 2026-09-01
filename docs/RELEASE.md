@@ -59,4 +59,4 @@ Verify startup, tab navigation, Settings, provider-key storage, backup/restore, 
 
 Use a semver-compatible tag such as `v0.2.0-alpha.1`. Pushing a version tag triggers the Debian release workflow. Do not push a tag until the source commit and package have been reviewed.
 
-Python uses the PEP 440 version `0.4.0a9`. Debian package metadata and filenames normalize that pre-release to `0.4.0~a9`, so a later `0.4.0` package is considered a valid upgrade.
+Python uses the PEP 440 version `0.4.0a10`. Debian package metadata and filenames normalize that pre-release to `0.4.0~a10`, so a later `0.4.0` package is considered a valid upgrade.

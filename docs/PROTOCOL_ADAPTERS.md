@@ -84,7 +84,11 @@ The collector supports configured transaction providers that can perform histori
 
 Collection is automatic at the service layer. Version `0.4.0a9` also saves completed snapshots in SQLite and checkpoints progress after every reserve. Restarting the same wallet, chain, protocol, and block continues from the next unfinished reserve. A completed snapshot is reused without another provider request.
 
-The stored snapshot keeps normalized positions, assets, risk values, completeness, warnings, raw evidence, adapter version, source provider, and observation time. Final snapshot storage and checkpoint removal are atomic. If the final write fails, the checkpoint remains available for another attempt. Portfolio integration, pricing, exports, and the desktop position view remain later M6.3 work.
+The stored snapshot keeps normalized positions, assets, risk values, completeness, warnings, raw evidence, adapter version, source provider, and observation time. Final snapshot storage and checkpoint removal are atomic. If the final write fails, the checkpoint remains available for another attempt.
+
+Version `0.4.0a10` uses the newest stored snapshot for every protocol on a wallet and chain. Underlying assets receive current available prices, debt is reported as a liability, and missing prices remain visible. Aave aTokens and debt tokens are removed from wallet totals only when positive reserve evidence proves that the matching economic position is included. This prevents receipt-token double counting without hiding unrelated wallet tokens.
+
+The Portfolio view and its summary and wallet exports include protocol accounting and provenance. Dedicated position export templates and historical price-at-block valuation remain later M6.3 work.
 
 ## Adding an Adapter
 
