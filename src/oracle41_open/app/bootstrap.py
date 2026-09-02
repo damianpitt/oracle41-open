@@ -272,6 +272,7 @@ def build_container() -> AppContainer:
         wallet_loader=wallet_service,
         protocol_snapshot_reader=protocol_position_repository,
         protocol_valuator=ProtocolPortfolioService(pricing_service),
+        protocol_snapshot_collector=protocol_position_service,
     )
 
     return AppContainer(

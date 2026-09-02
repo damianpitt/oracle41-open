@@ -53,8 +53,13 @@ class ProtocolPositionValuation:
     position_id: str
     kind: ProtocolPositionKind
     label: str
+    asset_role: ProtocolAssetRole
+    asset_standard: str
     symbol: str | None
     contract_address: str | None
+    token_id: str | None
+    raw_amount: str
+    decimals: int | None
     amount: Decimal | None
     price_usd: Decimal | None
     value_usd: Decimal | None
@@ -278,8 +283,13 @@ def _value_asset(
         position_id=position.position_id,
         kind=position.kind,
         label=position.label,
+        asset_role=asset.role,
+        asset_standard=asset.standard,
         symbol=asset.symbol,
         contract_address=contract,
+        token_id=asset.token_id,
+        raw_amount=asset.raw_amount,
+        decimals=asset.decimals,
         amount=amount,
         price_usd=price,
         value_usd=value,

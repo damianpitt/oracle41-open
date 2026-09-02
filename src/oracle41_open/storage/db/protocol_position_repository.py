@@ -256,6 +256,50 @@ class ProtocolPositionRepository:
             for row in rows
         )
 
+    def list_snapshots_at_block(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> tuple[StoredProtocolSnapshot, ...]:
+        """Return every protocol snapshot stored at one exact block."""
+        if block_number < 0:
+            raise ValueError("Protocol snapshot block number must not be negative.")
+        wallet = normalize_address_or_raise(wallet_address)
+        with self._database.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT protocol_id, payload_json, source_provider, observed_at, saved_at
+                FROM protocol_snapshots
+                WHERE wallet_address = ? AND chain = ? AND block_number = ?
+                ORDER BY protocol_id
+                """,
+                (wallet, chain.value, block_number),
+            ).fetchall()
+        snapshots: list[StoredProtocolSnapshot] = []
+        for row in rows:
+            protocol_id = _text(row["protocol_id"], "protocol ID")
+            result = _result_from_payload(
+                _json_mapping(row["payload_json"], "protocol snapshot")
+            )
+            _validate_result_context(wallet, chain, protocol_id, block_number, result)
+            snapshots.append(
+                StoredProtocolSnapshot(
+                    wallet_address=wallet,
+                    chain=chain,
+                    protocol_id=protocol_id,
+                    block_number=block_number,
+                    result=result,
+                    source_provider=_text(
+                        row["source_provider"],
+                        "protocol snapshot provider",
+                    ),
+                    observed_at=parse_datetime(row["observed_at"]),
+                    saved_at=parse_datetime(row["saved_at"]),
+                )
+            )
+        return tuple(snapshots)
+
     def get_latest_snapshot(
         self,
         wallet_address: str,

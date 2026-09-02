@@ -15,6 +15,8 @@ from oracle41_open.core.services.portfolio_service import PortfolioLoadResult, P
 from oracle41_open.exports.templates import (
     ACTIVITY_EXPORT_FORMAT,
     ACTIVITY_EXPORT_FORMAT_VERSION,
+    PORTFOLIO_EXPORT_FORMAT,
+    PORTFOLIO_EXPORT_FORMAT_VERSION,
     ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
@@ -106,8 +108,11 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "total_usd",
         "known_total_usd",
         "protocol_snapshot_count",
+        "protocol_snapshot_mode",
+        "requested_protocol_block_number",
         "partial_protocol_snapshot_count",
         "protocol_failed_wallet_count",
+        "protocol_missing_snapshot_wallet_count",
         "protocol_unpriced_position_count",
         "excluded_receipt_token_count",
         "protocol_asset_usd_total",
@@ -153,6 +158,31 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "protocol_observed_at",
         "protocol_error",
         "excluded_receipt_token_count",
+    ],
+    PortfolioExportTemplate.PROTOCOL_POSITIONS: [
+        "wallet_address",
+        "chain",
+        "protocol_id",
+        "protocol_name",
+        "block_number",
+        "position_id",
+        "position_kind",
+        "position_label",
+        "asset_role",
+        "asset_standard",
+        "contract_address",
+        "symbol",
+        "token_id",
+        "raw_amount",
+        "decimals",
+        "amount",
+        "price_usd",
+        "value_usd",
+        "net_value_usd",
+        "is_liability",
+        "completeness",
+        "source_provider",
+        "observed_at",
     ],
 }
 
@@ -261,6 +291,8 @@ def portfolio_json_bytes(
     resolved_template = _resolve_portfolio_template(template)
     fields = _PORTFOLIO_TEMPLATE_FIELDS[resolved_template]
     payload = {
+        "format": PORTFOLIO_EXPORT_FORMAT,
+        "format_version": PORTFOLIO_EXPORT_FORMAT_VERSION,
         "template": resolved_template.value,
         "fields": fields,
         "items": _portfolio_records(result, template=resolved_template),
@@ -349,8 +381,13 @@ def _portfolio_records(
                     str(result.known_total_usd) if result.known_total_usd is not None else None
                 ),
                 "protocol_snapshot_count": result.protocol_snapshot_count,
+                "protocol_snapshot_mode": result.protocol_snapshot_mode,
+                "requested_protocol_block_number": result.requested_protocol_block_number,
                 "partial_protocol_snapshot_count": result.partial_protocol_snapshot_count,
                 "protocol_failed_wallet_count": result.protocol_failed_wallet_count,
+                "protocol_missing_snapshot_wallet_count": (
+                    result.protocol_missing_snapshot_wallet_count
+                ),
                 "protocol_unpriced_position_count": result.protocol_unpriced_position_count,
                 "excluded_receipt_token_count": result.excluded_receipt_token_count,
                 "protocol_asset_usd_total": str(result.protocol_asset_usd_total),
@@ -383,6 +420,43 @@ def _portfolio_records(
                 "usd_missing_wallet_count": aggregate.usd_missing_wallet_count,
             }
             for aggregate in result.token_aggregates
+        ]
+    if template is PortfolioExportTemplate.PROTOCOL_POSITIONS:
+        return [
+            {
+                "wallet_address": position.wallet_address,
+                "chain": position.chain.value,
+                "protocol_id": position.protocol_id,
+                "protocol_name": position.protocol_name,
+                "block_number": position.block_number,
+                "position_id": position.position_id,
+                "position_kind": position.kind.value,
+                "position_label": position.label,
+                "asset_role": position.asset_role.value,
+                "asset_standard": position.asset_standard,
+                "contract_address": position.contract_address,
+                "symbol": position.symbol,
+                "token_id": position.token_id,
+                "raw_amount": position.raw_amount,
+                "decimals": position.decimals,
+                "amount": str(position.amount) if position.amount is not None else None,
+                "price_usd": (
+                    str(position.price_usd) if position.price_usd is not None else None
+                ),
+                "value_usd": (
+                    str(position.value_usd) if position.value_usd is not None else None
+                ),
+                "net_value_usd": (
+                    str(position.net_value_usd)
+                    if position.net_value_usd is not None
+                    else None
+                ),
+                "is_liability": position.is_liability,
+                "completeness": position.completeness.value,
+                "source_provider": position.source_provider,
+                "observed_at": position.observed_at.isoformat(),
+            }
+            for position in result.protocol_positions
         ]
     return [_portfolio_wallet_record(wallet) for wallet in result.wallet_results]
 

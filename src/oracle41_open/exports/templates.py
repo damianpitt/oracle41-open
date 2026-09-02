@@ -14,6 +14,8 @@ from oracle41_open.core.models import CompletenessState, DataProvenance
 
 ACTIVITY_EXPORT_FORMAT = "oracle41-activity"
 ACTIVITY_EXPORT_FORMAT_VERSION = 2
+PORTFOLIO_EXPORT_FORMAT = "oracle41-portfolio"
+PORTFOLIO_EXPORT_FORMAT_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -40,3 +42,4 @@ class PortfolioExportTemplate(str, Enum):
     CHAINS = "chains"
     TOKENS = "tokens"
     WALLETS = "wallets"
+    PROTOCOL_POSITIONS = "protocol_positions"

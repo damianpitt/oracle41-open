@@ -11,6 +11,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+
 from oracle41_open.core.models import (
     Chain,
     ProtocolAdapterResult,
@@ -26,6 +28,7 @@ from oracle41_open.core.models import (
     StoredProtocolSnapshot,
     Token,
     TokenBalance,
+    ValidationError,
     WalletOverviewResult,
     WatchlistEntry,
 )
@@ -164,6 +167,63 @@ def test_protocol_storage_failure_keeps_wallet_value_but_marks_total_partial() -
     assert result.wallet_results[0].protocol_error == "protocol database unavailable"
 
 
+def test_portfolio_can_refresh_and_load_one_exact_protocol_block() -> None:
+    entry = WatchlistEntry(1, _WALLET, Chain.ETHEREUM, "Main", _OBSERVED_AT)
+    snapshot = _snapshot()
+    collector = _SnapshotCollector(snapshot.result)
+    service = PortfolioService(
+        watchlist_reader=_WatchlistReader(entry),
+        wallet_loader=_WalletLoader(_overview()),
+        protocol_snapshot_reader=_SnapshotReader(snapshot),
+        protocol_valuator=ProtocolPortfolioService(
+            _PricingProvider({_UNDERLYING: Decimal("1")})
+        ),
+        protocol_snapshot_collector=collector,
+    )
+
+    result = service.load_portfolio(
+        protocol_snapshot_block_number=24_000_000,
+        refresh_protocol_snapshots=True,
+    )
+
+    assert collector.calls == [(_WALLET, Chain.ETHEREUM, 24_000_000, True)]
+    assert result.protocol_snapshot_mode == "exact"
+    assert result.requested_protocol_block_number == 24_000_000
+    assert result.protocol_snapshot_count == 1
+    assert result.total_usd is None
+    assert result.known_total_usd == Decimal("130")
+
+
+def test_portfolio_marks_a_missing_exact_protocol_snapshot() -> None:
+    entry = WatchlistEntry(1, _WALLET, Chain.ETHEREUM, "Main", _OBSERVED_AT)
+    service = PortfolioService(
+        watchlist_reader=_WatchlistReader(entry),
+        wallet_loader=_WalletLoader(_overview()),
+        protocol_snapshot_reader=_SnapshotReader(_snapshot()),
+        protocol_valuator=ProtocolPortfolioService(_PricingProvider({})),
+    )
+
+    result = service.load_portfolio(protocol_snapshot_block_number=23_000_000)
+
+    assert result.total_usd is None
+    assert result.known_total_usd == Decimal("150")
+    assert result.protocol_missing_snapshot_wallet_count == 1
+    assert result.wallet_results[0].protocol_error == (
+        "No protocol snapshot is stored at block 23000000."
+    )
+
+
+def test_portfolio_protocol_refresh_requires_an_exact_block() -> None:
+    entry = WatchlistEntry(1, _WALLET, Chain.ETHEREUM, "Main", _OBSERVED_AT)
+    service = PortfolioService(
+        watchlist_reader=_WatchlistReader(entry),
+        wallet_loader=_WalletLoader(_overview()),
+    )
+
+    with pytest.raises(ValidationError, match="exact block"):
+        service.load_portfolio(refresh_protocol_snapshots=True)
+
+
 class _PricingProvider:
     def __init__(self, quotes: dict[str, Decimal]) -> None:
         self._quotes = quotes
@@ -219,6 +279,16 @@ class _SnapshotReader:
     ) -> tuple[StoredProtocolSnapshot, ...]:
         return (self._snapshot,)
 
+    def list_snapshots_at_block(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> tuple[StoredProtocolSnapshot, ...]:
+        if block_number != self._snapshot.block_number:
+            return ()
+        return (self._snapshot,)
+
 
 class _FailingSnapshotReader:
     def list_latest_snapshots(
@@ -227,6 +297,30 @@ class _FailingSnapshotReader:
         chain: Chain,
     ) -> tuple[StoredProtocolSnapshot, ...]:
         raise RuntimeError("protocol database unavailable")
+
+    def list_snapshots_at_block(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> tuple[StoredProtocolSnapshot, ...]:
+        raise RuntimeError("protocol database unavailable")
+
+
+class _SnapshotCollector:
+    def __init__(self, result: ProtocolAdapterResult) -> None:
+        self._result = result
+        self.calls: list[tuple[str, Chain, int, bool]] = []
+
+    def load_aave_v3_positions(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+        force_refresh: bool = False,
+    ) -> ProtocolAdapterResult:
+        self.calls.append((wallet_address, chain, block_number, force_refresh))
+        return self._result
 
 
 def _snapshot(

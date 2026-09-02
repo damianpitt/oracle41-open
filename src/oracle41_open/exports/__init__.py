@@ -35,6 +35,8 @@ from oracle41_open.exports.json_export import (
 from oracle41_open.exports.templates import (
     ACTIVITY_EXPORT_FORMAT,
     ACTIVITY_EXPORT_FORMAT_VERSION,
+    PORTFOLIO_EXPORT_FORMAT,
+    PORTFOLIO_EXPORT_FORMAT_VERSION,
     ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
@@ -46,6 +48,8 @@ __all__ = [
     "ACTION_EXPORT_FORMAT_VERSION",
     "ACTIVITY_EXPORT_FORMAT",
     "ACTIVITY_EXPORT_FORMAT_VERSION",
+    "PORTFOLIO_EXPORT_FORMAT",
+    "PORTFOLIO_EXPORT_FORMAT_VERSION",
     "ActivityExportContext",
     "ActivityExportTemplate",
     "PortfolioExportTemplate",

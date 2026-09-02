@@ -12,8 +12,10 @@ from typing import Protocol
 
 from oracle41_open.core.models import (
     Chain,
+    ProtocolAdapterResult,
     StoredProtocolSnapshot,
     TokenBalance,
+    ValidationError,
     WalletOverviewResult,
     WatchlistEntry,
 )
@@ -51,6 +53,25 @@ class ProtocolSnapshotReader(Protocol):
         wallet_address: str,
         chain: Chain,
     ) -> tuple[StoredProtocolSnapshot, ...]:
+        ...
+
+    def list_snapshots_at_block(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+    ) -> tuple[StoredProtocolSnapshot, ...]:
+        ...
+
+
+class ProtocolSnapshotCollector(Protocol):
+    def load_aave_v3_positions(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+        force_refresh: bool = False,
+    ) -> ProtocolAdapterResult:
         ...
 
 
@@ -110,8 +131,11 @@ class PortfolioLoadResult:
     token_aggregates: list[PortfolioTokenAggregate]
     wallet_results: list[PortfolioWalletResult]
     protocol_snapshot_count: int = 0
+    protocol_snapshot_mode: str = "latest"
+    requested_protocol_block_number: int | None = None
     partial_protocol_snapshot_count: int = 0
     protocol_failed_wallet_count: int = 0
+    protocol_missing_snapshot_wallet_count: int = 0
     protocol_unpriced_position_count: int = 0
     excluded_receipt_token_count: int = 0
     protocol_asset_usd_total: Decimal = Decimal("0")
@@ -141,6 +165,7 @@ class PortfolioService:
         wallet_loader: WalletOverviewLoader,
         protocol_snapshot_reader: ProtocolSnapshotReader | None = None,
         protocol_valuator: ProtocolPortfolioService | None = None,
+        protocol_snapshot_collector: ProtocolSnapshotCollector | None = None,
     ) -> None:
         if (protocol_snapshot_reader is None) != (protocol_valuator is None):
             raise ValueError("Protocol snapshot reading and valuation must be configured together.")
@@ -148,6 +173,7 @@ class PortfolioService:
         self._wallet_loader = wallet_loader
         self._protocol_snapshot_reader = protocol_snapshot_reader
         self._protocol_valuator = protocol_valuator
+        self._protocol_snapshot_collector = protocol_snapshot_collector
 
     def load_portfolio(
         self,
@@ -157,7 +183,15 @@ class PortfolioService:
         hide_dust: bool = False,
         dust_threshold_usd: str | Decimal = "1",
         force_refresh: bool = False,
+        protocol_snapshot_block_number: int | None = None,
+        refresh_protocol_snapshots: bool = False,
     ) -> PortfolioLoadResult:
+        if protocol_snapshot_block_number is not None and protocol_snapshot_block_number < 0:
+            raise ValidationError("Protocol snapshot block number must not be negative.")
+        if refresh_protocol_snapshots and protocol_snapshot_block_number is None:
+            raise ValidationError("Choose an exact block before refreshing protocol snapshots.")
+        if refresh_protocol_snapshots and self._protocol_snapshot_collector is None:
+            raise ValidationError("Protocol snapshot refresh is not configured.")
         entries = self._watchlist_reader.list_entries(chain=chain)
         if selected_entry_ids is not None:
             selected_ids = {entry_id for entry_id in selected_entry_ids if isinstance(entry_id, int)}
@@ -169,6 +203,7 @@ class PortfolioService:
         truncated_wallet_count = 0
         wallets_missing_total_usd_count = 0
         protocol_failed_wallet_count = 0
+        protocol_missing_snapshot_wallet_count = 0
         known_total_usd = Decimal("0")
         protocol_inputs: list[ProtocolPortfolioInput] = []
 
@@ -203,10 +238,36 @@ class PortfolioService:
             excluded_receipt_tokens: set[str] = set()
             if self._protocol_snapshot_reader is not None:
                 try:
-                    protocol_snapshots = self._protocol_snapshot_reader.list_latest_snapshots(
-                        entry.address,
-                        entry.chain,
-                    )
+                    if refresh_protocol_snapshots:
+                        assert protocol_snapshot_block_number is not None
+                        assert self._protocol_snapshot_collector is not None
+                        self._protocol_snapshot_collector.load_aave_v3_positions(
+                            entry.address,
+                            entry.chain,
+                            protocol_snapshot_block_number,
+                            force_refresh=True,
+                        )
+                    if protocol_snapshot_block_number is None:
+                        protocol_snapshots = (
+                            self._protocol_snapshot_reader.list_latest_snapshots(
+                                entry.address,
+                                entry.chain,
+                            )
+                        )
+                    else:
+                        protocol_snapshots = (
+                            self._protocol_snapshot_reader.list_snapshots_at_block(
+                                entry.address,
+                                entry.chain,
+                                protocol_snapshot_block_number,
+                            )
+                        )
+                        if not protocol_snapshots:
+                            protocol_missing_snapshot_wallet_count += 1
+                            protocol_error = (
+                                "No protocol snapshot is stored at block "
+                                f"{protocol_snapshot_block_number}."
+                            )
                 except Exception as error:
                     protocol_failed_wallet_count += 1
                     protocol_error = str(error)
@@ -316,6 +377,8 @@ class PortfolioService:
             or failed_wallet_count > 0
             or wallets_missing_total_usd_count > 0
             or protocol_failed_wallet_count > 0
+            or protocol_missing_snapshot_wallet_count > 0
+            or protocol_snapshot_block_number is not None
             or protocol_is_incomplete
         ):
             complete_total_usd = None
@@ -337,10 +400,15 @@ class PortfolioService:
             protocol_snapshot_count=(
                 protocol_valuation.snapshot_count if protocol_valuation is not None else 0
             ),
+            protocol_snapshot_mode=(
+                "exact" if protocol_snapshot_block_number is not None else "latest"
+            ),
+            requested_protocol_block_number=protocol_snapshot_block_number,
             partial_protocol_snapshot_count=(
                 protocol_valuation.partial_snapshot_count if protocol_valuation is not None else 0
             ),
             protocol_failed_wallet_count=protocol_failed_wallet_count,
+            protocol_missing_snapshot_wallet_count=protocol_missing_snapshot_wallet_count,
             protocol_unpriced_position_count=(
                 protocol_valuation.unpriced_position_count if protocol_valuation is not None else 0
             ),

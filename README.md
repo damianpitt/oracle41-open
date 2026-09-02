@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a10` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, and aggregate block-specific Aave V3 supplied assets, collateral, debt, and account health data on every supported chain. The Portfolio view reports protocol assets, liabilities, net value, provenance, missing prices, and receipt-token exclusions.
+Version `0.4.0a11` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, aggregate, and export block-specific Aave V3 supplied assets, collateral, debt, and account health data on every supported chain. The Portfolio view can use the newest stored snapshots or one exact block and can manually refresh Aave data at that block.
 
 ## Features
 
@@ -43,6 +43,8 @@ Version `0.4.0a10` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Exact-block Aave V3 snapshot collection through configured JSON-RPC transaction providers
 - Durable Aave V3 snapshots with per-reserve resume checkpoints and provider provenance
 - Protocol-aware portfolio totals with supplied assets, collateral, debt, missing-price states, and receipt-token double-count protection
+- Protocol-position CSV and JSON exports with exact-block, completeness, and provider details
+- Local protocol snapshot history selection and explicit exact-block refresh controls
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 The complete M5 transaction-understanding test matrix and optional-provider fallbacks are documented in [docs/M5_VALIDATION.md](docs/M5_VALIDATION.md).
@@ -199,7 +201,9 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Provider APIs and rate limits vary by chain and account.
 - Token metadata quality depends on provider responses and local filtering rules.
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
-- Aave V3 positions use current available prices for stored snapshot amounts. Historical price-at-block valuation and dedicated protocol-position export templates are not included yet.
+- Aave V3 positions use current available prices for stored snapshot amounts. Historical price-at-block valuation is not included yet.
+- Manual protocol refresh currently supports Aave V3 and one chain/block scope at a time.
+- Exact protocol-block mode uses current wallet balances, so it reports a known estimate rather than a complete historical portfolio total.
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
 - The application currently targets EVM-compatible chains supported by the configured providers.

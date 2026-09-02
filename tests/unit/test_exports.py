@@ -25,6 +25,9 @@ from oracle41_open.core.models import (
     Chain,
     CompletenessState,
     DataProvenance,
+    ProtocolAssetRole,
+    ProtocolPositionCompleteness,
+    ProtocolPositionKind,
     Token,
     TokenBalance,
     TraceStatus,
@@ -41,6 +44,7 @@ from oracle41_open.core.services.portfolio_service import (
     PortfolioTokenAggregate,
     PortfolioWalletResult,
 )
+from oracle41_open.core.services.protocol_portfolio_service import ProtocolPositionValuation
 from oracle41_open.exports import (
     ActivityExportContext,
     ActivityExportTemplate,
@@ -248,15 +252,20 @@ def test_portfolio_exports_support_all_templates() -> None:
         "total_usd",
         "known_total_usd",
         "protocol_snapshot_count",
+        "protocol_snapshot_mode",
+        "requested_protocol_block_number",
         "partial_protocol_snapshot_count",
         "protocol_failed_wallet_count",
+        "protocol_missing_snapshot_wallet_count",
         "protocol_unpriced_position_count",
         "excluded_receipt_token_count",
         "protocol_asset_usd_total",
         "protocol_liability_usd_total",
         "protocol_net_usd",
+        "export_format",
+        "export_format_version",
     ]
-    assert summary_rows[1][-3:] == ["0", "0", "0"]
+    assert summary_rows[1][-2:] == ["oracle41-portfolio", "1"]
 
     chain_rows = list(
         csv.reader(
@@ -269,6 +278,8 @@ def test_portfolio_exports_support_all_templates() -> None:
         "native_balance_total",
         "native_usd_total",
         "native_usd_missing_wallet_count",
+        "export_format",
+        "export_format_version",
     ]
 
     token_payload = json_loads(
@@ -284,6 +295,38 @@ def test_portfolio_exports_support_all_templates() -> None:
     assert isinstance(items, list)
     assert items[0]["is_loaded"] is True
     assert items[1]["is_loaded"] is False
+
+    protocol_rows = list(
+        csv.reader(
+            portfolio_csv_text(
+                result,
+                template=PortfolioExportTemplate.PROTOCOL_POSITIONS,
+            ).splitlines()
+        )
+    )
+    assert protocol_rows[0][0:6] == [
+        "wallet_address",
+        "chain",
+        "protocol_id",
+        "protocol_name",
+        "block_number",
+        "position_id",
+    ]
+    assert protocol_rows[1][protocol_rows[0].index("net_value_usd")] == "-20"
+    assert protocol_rows[1][protocol_rows[0].index("is_liability")] == "true"
+
+    protocol_payload = json_loads(
+        portfolio_json_bytes(
+            result,
+            template=PortfolioExportTemplate.PROTOCOL_POSITIONS,
+            pretty=False,
+        )
+    )
+    assert protocol_payload["template"] == "protocol_positions"
+    assert protocol_payload["format"] == "oracle41-portfolio"
+    assert protocol_payload["format_version"] == 1
+    assert protocol_payload["items"][0]["asset_role"] == "borrowed"
+    assert protocol_payload["items"][0]["block_number"] == 24_000_000
 
 
 def test_write_activity_exports_create_files(tmp_path: Path) -> None:
@@ -534,5 +577,32 @@ def _sample_portfolio_result() -> PortfolioLoadResult:
         wallet_results=[
             PortfolioWalletResult(entry=entry_ok, overview=overview, error=None),
             PortfolioWalletResult(entry=entry_fail, overview=None, error="provider timeout"),
+        ],
+        protocol_positions=[
+            ProtocolPositionValuation(
+                wallet_address=entry_ok.address,
+                chain=Chain.ETHEREUM,
+                protocol_id="aave-v3",
+                protocol_name="Aave V3",
+                block_number=24_000_000,
+                position_id="ethereum:aave-v3:debt:usdc",
+                kind=ProtocolPositionKind.DEBT,
+                label="Aave V3 debt USDC",
+                asset_role=ProtocolAssetRole.BORROWED,
+                asset_standard="ERC-20",
+                symbol="USDC",
+                contract_address="0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                token_id=None,
+                raw_amount="20000000",
+                decimals=6,
+                amount=Decimal("20"),
+                price_usd=Decimal("1"),
+                value_usd=Decimal("20"),
+                net_value_usd=Decimal("-20"),
+                is_liability=True,
+                completeness=ProtocolPositionCompleteness.COMPLETE,
+                source_provider="alchemy",
+                observed_at=datetime(2026, 3, 2, 9, 0, tzinfo=UTC),
+            )
         ],
     )

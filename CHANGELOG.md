@@ -2,7 +2,30 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a10] - Unreleased
+## [0.4.0a11] - Unreleased
+
+### Added
+
+- Format-v1 protocol-position CSV and JSON templates with raw amounts, normalized amounts, prices, signed values, asset roles, completeness, block numbers, and provider provenance.
+- Portfolio controls for newest snapshots or one exact stored block.
+- Local discovery of stored protocol block history for selected wallets and one chain.
+- An explicit protocol refresh action that recollects Aave V3 state at the requested block.
+
+### Changed
+
+- Forced protocol refresh bypasses a finished snapshot, makes new exact-block provider calls, and safely replaces the stored result.
+- Missing snapshots at a requested block are reported separately from storage and provider failures.
+- Exact protocol-block mode withholds the complete total because wallet overview balances remain current.
+- Export filenames now include the selected portfolio template.
+
+### Known Limitations
+
+- Manual protocol refresh currently collects Aave V3 because it is the only production protocol adapter.
+- One refresh operation uses one block number. Cross-chain block heights must be refreshed separately.
+- Exact-block protocol values are shown beside current wallet balances as a known estimate, not a complete historical portfolio.
+- Current prices are still applied to stored block amounts; historical price-at-block valuation is not included.
+
+## [0.4.0a10] - 2026-09-01
 
 ### Added
 
@@ -22,7 +45,7 @@ All notable changes to Oracle41 Open will be documented here.
 ### Known Limitations
 
 - Current prices are applied to amounts recorded at the stored snapshot block. Historical price-at-block valuation is not included.
-- Dedicated protocol-position CSV and JSON templates are not included yet; summary and wallet exports contain protocol accounting metadata.
+- Dedicated protocol-position CSV and JSON templates are not included in this version; summary and wallet exports contain protocol accounting metadata.
 - Aave V3 is still the only production protocol adapter.
 
 ## [0.4.0a9] - 2026-08-31

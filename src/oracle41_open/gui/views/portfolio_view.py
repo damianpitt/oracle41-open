@@ -1,7 +1,8 @@
-"""Present the combined watchlist portfolio.
+"""Present the combined watchlist and protocol portfolio.
 
-The view loads wallet aggregates, shows chain and token totals, and offers portfolio CSV or JSON exports.
-Partial wallet failures remain visible to the user.
+The view loads wallet aggregates, selects newest or exact protocol snapshots, and offers CSV or
+JSON exports. Stored history reads stay local. Manual protocol refreshes use one explicit block so
+the resulting provider evidence can be reproduced.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ class PortfolioView(QWidget):
         self._last_result: PortfolioLoadResult | None = None
         self._is_initializing = True
         self._is_loading = False
-        self._pending_load: bool | None = None
+        self._pending_load: tuple[bool, bool] | None = None
 
         self._chain_combo = QComboBox(self)
         self._chain_combo.addItem("All chains", "all")
@@ -63,6 +64,18 @@ class PortfolioView(QWidget):
         self._dust_threshold_input = QLineEdit(self)
         self._dust_threshold_input.setPlaceholderText("Dust threshold in USD")
 
+        self._protocol_snapshot_mode_combo = QComboBox(self)
+        self._protocol_snapshot_mode_combo.addItem("Newest stored snapshots", "latest")
+        self._protocol_snapshot_mode_combo.addItem("Exact stored block", "exact")
+        self._protocol_snapshot_mode_combo.currentIndexChanged.connect(
+            self._on_protocol_snapshot_mode_changed
+        )
+        self._protocol_block_combo = QComboBox(self)
+        self._protocol_block_combo.setEditable(True)
+        self._protocol_block_combo.setPlaceholderText("Enter an exact block number")
+        self._protocol_history_button = QPushButton("Find Stored Blocks", self)
+        self._protocol_history_button.clicked.connect(self._on_protocol_history_clicked)
+
         self._refresh_watchlist_button = QPushButton("Refresh Watchlist", self)
         self._refresh_watchlist_button.clicked.connect(self._on_refresh_watchlist_clicked)
         self._select_all_button = QPushButton("Select All", self)
@@ -74,6 +87,8 @@ class PortfolioView(QWidget):
         self._load_button.clicked.connect(self._on_load_clicked)
         self._refresh_button = QPushButton("Refresh Portfolio", self)
         self._refresh_button.clicked.connect(self._on_refresh_clicked)
+        self._refresh_protocol_button = QPushButton("Refresh Protocol Snapshot", self)
+        self._refresh_protocol_button.clicked.connect(self._on_refresh_protocol_clicked)
         self._export_csv_button = QPushButton("Export CSV", self)
         self._export_csv_button.clicked.connect(self._on_export_csv_clicked)
         self._export_csv_button.setEnabled(False)
@@ -85,6 +100,10 @@ class PortfolioView(QWidget):
         self._export_template_combo.addItem("Chains", PortfolioExportTemplate.CHAINS.value)
         self._export_template_combo.addItem("Tokens", PortfolioExportTemplate.TOKENS.value)
         self._export_template_combo.addItem("Wallets", PortfolioExportTemplate.WALLETS.value)
+        self._export_template_combo.addItem(
+            "Protocol Positions",
+            PortfolioExportTemplate.PROTOCOL_POSITIONS.value,
+        )
 
         self._status_label = QLabel("Portfolio aggregate ready.", self)
         self._status_label.setWordWrap(True)
@@ -102,6 +121,7 @@ class PortfolioView(QWidget):
         self._init_layout()
         self._apply_default_filters()
         self._reload_entries()
+        self._on_protocol_snapshot_mode_changed()
         self._is_initializing = False
 
     def _init_layout(self) -> None:
@@ -111,6 +131,13 @@ class PortfolioView(QWidget):
         form.addRow("", self._hide_unverified_checkbox)
         form.addRow("", self._hide_dust_checkbox)
         form.addRow("Dust Threshold (USD)", self._dust_threshold_input)
+        form.addRow("Protocol Snapshot", self._protocol_snapshot_mode_combo)
+
+        protocol_block_row = QHBoxLayout()
+        protocol_block_row.addWidget(self._protocol_block_combo)
+        protocol_block_row.addWidget(self._protocol_history_button)
+        protocol_block_row.addStretch(1)
+        form.addRow("Protocol Block", protocol_block_row)
 
         watchlist_row = QHBoxLayout()
         watchlist_row.addWidget(self._refresh_watchlist_button)
@@ -122,6 +149,7 @@ class PortfolioView(QWidget):
         run_row = QHBoxLayout()
         run_row.addWidget(self._load_button)
         run_row.addWidget(self._refresh_button)
+        run_row.addWidget(self._refresh_protocol_button)
         run_row.addStretch(1)
         form.addRow("", run_row)
 
@@ -174,6 +202,18 @@ class PortfolioView(QWidget):
             raise ValidationError("Dust threshold cannot be negative.")
         return value
 
+    def _selected_protocol_block(self) -> int | None:
+        if self._protocol_snapshot_mode_combo.currentData() != "exact":
+            return None
+        raw = self._protocol_block_combo.currentText().strip()
+        try:
+            block_number = int(raw)
+        except ValueError as error:
+            raise ValidationError("Enter a valid protocol snapshot block number.") from error
+        if block_number < 0:
+            raise ValidationError("Protocol snapshot block number cannot be negative.")
+        return block_number
+
     def _selected_export_template(self) -> PortfolioExportTemplate:
         raw = self._export_template_combo.currentData()
         if not isinstance(raw, str):
@@ -188,6 +228,45 @@ class PortfolioView(QWidget):
         if self._is_initializing:
             return
         self._status_label.setText("Watchlist chain scope updated.")
+
+    def _on_protocol_snapshot_mode_changed(self) -> None:
+        exact_mode = self._protocol_snapshot_mode_combo.currentData() == "exact"
+        self._protocol_block_combo.setEnabled(exact_mode and not self._is_loading)
+        self._protocol_history_button.setEnabled(exact_mode and not self._is_loading)
+        self._refresh_protocol_button.setEnabled(exact_mode and not self._is_loading)
+
+    def _on_protocol_history_clicked(self) -> None:
+        chain = self._selected_chain()
+        if chain is None:
+            self._status_label.setText(
+                "Choose one chain before finding stored protocol blocks."
+            )
+            return
+        entries = self._selected_entries() or self._entries
+        try:
+            snapshots = [
+                snapshot
+                for entry in entries
+                for snapshot in self._container.protocol_position_repository.list_snapshots(
+                    entry.address,
+                    chain,
+                )
+            ]
+        except Exception as error:
+            self._status_label.setText(f"Could not read protocol snapshot history: {error}")
+            return
+        blocks = sorted({snapshot.block_number for snapshot in snapshots}, reverse=True)
+        current = self._protocol_block_combo.currentText()
+        self._protocol_block_combo.clear()
+        self._protocol_block_combo.addItems([str(block) for block in blocks])
+        if current and current not in {str(block) for block in blocks}:
+            self._protocol_block_combo.setCurrentText(current)
+        if not blocks:
+            self._status_label.setText("No stored protocol snapshots were found in this scope.")
+            return
+        self._status_label.setText(
+            f"Found {len(blocks)} stored block(s) across {len(entries)} wallet(s)."
+        )
 
     def _on_refresh_watchlist_clicked(self) -> None:
         self._reload_entries()
@@ -208,10 +287,18 @@ class PortfolioView(QWidget):
         self._status_label.setText("Wallet selection cleared. Loading will include all listed wallets.")
 
     def _on_load_clicked(self) -> None:
-        self._load_portfolio(force_refresh=False)
+        self._load_portfolio(force_refresh=False, refresh_protocol=False)
 
     def _on_refresh_clicked(self) -> None:
-        self._load_portfolio(force_refresh=True)
+        self._load_portfolio(force_refresh=True, refresh_protocol=False)
+
+    def _on_refresh_protocol_clicked(self) -> None:
+        if self._selected_chain() is None:
+            self._status_label.setText(
+                "Choose one chain before refreshing protocol snapshots."
+            )
+            return
+        self._load_portfolio(force_refresh=False, refresh_protocol=True)
 
     def _on_selection_changed(self) -> None:
         selected_count = len(self._selected_entries())
@@ -254,11 +341,12 @@ class PortfolioView(QWidget):
         else:
             self._on_selection_changed()
 
-    def _load_portfolio(self, force_refresh: bool) -> None:
+    def _load_portfolio(self, force_refresh: bool, refresh_protocol: bool) -> None:
         if self._is_loading:
             return
         try:
             dust_threshold = self._parse_dust_threshold()
+            protocol_block_number = self._selected_protocol_block()
             selected_entries = self._selected_entries()
             selected_entry_ids = [entry.id for entry in selected_entries] if selected_entries else None
         except ValidationError as error:
@@ -268,8 +356,13 @@ class PortfolioView(QWidget):
         chain = self._selected_chain()
         hide_unverified = self._hide_unverified_checkbox.isChecked()
         hide_dust = self._hide_dust_checkbox.isChecked()
-        self._pending_load = force_refresh
-        self._set_loading(True, status_text="Loading portfolio aggregate...")
+        self._pending_load = (force_refresh, refresh_protocol)
+        status = (
+            "Refreshing protocol snapshots..."
+            if refresh_protocol
+            else "Loading portfolio aggregate..."
+        )
+        self._set_loading(True, status_text=status)
         self._task_runner.start(
             lambda: self._container.portfolio_service.load_portfolio(
                 chain=chain,
@@ -278,6 +371,8 @@ class PortfolioView(QWidget):
                 hide_dust=hide_dust,
                 dust_threshold_usd=dust_threshold,
                 force_refresh=force_refresh,
+                protocol_snapshot_block_number=protocol_block_number,
+                refresh_protocol_snapshots=refresh_protocol,
             )
         )
 
@@ -286,7 +381,7 @@ class PortfolioView(QWidget):
             self._on_portfolio_load_error(RuntimeError("Portfolio service returned an invalid result."))
             return
 
-        force_refresh = self._pending_load
+        force_refresh, refresh_protocol = self._pending_load
         self._last_result = raw_result
         has_wallets = raw_result.selected_wallet_count > 0
         self._export_csv_button.setEnabled(has_wallets)
@@ -296,16 +391,28 @@ class PortfolioView(QWidget):
             self._status_label.setText("No wallets in scope. Adjust chain filter or add watchlist entries.")
             return
 
-        action = "refreshed" if force_refresh else "loaded"
+        action = "loaded"
+        if refresh_protocol:
+            action = "loaded after protocol refresh"
+        elif force_refresh:
+            action = "refreshed"
         status_parts = [
             f"Portfolio {action}: {raw_result.loaded_wallet_count}/{raw_result.selected_wallet_count} wallet(s) loaded."
         ]
+        if raw_result.protocol_snapshot_mode == "exact":
+            status_parts.append(
+                "Exact protocol data is combined with current wallet balances; the known USD value is an estimate."
+            )
         if raw_result.failed_wallet_count > 0:
             status_parts.append(f"{raw_result.failed_wallet_count} failed.")
         if raw_result.truncated_wallet_count > 0:
             status_parts.append(f"{raw_result.truncated_wallet_count} truncated by token page cap.")
         if raw_result.wallets_missing_total_usd_count > 0:
             status_parts.append(f"{raw_result.wallets_missing_total_usd_count} missing total USD.")
+        if raw_result.protocol_missing_snapshot_wallet_count > 0:
+            status_parts.append(
+                f"{raw_result.protocol_missing_snapshot_wallet_count} missing the requested protocol snapshot."
+            )
         self._status_label.setText(" ".join(status_parts))
 
     def _on_portfolio_load_error(self, error: object) -> None:
@@ -331,12 +438,18 @@ class PortfolioView(QWidget):
             self._clear_selection_button,
             self._load_button,
             self._refresh_button,
+            self._refresh_protocol_button,
+            self._protocol_snapshot_mode_combo,
+            self._protocol_block_combo,
+            self._protocol_history_button,
             self._export_template_combo,
             self._entries_list,
         ):
             widget.setEnabled(enabled)
         self._export_csv_button.setEnabled(enabled and self._last_result is not None)
         self._export_json_button.setEnabled(enabled and self._last_result is not None)
+        if enabled:
+            self._on_protocol_snapshot_mode_changed()
         if status_text is not None:
             self._status_label.setText(status_text)
 
@@ -346,7 +459,8 @@ class PortfolioView(QWidget):
             return
         raw_chain = self._chain_combo.currentData()
         chain_part = raw_chain if isinstance(raw_chain, str) else "all"
-        suggested = f"portfolio-{chain_part}.csv"
+        template_part = self._selected_export_template().value.replace("_", "-")
+        suggested = f"portfolio-{chain_part}-{template_part}.csv"
         file_name, _ = QFileDialog.getSaveFileName(
             self,
             "Export Portfolio CSV",
@@ -368,7 +482,8 @@ class PortfolioView(QWidget):
             return
         raw_chain = self._chain_combo.currentData()
         chain_part = raw_chain if isinstance(raw_chain, str) else "all"
-        suggested = f"portfolio-{chain_part}.json"
+        template_part = self._selected_export_template().value.replace("_", "-")
+        suggested = f"portfolio-{chain_part}-{template_part}.json"
         file_name, _ = QFileDialog.getSaveFileName(
             self,
             "Export Portfolio JSON",
@@ -401,8 +516,16 @@ def _render_result(result: PortfolioLoadResult) -> str:
         f"- Total USD (complete): {_fmt_decimal(result.total_usd)}",
         f"- Known USD (partial): {_fmt_decimal(result.known_total_usd)}",
         f"- Protocol snapshots: {result.protocol_snapshot_count}",
+        f"- Protocol snapshot mode: {result.protocol_snapshot_mode}",
+        "- Requested protocol block: "
+        + (
+            "n/a"
+            if result.requested_protocol_block_number is None
+            else str(result.requested_protocol_block_number)
+        ),
         f"- Partial protocol snapshots: {result.partial_protocol_snapshot_count}",
         f"- Protocol load failures: {result.protocol_failed_wallet_count}",
+        f"- Missing requested protocol snapshots: {result.protocol_missing_snapshot_wallet_count}",
         f"- Unpriced protocol positions: {result.protocol_unpriced_position_count}",
         f"- Excluded receipt-token balances: {result.excluded_receipt_token_count}",
         f"- Protocol assets USD: {_fmt_decimal(result.protocol_asset_usd_total)}",

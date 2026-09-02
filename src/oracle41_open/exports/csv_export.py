@@ -16,6 +16,8 @@ from oracle41_open.core.services.portfolio_service import PortfolioLoadResult, P
 from oracle41_open.exports.templates import (
     ACTIVITY_EXPORT_FORMAT,
     ACTIVITY_EXPORT_FORMAT_VERSION,
+    PORTFOLIO_EXPORT_FORMAT,
+    PORTFOLIO_EXPORT_FORMAT_VERSION,
     ActivityExportContext,
     ActivityExportTemplate,
     PortfolioExportTemplate,
@@ -104,8 +106,11 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "total_usd",
         "known_total_usd",
         "protocol_snapshot_count",
+        "protocol_snapshot_mode",
+        "requested_protocol_block_number",
         "partial_protocol_snapshot_count",
         "protocol_failed_wallet_count",
+        "protocol_missing_snapshot_wallet_count",
         "protocol_unpriced_position_count",
         "excluded_receipt_token_count",
         "protocol_asset_usd_total",
@@ -152,6 +157,31 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "protocol_error",
         "excluded_receipt_token_count",
     ],
+    PortfolioExportTemplate.PROTOCOL_POSITIONS: [
+        "wallet_address",
+        "chain",
+        "protocol_id",
+        "protocol_name",
+        "block_number",
+        "position_id",
+        "position_kind",
+        "position_label",
+        "asset_role",
+        "asset_standard",
+        "contract_address",
+        "symbol",
+        "token_id",
+        "raw_amount",
+        "decimals",
+        "amount",
+        "price_usd",
+        "value_usd",
+        "net_value_usd",
+        "is_liability",
+        "completeness",
+        "source_provider",
+        "observed_at",
+    ],
 }
 
 _ACTIVITY_CONTEXT_FIELDS = [
@@ -166,6 +196,8 @@ _ACTIVITY_CONTEXT_FIELDS = [
     "ledger_updated_at",
     "is_persisted",
 ]
+
+_PORTFOLIO_CONTEXT_FIELDS = ["export_format", "export_format_version"]
 
 
 def activity_csv_text(
@@ -274,9 +306,15 @@ def portfolio_csv_text(
 
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(field_names)
+    output_fields = field_names + _PORTFOLIO_CONTEXT_FIELDS
+    writer.writerow(output_fields)
+    context = {
+        "export_format": PORTFOLIO_EXPORT_FORMAT,
+        "export_format_version": str(PORTFOLIO_EXPORT_FORMAT_VERSION),
+    }
     for row in rows:
-        writer.writerow([row.get(field_name, "") for field_name in field_names])
+        complete_row = row | context
+        writer.writerow([complete_row.get(field_name, "") for field_name in output_fields])
     return output.getvalue()
 
 
@@ -377,6 +415,37 @@ def _portfolio_rows(
             }
             for aggregate in result.token_aggregates
         ]
+    if template is PortfolioExportTemplate.PROTOCOL_POSITIONS:
+        return [
+            {
+                "wallet_address": position.wallet_address,
+                "chain": position.chain.value,
+                "protocol_id": position.protocol_id,
+                "protocol_name": position.protocol_name,
+                "block_number": str(position.block_number),
+                "position_id": position.position_id,
+                "position_kind": position.kind.value,
+                "position_label": position.label,
+                "asset_role": position.asset_role.value,
+                "asset_standard": position.asset_standard,
+                "contract_address": position.contract_address or "",
+                "symbol": position.symbol or "",
+                "token_id": position.token_id or "",
+                "raw_amount": position.raw_amount,
+                "decimals": "" if position.decimals is None else str(position.decimals),
+                "amount": "" if position.amount is None else str(position.amount),
+                "price_usd": "" if position.price_usd is None else str(position.price_usd),
+                "value_usd": "" if position.value_usd is None else str(position.value_usd),
+                "net_value_usd": (
+                    "" if position.net_value_usd is None else str(position.net_value_usd)
+                ),
+                "is_liability": "true" if position.is_liability else "false",
+                "completeness": position.completeness.value,
+                "source_provider": position.source_provider,
+                "observed_at": position.observed_at.isoformat(),
+            }
+            for position in result.protocol_positions
+        ]
     return [_portfolio_wallet_row(wallet) for wallet in result.wallet_results]
 
 
@@ -390,8 +459,17 @@ def _portfolio_summary_row(result: PortfolioLoadResult) -> dict[str, str]:
         "total_usd": "" if result.total_usd is None else str(result.total_usd),
         "known_total_usd": "" if result.known_total_usd is None else str(result.known_total_usd),
         "protocol_snapshot_count": str(result.protocol_snapshot_count),
+        "protocol_snapshot_mode": result.protocol_snapshot_mode,
+        "requested_protocol_block_number": (
+            ""
+            if result.requested_protocol_block_number is None
+            else str(result.requested_protocol_block_number)
+        ),
         "partial_protocol_snapshot_count": str(result.partial_protocol_snapshot_count),
         "protocol_failed_wallet_count": str(result.protocol_failed_wallet_count),
+        "protocol_missing_snapshot_wallet_count": str(
+            result.protocol_missing_snapshot_wallet_count
+        ),
         "protocol_unpriced_position_count": str(result.protocol_unpriced_position_count),
         "excluded_receipt_token_count": str(result.excluded_receipt_token_count),
         "protocol_asset_usd_total": str(result.protocol_asset_usd_total),

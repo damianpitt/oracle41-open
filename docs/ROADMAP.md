@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3D is complete in `0.4.0a10`. Oracle41 collects, resumes, stores, prices, and aggregates Aave V3 positions with liabilities and receipt-token double-count protection. Dedicated position exports, historical prices, and broader protocol coverage remain open.
+**Implementation status:** M6.3E is complete in `0.4.0a11`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 positions with exact-block controls and clear partial states. Historical prices and broader protocol coverage remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -488,4 +488,16 @@ Aave receipt and debt tokens are excluded only when positive snapshot evidence i
 
 The Portfolio view and summary/wallet exports report protocol assets, liabilities, net value, unpriced positions, partial snapshots, excluded token counts, block numbers, providers, and observation times. Tests cover signed debt, batched prices, missing quotes, partial evidence, storage failure, latest-snapshot selection, and receipt-token exclusion.
 
-Dedicated protocol-position export templates, historical price-at-block valuation, and additional protocol adapters remain open for M6.3E and later slices.
+Dedicated protocol-position exports were assigned to M6.3E. Historical price-at-block valuation and additional protocol adapters remained later work.
+
+### Completed Slice: M6.3E
+
+**Status:** Complete in `0.4.0a11`.
+
+M6.3E adds `oracle41-portfolio` format-v1 protocol-position CSV and JSON exports. Each row keeps the wallet, chain, protocol, snapshot block, position and asset type, token address, raw amount, normalized amount, current price, gross value, signed net value, completeness, provider, and observation time.
+
+The Portfolio view can load the newest stored snapshot for every protocol or use one exact stored block. A local history action finds available blocks without contacting a provider. If an exact snapshot is missing for a wallet, the application reports it. Exact protocol snapshots are combined with current wallet overview balances, so the application keeps the estimate visible but does not label it as a complete historical portfolio total.
+
+Manual refresh is separate from normal loading. It requires one chain and one exact block, bypasses the finished Aave snapshot, recollects provider evidence, replaces the stored result, and reloads the portfolio. Tests cover exact-block repository reads, forced recollection, missing snapshots, public export fields, and interface controls.
+
+M6.3 now has one complete production path for Aave V3. Historical price-at-block valuation and additional lending, liquidity, staking, and vault adapters remain future expansion work.

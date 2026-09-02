@@ -230,6 +230,29 @@ def test_aave_collector_reuses_finished_snapshot_without_network(tmp_path: Path)
     assert offline_provider.calls == []
 
 
+def test_aave_collector_force_refresh_replaces_finished_snapshot(tmp_path: Path) -> None:
+    repository = ProtocolPositionRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    ProtocolPositionService(
+        _FakeContractReader(_responses()),
+        repository=repository,
+    ).load_aave_v3_positions(_WALLET, Chain.ETHEREUM, _BLOCK)
+    refreshed_provider = _FakeContractReader(_responses())
+
+    result = ProtocolPositionService(
+        refreshed_provider,
+        repository=repository,
+    ).load_aave_v3_positions(
+        _WALLET,
+        Chain.ETHEREUM,
+        _BLOCK,
+        force_refresh=True,
+    )
+
+    assert result.status is ProtocolAdapterStatus.MATCHED
+    assert refreshed_provider.calls
+    assert repository.get_snapshot(_WALLET, Chain.ETHEREUM, "aave-v3", _BLOCK) is not None
+
+
 class _FakeContractReader:
     def __init__(
         self,

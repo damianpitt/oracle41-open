@@ -106,6 +106,7 @@ class ProtocolPositionService:
         wallet_address: str,
         chain: Chain,
         block_number: int,
+        force_refresh: bool = False,
     ) -> ProtocolAdapterResult:
         wallet = AddressValidator.normalized(wallet_address)
         if not AddressValidator.is_valid(wallet):
@@ -113,7 +114,7 @@ class ProtocolPositionService:
         if block_number < 0:
             raise ValidationError("Protocol snapshot block number must not be negative.")
 
-        if self._repository is not None:
+        if self._repository is not None and not force_refresh:
             stored = self._repository.get_snapshot(
                 wallet,
                 chain,

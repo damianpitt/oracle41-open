@@ -156,10 +156,18 @@ def test_snapshot_list_is_newest_first_and_can_filter_protocol(tmp_path: Path) -
     )
 
     snapshots = repository.list_snapshots(_WALLET, Chain.ETHEREUM, "aave-v3")
+    snapshots_at_block = repository.list_snapshots_at_block(
+        _WALLET,
+        Chain.ETHEREUM,
+        _BLOCK,
+    )
     latest = repository.get_latest_snapshot(_WALLET, Chain.ETHEREUM, "aave-v3")
     latest_by_protocol = repository.list_latest_snapshots(_WALLET, Chain.ETHEREUM)
 
     assert [item.block_number for item in snapshots] == [_BLOCK + 1, _BLOCK]
+    assert [(item.protocol_id, item.block_number) for item in snapshots_at_block] == [
+        ("aave-v3", _BLOCK)
+    ]
     assert latest is not None
     assert latest.block_number == _BLOCK + 1
     assert [(item.protocol_id, item.block_number) for item in latest_by_protocol] == [

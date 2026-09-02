@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QTabWidget
 
 from oracle41_open.app.bootstrap import build_container
 from oracle41_open.gui.main_window import MainWindow
+from oracle41_open.gui.views.portfolio_view import PortfolioView
 from oracle41_open.storage.secrets import SecretStore
 
 
@@ -43,5 +44,18 @@ def test_main_window_constructs_all_primary_tabs(
         "Snapshots",
         "Settings",
     ]
+
+    portfolio = window.findChild(PortfolioView)
+    assert portfolio is not None
+    assert portfolio._export_template_combo.findData("protocol_positions") >= 0
+    assert not portfolio._protocol_block_combo.isEnabled()
+    portfolio._protocol_snapshot_mode_combo.setCurrentIndex(1)
+    qt_application.processEvents()
+    assert portfolio._protocol_block_combo.isEnabled()
+    assert portfolio._refresh_protocol_button.isEnabled()
+    portfolio._on_protocol_history_clicked()
+    assert portfolio._status_label.text() == (
+        "No stored protocol snapshots were found in this scope."
+    )
 
     window.close()

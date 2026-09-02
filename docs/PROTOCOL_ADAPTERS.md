@@ -88,7 +88,9 @@ The stored snapshot keeps normalized positions, assets, risk values, completenes
 
 Version `0.4.0a10` uses the newest stored snapshot for every protocol on a wallet and chain. Underlying assets receive current available prices, debt is reported as a liability, and missing prices remain visible. Aave aTokens and debt tokens are removed from wallet totals only when positive reserve evidence proves that the matching economic position is included. This prevents receipt-token double counting without hiding unrelated wallet tokens.
 
-The Portfolio view and its summary and wallet exports include protocol accounting and provenance. Dedicated position export templates and historical price-at-block valuation remain later M6.3 work.
+Version `0.4.0a11` adds newest-snapshot and exact-block controls to the Portfolio view. Finding stored blocks reads SQLite only. Refreshing a protocol snapshot is a separate action that requires one chain and one block, bypasses the finished result for that block, recollects Aave data, and safely replaces the stored snapshot. Wallet overview balances remain current, so exact protocol-block mode reports a known mixed-time estimate instead of a complete historical portfolio total.
+
+The dedicated protocol-position CSV and JSON templates use `oracle41-portfolio` format version 1. They include wallet, chain, protocol, block, position kind, asset role, token details, raw and normalized amounts, current price, gross and signed values, completeness, provider, and observation time. Historical price-at-block valuation remains later work.
 
 ## Adding an Adapter
 
