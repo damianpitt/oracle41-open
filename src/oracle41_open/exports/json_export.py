@@ -111,6 +111,9 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "protocol_snapshot_mode",
         "requested_protocol_block_number",
         "partial_protocol_snapshot_count",
+        "stale_protocol_snapshot_count",
+        "future_protocol_observation_count",
+        "missing_protocol_risk_snapshot_count",
         "protocol_failed_wallet_count",
         "protocol_missing_snapshot_wallet_count",
         "protocol_unpriced_position_count",
@@ -183,6 +186,36 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "completeness",
         "source_provider",
         "observed_at",
+        "observation_age_seconds",
+        "observation_freshness",
+    ],
+    PortfolioExportTemplate.PROTOCOL_RISK: [
+        "wallet_address",
+        "chain",
+        "protocol_id",
+        "protocol_name",
+        "block_number",
+        "adapter_status",
+        "adapter_id",
+        "adapter_version",
+        "source_reference",
+        "risk_state",
+        "total_collateral_base",
+        "total_debt_base",
+        "available_borrow_base",
+        "liquidation_threshold_bps",
+        "ltv_bps",
+        "health_factor_wad",
+        "health_factor",
+        "base_currency_unit",
+        "warning_count",
+        "warnings",
+        "source_provider",
+        "observed_at",
+        "saved_at",
+        "observation_age_seconds",
+        "observation_freshness",
+        "stale_after_seconds",
     ],
 }
 
@@ -384,6 +417,13 @@ def _portfolio_records(
                 "protocol_snapshot_mode": result.protocol_snapshot_mode,
                 "requested_protocol_block_number": result.requested_protocol_block_number,
                 "partial_protocol_snapshot_count": result.partial_protocol_snapshot_count,
+                "stale_protocol_snapshot_count": result.stale_protocol_snapshot_count,
+                "future_protocol_observation_count": (
+                    result.future_protocol_observation_count
+                ),
+                "missing_protocol_risk_snapshot_count": (
+                    result.missing_protocol_risk_snapshot_count
+                ),
                 "protocol_failed_wallet_count": result.protocol_failed_wallet_count,
                 "protocol_missing_snapshot_wallet_count": (
                     result.protocol_missing_snapshot_wallet_count
@@ -455,8 +495,44 @@ def _portfolio_records(
                 "completeness": position.completeness.value,
                 "source_provider": position.source_provider,
                 "observed_at": position.observed_at.isoformat(),
+                "observation_age_seconds": position.observation_age_seconds,
+                "observation_freshness": position.observation_freshness.value,
             }
             for position in result.protocol_positions
+        ]
+    if template is PortfolioExportTemplate.PROTOCOL_RISK:
+        return [
+            {
+                "wallet_address": report.wallet_address,
+                "chain": report.chain.value,
+                "protocol_id": report.protocol_id,
+                "protocol_name": report.protocol_name,
+                "block_number": report.block_number,
+                "adapter_status": report.adapter_status.value,
+                "adapter_id": report.adapter_id,
+                "adapter_version": report.adapter_version,
+                "source_reference": report.source_reference,
+                "risk_state": report.risk_state.value if report.risk_state is not None else None,
+                "total_collateral_base": report.total_collateral_base,
+                "total_debt_base": report.total_debt_base,
+                "available_borrow_base": report.available_borrow_base,
+                "liquidation_threshold_bps": report.liquidation_threshold_bps,
+                "ltv_bps": report.ltv_bps,
+                "health_factor_wad": report.health_factor_wad,
+                "health_factor": (
+                    str(report.health_factor) if report.health_factor is not None else None
+                ),
+                "base_currency_unit": report.base_currency_unit,
+                "warning_count": report.warning_count,
+                "warnings": list(report.warnings),
+                "source_provider": report.source_provider,
+                "observed_at": report.observed_at.isoformat(),
+                "saved_at": report.saved_at.isoformat(),
+                "observation_age_seconds": report.observation_age_seconds,
+                "observation_freshness": report.observation_freshness.value,
+                "stale_after_seconds": report.stale_after_seconds,
+            }
+            for report in result.protocol_risk_reports
         ]
     return [_portfolio_wallet_record(wallet) for wallet in result.wallet_results]
 

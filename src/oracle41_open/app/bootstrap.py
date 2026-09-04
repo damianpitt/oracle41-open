@@ -271,7 +271,10 @@ def build_container() -> AppContainer:
         watchlist_reader=watchlist_service,
         wallet_loader=wallet_service,
         protocol_snapshot_reader=protocol_position_repository,
-        protocol_valuator=ProtocolPortfolioService(pricing_service),
+        protocol_valuator=ProtocolPortfolioService(
+            pricing_service,
+            stale_after_seconds=settings.protocol_snapshot_stale_after_seconds,
+        ),
         protocol_snapshot_collector=protocol_position_service,
     )
 

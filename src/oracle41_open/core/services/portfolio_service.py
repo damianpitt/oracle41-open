@@ -24,6 +24,7 @@ from oracle41_open.core.services.protocol_portfolio_service import (
     ProtocolPortfolioInput,
     ProtocolPortfolioService,
     ProtocolPositionValuation,
+    ProtocolRiskReport,
     adjusted_wallet_total,
     protocol_receipt_token_addresses,
 )
@@ -134,6 +135,9 @@ class PortfolioLoadResult:
     protocol_snapshot_mode: str = "latest"
     requested_protocol_block_number: int | None = None
     partial_protocol_snapshot_count: int = 0
+    stale_protocol_snapshot_count: int = 0
+    future_protocol_observation_count: int = 0
+    missing_protocol_risk_snapshot_count: int = 0
     protocol_failed_wallet_count: int = 0
     protocol_missing_snapshot_wallet_count: int = 0
     protocol_unpriced_position_count: int = 0
@@ -143,6 +147,7 @@ class PortfolioLoadResult:
     protocol_net_usd: Decimal = Decimal("0")
     protocol_positions: list[ProtocolPositionValuation] = field(default_factory=list)
     protocol_aggregates: list[ProtocolAggregateValuation] = field(default_factory=list)
+    protocol_risk_reports: list[ProtocolRiskReport] = field(default_factory=list)
 
 
 @dataclass
@@ -370,6 +375,8 @@ class PortfolioService:
         complete_total_usd: Decimal | None
         protocol_is_incomplete = protocol_valuation is not None and (
             protocol_valuation.partial_snapshot_count > 0
+            or protocol_valuation.stale_snapshot_count > 0
+            or protocol_valuation.future_observation_count > 0
             or protocol_valuation.unpriced_position_count > 0
         )
         if (
@@ -407,6 +414,19 @@ class PortfolioService:
             partial_protocol_snapshot_count=(
                 protocol_valuation.partial_snapshot_count if protocol_valuation is not None else 0
             ),
+            stale_protocol_snapshot_count=(
+                protocol_valuation.stale_snapshot_count if protocol_valuation is not None else 0
+            ),
+            future_protocol_observation_count=(
+                protocol_valuation.future_observation_count
+                if protocol_valuation is not None
+                else 0
+            ),
+            missing_protocol_risk_snapshot_count=(
+                protocol_valuation.missing_risk_snapshot_count
+                if protocol_valuation is not None
+                else 0
+            ),
             protocol_failed_wallet_count=protocol_failed_wallet_count,
             protocol_missing_snapshot_wallet_count=protocol_missing_snapshot_wallet_count,
             protocol_unpriced_position_count=(
@@ -437,6 +457,9 @@ class PortfolioService:
             ),
             protocol_aggregates=(
                 list(protocol_valuation.aggregates) if protocol_valuation is not None else []
+            ),
+            protocol_risk_reports=(
+                list(protocol_valuation.risk_reports) if protocol_valuation is not None else []
             ),
         )
 

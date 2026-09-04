@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3E is complete in `0.4.0a11`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 positions with exact-block controls and clear partial states. Historical prices and broader protocol coverage remain open.
+**Implementation status:** M6.3F is complete in `0.4.0a12`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 positions with exact-block controls, health evidence, and clear partial or stale states. Historical prices and broader protocol coverage remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -501,3 +501,15 @@ The Portfolio view can load the newest stored snapshot for every protocol or use
 Manual refresh is separate from normal loading. It requires one chain and one exact block, bypasses the finished Aave snapshot, recollects provider evidence, replaces the stored result, and reloads the portfolio. Tests cover exact-block repository reads, forced recollection, missing snapshots, public export fields, and interface controls.
 
 M6.3 now has one complete production path for Aave V3. Historical price-at-block valuation and additional lending, liquidity, staking, and vault adapters remain future expansion work.
+
+### Completed Slice: M6.3F
+
+**Status:** Complete in `0.4.0a12`.
+
+M6.3F adds one risk and freshness report for every stored protocol snapshot. The report keeps the adapter status and provenance, provider, block, observation and storage times, warnings, raw Aave collateral, debt, available borrow, loan-to-value, liquidation threshold, and health factor. Health factor is normalized from its WAD value for display while the original integer remains available.
+
+The Portfolio view now shows protocol health details and marks observations as fresh, stale, or future. The stale threshold is configurable and defaults to one hour. Stale or future observations keep known values visible but prevent a complete total. The classification uses observation time, not the distance between the stored block and the current chain head.
+
+`oracle41-portfolio` format version 2 adds observation age and freshness to protocol-position exports and adds dedicated protocol-risk CSV and JSON records. Tests use a fixed clock and cover fresh, stale, future, no-debt, missing-risk, export, settings, and portfolio-completeness behavior.
+
+Raw Aave account totals remain in protocol base units and are not presented as USD. The application reports evidence and state without giving financial advice. Historical price-at-block valuation and additional protocol adapters remain future work.

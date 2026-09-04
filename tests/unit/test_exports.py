@@ -25,9 +25,11 @@ from oracle41_open.core.models import (
     Chain,
     CompletenessState,
     DataProvenance,
+    ProtocolAdapterStatus,
     ProtocolAssetRole,
     ProtocolPositionCompleteness,
     ProtocolPositionKind,
+    ProtocolRiskState,
     Token,
     TokenBalance,
     TraceStatus,
@@ -44,7 +46,11 @@ from oracle41_open.core.services.portfolio_service import (
     PortfolioTokenAggregate,
     PortfolioWalletResult,
 )
-from oracle41_open.core.services.protocol_portfolio_service import ProtocolPositionValuation
+from oracle41_open.core.services.protocol_portfolio_service import (
+    ProtocolObservationFreshness,
+    ProtocolPositionValuation,
+    ProtocolRiskReport,
+)
 from oracle41_open.exports import (
     ActivityExportContext,
     ActivityExportTemplate,
@@ -255,6 +261,9 @@ def test_portfolio_exports_support_all_templates() -> None:
         "protocol_snapshot_mode",
         "requested_protocol_block_number",
         "partial_protocol_snapshot_count",
+        "stale_protocol_snapshot_count",
+        "future_protocol_observation_count",
+        "missing_protocol_risk_snapshot_count",
         "protocol_failed_wallet_count",
         "protocol_missing_snapshot_wallet_count",
         "protocol_unpriced_position_count",
@@ -265,7 +274,7 @@ def test_portfolio_exports_support_all_templates() -> None:
         "export_format",
         "export_format_version",
     ]
-    assert summary_rows[1][-2:] == ["oracle41-portfolio", "1"]
+    assert summary_rows[1][-2:] == ["oracle41-portfolio", "2"]
 
     chain_rows = list(
         csv.reader(
@@ -314,6 +323,7 @@ def test_portfolio_exports_support_all_templates() -> None:
     ]
     assert protocol_rows[1][protocol_rows[0].index("net_value_usd")] == "-20"
     assert protocol_rows[1][protocol_rows[0].index("is_liability")] == "true"
+    assert protocol_rows[1][protocol_rows[0].index("observation_freshness")] == "fresh"
 
     protocol_payload = json_loads(
         portfolio_json_bytes(
@@ -324,9 +334,39 @@ def test_portfolio_exports_support_all_templates() -> None:
     )
     assert protocol_payload["template"] == "protocol_positions"
     assert protocol_payload["format"] == "oracle41-portfolio"
-    assert protocol_payload["format_version"] == 1
+    assert protocol_payload["format_version"] == 2
     assert protocol_payload["items"][0]["asset_role"] == "borrowed"
     assert protocol_payload["items"][0]["block_number"] == 24_000_000
+
+    risk_rows = list(
+        csv.reader(
+            portfolio_csv_text(
+                result,
+                template=PortfolioExportTemplate.PROTOCOL_RISK,
+            ).splitlines()
+        )
+    )
+    assert risk_rows[1][risk_rows[0].index("health_factor")] == "4.125"
+    assert risk_rows[1][risk_rows[0].index("adapter_id")] == "aave-v3"
+    assert (
+        risk_rows[1][risk_rows[0].index("source_reference")]
+        == "aave-v3:ethereum:24000000"
+    )
+    assert risk_rows[1][risk_rows[0].index("observation_age_seconds")] == "1800"
+
+    risk_payload = json_loads(
+        portfolio_json_bytes(
+            result,
+            template=PortfolioExportTemplate.PROTOCOL_RISK,
+            pretty=False,
+        )
+    )
+    assert risk_payload["items"][0]["health_factor"] == "4.125"
+    assert risk_payload["items"][0]["adapter_version"] == "1.0.0"
+    assert risk_payload["items"][0]["risk_state"] == (
+        "above_or_equal_liquidation_threshold"
+    )
+    assert risk_payload["items"][0]["observation_freshness"] == "fresh"
 
 
 def test_write_activity_exports_create_files(tmp_path: Path) -> None:
@@ -603,6 +643,38 @@ def _sample_portfolio_result() -> PortfolioLoadResult:
                 completeness=ProtocolPositionCompleteness.COMPLETE,
                 source_provider="alchemy",
                 observed_at=datetime(2026, 3, 2, 9, 0, tzinfo=UTC),
+                observation_age_seconds=1_800,
+                observation_freshness=ProtocolObservationFreshness.FRESH,
+            )
+        ],
+        protocol_risk_reports=[
+            ProtocolRiskReport(
+                wallet_address=entry_ok.address,
+                chain=Chain.ETHEREUM,
+                protocol_id="aave-v3",
+                protocol_name="Aave V3",
+                block_number=24_000_000,
+                adapter_status=ProtocolAdapterStatus.MATCHED,
+                adapter_id="aave-v3",
+                adapter_version="1.0.0",
+                source_reference="aave-v3:ethereum:24000000",
+                source_provider="alchemy",
+                observed_at=datetime(2026, 3, 2, 9, 0, tzinfo=UTC),
+                saved_at=datetime(2026, 3, 2, 9, 1, tzinfo=UTC),
+                observation_age_seconds=1_800,
+                observation_freshness=ProtocolObservationFreshness.FRESH,
+                stale_after_seconds=3_600,
+                warning_count=0,
+                warnings=(),
+                risk_state=ProtocolRiskState.ABOVE_OR_EQUAL_LIQUIDATION_THRESHOLD,
+                total_collateral_base="12500000000",
+                total_debt_base="2500000000",
+                available_borrow_base="6500000000",
+                liquidation_threshold_bps=8250,
+                ltv_bps=8000,
+                health_factor_wad="4125000000000000000",
+                health_factor=Decimal("4.125"),
+                base_currency_unit="100000000",
             )
         ],
     )

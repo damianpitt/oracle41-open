@@ -1,16 +1,20 @@
 """Price stored protocol positions for safe portfolio aggregation.
 
 The service values underlying assets with the existing pricing provider, treats debt as a
-liability, and identifies Aave receipt tokens that represent already-counted positions. Missing
-prices and partial snapshots remain explicit so callers cannot present an incomplete net total as
-complete.
+liability, and identifies Aave receipt tokens that represent already-counted positions. It also
+builds immutable health and freshness reports from stored protocol evidence. Missing prices and
+partial, stale, or future-dated snapshots remain explicit so callers cannot present an incomplete
+net total as complete.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from enum import Enum
+from math import floor
 from typing import Protocol
 
 from oracle41_open.core.models import (
@@ -21,6 +25,7 @@ from oracle41_open.core.models import (
     ProtocolPosition,
     ProtocolPositionCompleteness,
     ProtocolPositionKind,
+    ProtocolRiskState,
     StoredProtocolSnapshot,
     WalletOverviewResult,
 )
@@ -33,6 +38,14 @@ class ProtocolAssetPricingProvider(Protocol):
         contract_addresses: list[str],
     ) -> dict[str, Decimal]:
         ...
+
+
+class ProtocolObservationFreshness(str, Enum):
+    """Classify the age of provider observation time, not chain-head distance."""
+
+    FRESH = "fresh"
+    STALE = "stale"
+    FUTURE = "future"
 
 
 @dataclass(frozen=True)
@@ -68,6 +81,40 @@ class ProtocolPositionValuation:
     completeness: ProtocolPositionCompleteness
     source_provider: str
     observed_at: datetime
+    observation_age_seconds: int
+    observation_freshness: ProtocolObservationFreshness
+
+
+@dataclass(frozen=True)
+class ProtocolRiskReport:
+    """Expose one stored protocol snapshot's health and freshness evidence."""
+
+    wallet_address: str
+    chain: Chain
+    protocol_id: str
+    protocol_name: str
+    block_number: int
+    adapter_status: ProtocolAdapterStatus
+    adapter_id: str
+    adapter_version: str
+    source_reference: str | None
+    source_provider: str
+    observed_at: datetime
+    saved_at: datetime
+    observation_age_seconds: int
+    observation_freshness: ProtocolObservationFreshness
+    stale_after_seconds: int
+    warning_count: int
+    warnings: tuple[str, ...]
+    risk_state: ProtocolRiskState | None
+    total_collateral_base: str | None
+    total_debt_base: str | None
+    available_borrow_base: str | None
+    liquidation_threshold_bps: int | None
+    ltv_bps: int | None
+    health_factor_wad: str | None
+    health_factor: Decimal | None
+    base_currency_unit: str | None
 
 
 @dataclass(frozen=True)
@@ -95,6 +142,9 @@ class ProtocolWalletValuation:
 class ProtocolPortfolioValuation:
     snapshot_count: int
     partial_snapshot_count: int
+    stale_snapshot_count: int
+    future_observation_count: int
+    missing_risk_snapshot_count: int
     unpriced_position_count: int
     excluded_receipt_token_count: int
     asset_usd_total: Decimal
@@ -103,6 +153,7 @@ class ProtocolPortfolioValuation:
     positions: tuple[ProtocolPositionValuation, ...]
     aggregates: tuple[ProtocolAggregateValuation, ...]
     wallets: tuple[ProtocolWalletValuation, ...]
+    risk_reports: tuple[ProtocolRiskReport, ...]
 
 
 @dataclass
@@ -119,14 +170,23 @@ class _MutableAggregate:
 class ProtocolPortfolioService:
     """Convert stored raw protocol amounts into current USD valuations."""
 
-    def __init__(self, pricing_provider: ProtocolAssetPricingProvider) -> None:
+    def __init__(
+        self,
+        pricing_provider: ProtocolAssetPricingProvider,
+        stale_after_seconds: int = 3_600,
+        now_func: Callable[[], datetime] | None = None,
+    ) -> None:
         self._pricing_provider = pricing_provider
+        self._stale_after_seconds = max(0, stale_after_seconds)
+        self._now = now_func or (lambda: datetime.now(tz=UTC))
 
     def value(
         self,
         inputs: tuple[ProtocolPortfolioInput, ...],
     ) -> ProtocolPortfolioValuation:
         prices = self._load_prices(inputs)
+        now = _as_utc(self._now())
+        risk_reports = tuple(self._risk_report(item.snapshot, now) for item in inputs)
         positions: list[ProtocolPositionValuation] = []
         wallets: list[ProtocolWalletValuation] = []
         aggregates: dict[tuple[Chain, str], _MutableAggregate] = {}
@@ -165,7 +225,7 @@ class ProtocolPortfolioService:
                 )
             )
 
-        for item in inputs:
+        for item, risk_report in zip(inputs, risk_reports, strict=True):
             if (
                 item.snapshot.result.status is not ProtocolAdapterStatus.MATCHED
                 or any(
@@ -187,7 +247,14 @@ class ProtocolPortfolioService:
                 aggregate.position_count += 1
                 position_is_unpriced = not position.assets
                 for asset in position.assets:
-                    valuation = _value_asset(item.snapshot, position, asset, prices)
+                    valuation = _value_asset(
+                        item.snapshot,
+                        position,
+                        asset,
+                        prices,
+                        risk_report.observation_age_seconds,
+                        risk_report.observation_freshness,
+                    )
                     positions.append(valuation)
                     if valuation.value_usd is None:
                         position_is_unpriced = True
@@ -225,6 +292,17 @@ class ProtocolPortfolioService:
         return ProtocolPortfolioValuation(
             snapshot_count=len(inputs),
             partial_snapshot_count=partial_snapshot_count,
+            stale_snapshot_count=sum(
+                report.observation_freshness is ProtocolObservationFreshness.STALE
+                for report in risk_reports
+            ),
+            future_observation_count=sum(
+                report.observation_freshness is ProtocolObservationFreshness.FUTURE
+                for report in risk_reports
+            ),
+            missing_risk_snapshot_count=sum(
+                report.risk_state is None for report in risk_reports
+            ),
             unpriced_position_count=sum(
                 item.unpriced_position_count for item in aggregate_values
             ),
@@ -235,6 +313,64 @@ class ProtocolPortfolioService:
             positions=tuple(positions),
             aggregates=aggregate_values,
             wallets=tuple(wallets),
+            risk_reports=risk_reports,
+        )
+
+    def _risk_report(
+        self,
+        snapshot: StoredProtocolSnapshot,
+        now: datetime,
+    ) -> ProtocolRiskReport:
+        observed_at = _as_utc(snapshot.observed_at)
+        exact_age_seconds = (now - observed_at).total_seconds()
+        age_seconds = floor(exact_age_seconds)
+        if exact_age_seconds < 0:
+            freshness = ProtocolObservationFreshness.FUTURE
+        elif exact_age_seconds > self._stale_after_seconds:
+            freshness = ProtocolObservationFreshness.STALE
+        else:
+            freshness = ProtocolObservationFreshness.FRESH
+
+        risk = snapshot.result.risk_snapshot
+        provenance = risk.provenance if risk is not None else None
+        health_factor = None
+        if risk is not None and risk.state is not ProtocolRiskState.NO_DEBT:
+            health_factor = _decimal_amount(risk.health_factor_wad, 18)
+        return ProtocolRiskReport(
+            wallet_address=snapshot.wallet_address,
+            chain=snapshot.chain,
+            protocol_id=snapshot.protocol_id,
+            protocol_name=snapshot.result.protocol_name or snapshot.protocol_id,
+            block_number=snapshot.block_number,
+            adapter_status=snapshot.result.status,
+            adapter_id=snapshot.result.adapter_id,
+            adapter_version=snapshot.result.adapter_version,
+            source_reference=(
+                provenance.source_reference if provenance is not None else None
+            ),
+            source_provider=snapshot.source_provider,
+            observed_at=observed_at,
+            saved_at=_as_utc(snapshot.saved_at),
+            observation_age_seconds=age_seconds,
+            observation_freshness=freshness,
+            stale_after_seconds=self._stale_after_seconds,
+            warning_count=len(snapshot.result.warnings),
+            warnings=snapshot.result.warnings,
+            risk_state=risk.state if risk is not None else None,
+            total_collateral_base=(
+                risk.total_collateral_base if risk is not None else None
+            ),
+            total_debt_base=risk.total_debt_base if risk is not None else None,
+            available_borrow_base=(
+                risk.available_borrow_base if risk is not None else None
+            ),
+            liquidation_threshold_bps=(
+                risk.liquidation_threshold_bps if risk is not None else None
+            ),
+            ltv_bps=risk.ltv_bps if risk is not None else None,
+            health_factor_wad=risk.health_factor_wad if risk is not None else None,
+            health_factor=health_factor,
+            base_currency_unit=risk.base_currency_unit if risk is not None else None,
         )
 
     def _load_prices(
@@ -265,6 +401,8 @@ def _value_asset(
     position: ProtocolPosition,
     asset: ProtocolAsset,
     prices: dict[tuple[Chain, str], Decimal],
+    observation_age_seconds: int,
+    observation_freshness: ProtocolObservationFreshness,
 ) -> ProtocolPositionValuation:
     amount = _decimal_amount(asset.raw_amount, asset.decimals)
     contract = asset.contract_address.lower() if asset.contract_address is not None else None
@@ -297,8 +435,16 @@ def _value_asset(
         is_liability=is_liability,
         completeness=position.completeness,
         source_provider=snapshot.source_provider,
-        observed_at=snapshot.observed_at,
+        observed_at=_as_utc(snapshot.observed_at),
+        observation_age_seconds=observation_age_seconds,
+        observation_freshness=observation_freshness,
     )
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _decimal_amount(raw_amount: str, decimals: int | None) -> Decimal | None:

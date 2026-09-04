@@ -122,7 +122,14 @@ The Settings tab controls:
 - Wallet token-page cap
 - Wallet, activity, and token-detail cache TTLs
 - Maximum stale pricing age
+- Protocol snapshot stale age
 - Maximum cache size
+
+### Protocol Snapshot Stale Age
+
+The default threshold is 3,600 seconds, or one hour. A protocol snapshot older than this threshold is marked `stale`. A timestamp later than the current system time is marked `future`. Either state keeps the known values visible but prevents Oracle41 from presenting the combined portfolio total as complete.
+
+This setting measures the age of the saved provider observation. It does not compare the snapshot block with the latest chain block. Set the value to `0` when only observations made at the current second should count as fresh. The accepted range is 0 to 604,800 seconds.
 
 ## Local Files
 

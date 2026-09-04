@@ -104,6 +104,10 @@ class PortfolioView(QWidget):
             "Protocol Positions",
             PortfolioExportTemplate.PROTOCOL_POSITIONS.value,
         )
+        self._export_template_combo.addItem(
+            "Protocol Risk",
+            PortfolioExportTemplate.PROTOCOL_RISK.value,
+        )
 
         self._status_label = QLabel("Portfolio aggregate ready.", self)
         self._status_label.setWordWrap(True)
@@ -413,6 +417,14 @@ class PortfolioView(QWidget):
             status_parts.append(
                 f"{raw_result.protocol_missing_snapshot_wallet_count} missing the requested protocol snapshot."
             )
+        if raw_result.stale_protocol_snapshot_count > 0:
+            status_parts.append(
+                f"{raw_result.stale_protocol_snapshot_count} protocol observation(s) are stale."
+            )
+        if raw_result.future_protocol_observation_count > 0:
+            status_parts.append(
+                f"{raw_result.future_protocol_observation_count} protocol observation time(s) are in the future."
+            )
         self._status_label.setText(" ".join(status_parts))
 
     def _on_portfolio_load_error(self, error: object) -> None:
@@ -524,6 +536,9 @@ def _render_result(result: PortfolioLoadResult) -> str:
             else str(result.requested_protocol_block_number)
         ),
         f"- Partial protocol snapshots: {result.partial_protocol_snapshot_count}",
+        f"- Stale protocol observations: {result.stale_protocol_snapshot_count}",
+        f"- Future protocol observations: {result.future_protocol_observation_count}",
+        f"- Protocol snapshots without risk data: {result.missing_protocol_risk_snapshot_count}",
         f"- Protocol load failures: {result.protocol_failed_wallet_count}",
         f"- Missing requested protocol snapshots: {result.protocol_missing_snapshot_wallet_count}",
         f"- Unpriced protocol positions: {result.protocol_unpriced_position_count}",
@@ -593,11 +608,43 @@ def _render_result(result: PortfolioLoadResult) -> str:
                 f"amount={_fmt_decimal(position.amount)} {position.symbol or 'unknown'} | "
                 f"price_usd={_fmt_decimal(position.price_usd)} | "
                 f"net_usd={_fmt_decimal(position.net_value_usd)} | "
-                f"block={position.block_number} | provider={position.source_provider}"
+                f"block={position.block_number} | provider={position.source_provider} | "
+                f"observation={position.observation_freshness.value} "
+                f"({_fmt_age(position.observation_age_seconds)})"
             )
         remaining_positions = len(result.protocol_positions) - 200
         if remaining_positions > 0:
             lines.append(f"- ... {remaining_positions} more protocol position row(s) omitted.")
+
+    lines.extend(["", "Protocol Risk and Health:"])
+    if not result.protocol_risk_reports:
+        lines.append("- none")
+    else:
+        for report in result.protocol_risk_reports:
+            health = _fmt_decimal(report.health_factor)
+            if report.risk_state is not None and report.risk_state.value == "no_debt":
+                health = "n/a (no debt)"
+            risk_state = report.risk_state.value if report.risk_state is not None else "unavailable"
+            lines.append(
+                f"- [{report.chain.display_name}] {report.protocol_name} | "
+                f"wallet={report.wallet_address} | block={report.block_number} | "
+                f"health_factor={health} | state={risk_state} | "
+                f"ltv={_fmt_bps(report.ltv_bps)} | "
+                f"liquidation_threshold={_fmt_bps(report.liquidation_threshold_bps)} | "
+                f"observation={report.observation_freshness.value} "
+                f"({_fmt_age(report.observation_age_seconds)}, "
+                f"threshold={_fmt_age(report.stale_after_seconds)}) | "
+                f"provider={report.source_provider}"
+            )
+            lines.append(
+                "  raw account values: "
+                f"collateral={report.total_collateral_base or 'n/a'}, "
+                f"debt={report.total_debt_base or 'n/a'}, "
+                f"available_borrow={report.available_borrow_base or 'n/a'}, "
+                f"base_unit={report.base_currency_unit or 'n/a'}"
+            )
+            for warning in report.warnings:
+                lines.append(f"  warning: {warning}")
 
     lines.extend(["", "Wallet Results:"])
     if not result.wallet_results:
@@ -639,3 +686,21 @@ def _fmt_decimal(value: Decimal | None) -> str:
     if value is None:
         return "n/a"
     return f"{value:.6f}"
+
+
+def _fmt_bps(value: int | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{Decimal(value) / Decimal('100'):.2f}%"
+
+
+def _fmt_age(seconds: int) -> str:
+    if seconds < 0:
+        return f"{abs(seconds)}s in the future"
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3_600:
+        return f"{seconds // 60}m"
+    if seconds < 86_400:
+        return f"{seconds // 3_600}h"
+    return f"{seconds // 86_400}d"

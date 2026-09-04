@@ -32,6 +32,7 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     assert initial.activity_cache_ttl_seconds == 120
     assert initial.token_detail_cache_ttl_seconds == 120
     assert initial.pricing_max_stale_age_seconds == 86_400
+    assert initial.protocol_snapshot_stale_after_seconds == 3_600
     assert initial.cache_max_size_mb == 150
     assert initial.ordered_enabled_provider_ids() == (
         WalletDataProviderId.ALCHEMY,
@@ -52,6 +53,7 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
         activity_cache_ttl_seconds=180,
         token_detail_cache_ttl_seconds=180,
         pricing_max_stale_age_seconds=172_800,
+        protocol_snapshot_stale_after_seconds=7_200,
         cache_max_size_mb=220,
         provider_preferences=[
             ProviderPreference(
@@ -109,6 +111,7 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     assert loaded.activity_cache_ttl_seconds == 180
     assert loaded.token_detail_cache_ttl_seconds == 180
     assert loaded.pricing_max_stale_age_seconds == 172_800
+    assert loaded.protocol_snapshot_stale_after_seconds == 7_200
     assert loaded.cache_max_size_mb == 220
     assert loaded.ordered_enabled_provider_ids() == (WalletDataProviderId.ANKR,)
     assert (
@@ -134,6 +137,7 @@ def test_settings_store_loads_legacy_payload_with_new_defaults(tmp_path: Path) -
     assert loaded.activity_cache_ttl_seconds == 120
     assert loaded.token_detail_cache_ttl_seconds == 120
     assert loaded.pricing_max_stale_age_seconds == 86_400
+    assert loaded.protocol_snapshot_stale_after_seconds == 3_600
     assert loaded.cache_max_size_mb == 150
     assert loaded.ordered_enabled_provider_ids() == (
         WalletDataProviderId.ALCHEMY,

@@ -2,7 +2,30 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a11] - Unreleased
+## [0.4.0a12] - Unreleased
+
+### Added
+
+- Protocol risk reports with health factor, loan-to-value, liquidation threshold, raw collateral, raw debt, available borrow, warnings, and source provenance.
+- Fresh, stale, and future observation states with a configurable stale threshold that defaults to one hour.
+- Protocol Risk CSV and JSON templates with adapter identity, source reference, provider, block, timestamps, freshness, and raw account-health evidence.
+- Portfolio risk and health details with clear raw-unit labels and snapshot age.
+- Deterministic clock tests for freshness boundaries, no-debt health factors, missing risk evidence, and stale portfolio behavior.
+
+### Changed
+
+- Stale protocol snapshots and future observation timestamps now prevent a complete combined portfolio total while preserving known values.
+- Protocol-position exports now include observation age and freshness.
+- The `oracle41-portfolio` export format is now version 2.
+
+### Known Limitations
+
+- Freshness measures provider observation age. It does not compare a stored block with the latest chain block.
+- Aave collateral, debt, available borrow, and base-currency values remain raw protocol units and are not presented as USD.
+- Health data reports protocol evidence and does not provide financial advice.
+- Aave V3 remains the only production protocol adapter.
+
+## [0.4.0a11] - 2026-09-02
 
 ### Added
 

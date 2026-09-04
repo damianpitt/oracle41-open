@@ -48,6 +48,7 @@ def test_main_window_constructs_all_primary_tabs(
     portfolio = window.findChild(PortfolioView)
     assert portfolio is not None
     assert portfolio._export_template_combo.findData("protocol_positions") >= 0
+    assert portfolio._export_template_combo.findData("protocol_risk") >= 0
     assert not portfolio._protocol_block_combo.isEnabled()
     portfolio._protocol_snapshot_mode_combo.setCurrentIndex(1)
     qt_application.processEvents()

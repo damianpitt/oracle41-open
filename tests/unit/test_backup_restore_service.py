@@ -68,6 +68,7 @@ def test_backup_restore_roundtrip_restores_settings_and_sqlite_state(tmp_path: P
         activity_cache_ttl_seconds=300,
         token_detail_cache_ttl_seconds=300,
         pricing_max_stale_age_seconds=90_000,
+        protocol_snapshot_stale_after_seconds=7_200,
         cache_max_size_mb=180,
     )
     settings_store.save(source_settings)

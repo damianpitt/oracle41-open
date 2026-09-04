@@ -8,7 +8,7 @@ the final total explicitly incomplete.
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -25,6 +25,8 @@ from oracle41_open.core.models import (
     ProtocolPositionKind,
     ProtocolPositionProvenance,
     ProtocolRawEvidence,
+    ProtocolRiskSnapshot,
+    ProtocolRiskState,
     StoredProtocolSnapshot,
     Token,
     TokenBalance,
@@ -34,6 +36,7 @@ from oracle41_open.core.models import (
 )
 from oracle41_open.core.services.portfolio_service import PortfolioService
 from oracle41_open.core.services.protocol_portfolio_service import (
+    ProtocolObservationFreshness,
     ProtocolPortfolioInput,
     ProtocolPortfolioService,
 )
@@ -46,11 +49,24 @@ _DAI = "0x6b175474e89094c44da98b954eedeac495271d0f"
 _OBSERVED_AT = datetime(2026, 9, 1, tzinfo=UTC)
 
 
+def _valuator(
+    pricing: _PricingProvider,
+    *,
+    now: datetime = _OBSERVED_AT,
+    stale_after_seconds: int = 3_600,
+) -> ProtocolPortfolioService:
+    return ProtocolPortfolioService(
+        pricing,
+        stale_after_seconds=stale_after_seconds,
+        now_func=lambda: now,
+    )
+
+
 def test_protocol_valuation_adds_assets_subtracts_debt_and_excludes_receipts() -> None:
     pricing = _PricingProvider({_UNDERLYING: Decimal("1")})
     overview = _overview()
 
-    result = ProtocolPortfolioService(pricing).value(
+    result = _valuator(pricing).value(
         (ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, overview, _snapshot()),)
     )
 
@@ -60,6 +76,9 @@ def test_protocol_valuation_adds_assets_subtracts_debt_and_excludes_receipts() -
     assert result.net_usd == Decimal("80")
     assert result.unpriced_position_count == 0
     assert result.excluded_receipt_token_count == 1
+    assert result.stale_snapshot_count == 0
+    assert result.future_observation_count == 0
+    assert result.missing_risk_snapshot_count == 0
     assert result.wallets[0].adjusted_wallet_total_usd == Decimal("50")
     assert result.wallets[0].excluded_receipt_token_addresses == (
         _VARIABLE_DEBT_TOKEN,
@@ -70,12 +89,81 @@ def test_protocol_valuation_adds_assets_subtracts_debt_and_excludes_receipts() -
         Decimal("-20"),
     ]
     assert pricing.calls == [(Chain.ETHEREUM, [_UNDERLYING])]
+    assert result.risk_reports[0].health_factor == Decimal("4.125")
+    assert result.risk_reports[0].risk_state is ProtocolRiskState.ABOVE_OR_EQUAL_LIQUIDATION_THRESHOLD
+    assert result.risk_reports[0].observation_freshness is ProtocolObservationFreshness.FRESH
+    assert result.risk_reports[0].adapter_id == "oracle41.aave-v3"
+    assert result.risk_reports[0].adapter_version == "1"
+    assert result.risk_reports[0].source_reference == "eth_call:block:24000000"
+    assert result.positions[0].observation_freshness is ProtocolObservationFreshness.FRESH
+
+
+def test_protocol_observation_age_reports_stale_and_future_times() -> None:
+    threshold = _valuator(
+        _PricingProvider({_UNDERLYING: Decimal("1")}),
+        now=_OBSERVED_AT + timedelta(seconds=3_600),
+    ).value((ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), _snapshot()),))
+    over_threshold = _valuator(
+        _PricingProvider({_UNDERLYING: Decimal("1")}),
+        now=_OBSERVED_AT + timedelta(seconds=3_601),
+    ).value((ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), _snapshot()),))
+    stale = _valuator(
+        _PricingProvider({_UNDERLYING: Decimal("1")}),
+        now=_OBSERVED_AT + timedelta(hours=2),
+    ).value((ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), _snapshot()),))
+    future = _valuator(
+        _PricingProvider({_UNDERLYING: Decimal("1")}),
+        now=_OBSERVED_AT - timedelta(seconds=30),
+    ).value((ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), _snapshot()),))
+
+    assert threshold.stale_snapshot_count == 0
+    assert threshold.risk_reports[0].observation_freshness is ProtocolObservationFreshness.FRESH
+    assert over_threshold.stale_snapshot_count == 1
+    assert stale.stale_snapshot_count == 1
+    assert stale.risk_reports[0].observation_age_seconds == 7_200
+    assert stale.risk_reports[0].observation_freshness is ProtocolObservationFreshness.STALE
+    assert future.future_observation_count == 1
+    assert future.risk_reports[0].observation_age_seconds == -30
+    assert future.risk_reports[0].observation_freshness is ProtocolObservationFreshness.FUTURE
+
+
+def test_protocol_risk_report_distinguishes_no_debt_and_missing_risk() -> None:
+    snapshot = _snapshot()
+    assert snapshot.result.risk_snapshot is not None
+    no_debt_snapshot = replace(
+        snapshot,
+        result=replace(
+            snapshot.result,
+            risk_snapshot=replace(
+                snapshot.result.risk_snapshot,
+                total_debt_base="0",
+                health_factor_wad=str((1 << 256) - 1),
+                state=ProtocolRiskState.NO_DEBT,
+            ),
+        ),
+    )
+    missing_risk_snapshot = replace(
+        snapshot,
+        result=replace(snapshot.result, risk_snapshot=None),
+    )
+
+    no_debt = _valuator(_PricingProvider({})).value(
+        (ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), no_debt_snapshot),)
+    )
+    missing = _valuator(_PricingProvider({})).value(
+        (ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), missing_risk_snapshot),)
+    )
+
+    assert no_debt.risk_reports[0].health_factor is None
+    assert no_debt.risk_reports[0].risk_state is ProtocolRiskState.NO_DEBT
+    assert missing.missing_risk_snapshot_count == 1
+    assert missing.risk_reports[0].risk_state is None
 
 
 def test_protocol_valuation_keeps_missing_prices_and_partial_state_explicit() -> None:
     snapshot = _snapshot(status=ProtocolAdapterStatus.PARTIAL)
 
-    result = ProtocolPortfolioService(_PricingProvider({})).value(
+    result = _valuator(_PricingProvider({})).value(
         (ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), snapshot),)
     )
 
@@ -98,12 +186,12 @@ def test_protocol_valuation_rejects_non_finite_amounts_and_prices() -> None:
         ),
     )
 
-    invalid_amount = ProtocolPortfolioService(
-        _PricingProvider({_UNDERLYING: Decimal("1")})
-    ).value((ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), invalid_snapshot),))
-    invalid_price = ProtocolPortfolioService(
-        _PricingProvider({_UNDERLYING: Decimal("Infinity")})
-    ).value((ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), snapshot),))
+    invalid_amount = _valuator(_PricingProvider({_UNDERLYING: Decimal("1")})).value(
+        (ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), invalid_snapshot),)
+    )
+    invalid_price = _valuator(_PricingProvider({_UNDERLYING: Decimal("Infinity")})).value(
+        (ProtocolPortfolioInput(_WALLET, Chain.ETHEREUM, _overview(), snapshot),)
+    )
 
     assert invalid_amount.unpriced_position_count == 1
     assert invalid_amount.liability_usd_total == Decimal("20")
@@ -117,9 +205,7 @@ def test_portfolio_integration_uses_net_protocol_value_without_double_counting()
         watchlist_reader=_WatchlistReader(entry),
         wallet_loader=_WalletLoader(_overview()),
         protocol_snapshot_reader=_SnapshotReader(_snapshot()),
-        protocol_valuator=ProtocolPortfolioService(
-            _PricingProvider({_UNDERLYING: Decimal("1")})
-        ),
+        protocol_valuator=_valuator(_PricingProvider({_UNDERLYING: Decimal("1")})),
     )
 
     result = service.load_portfolio()
@@ -140,7 +226,7 @@ def test_portfolio_total_is_incomplete_when_protocol_price_is_missing() -> None:
         watchlist_reader=_WatchlistReader(entry),
         wallet_loader=_WalletLoader(_overview()),
         protocol_snapshot_reader=_SnapshotReader(_snapshot()),
-        protocol_valuator=ProtocolPortfolioService(_PricingProvider({})),
+        protocol_valuator=_valuator(_PricingProvider({})),
     )
 
     result = service.load_portfolio()
@@ -150,13 +236,33 @@ def test_portfolio_total_is_incomplete_when_protocol_price_is_missing() -> None:
     assert result.protocol_unpriced_position_count == 2
 
 
+def test_portfolio_total_is_incomplete_when_protocol_observation_is_stale() -> None:
+    entry = WatchlistEntry(1, _WALLET, Chain.ETHEREUM, "Main", _OBSERVED_AT)
+    service = PortfolioService(
+        watchlist_reader=_WatchlistReader(entry),
+        wallet_loader=_WalletLoader(_overview()),
+        protocol_snapshot_reader=_SnapshotReader(_snapshot()),
+        protocol_valuator=_valuator(
+            _PricingProvider({_UNDERLYING: Decimal("1")}),
+            now=_OBSERVED_AT + timedelta(hours=2),
+        ),
+    )
+
+    result = service.load_portfolio()
+
+    assert result.total_usd is None
+    assert result.known_total_usd == Decimal("130")
+    assert result.stale_protocol_snapshot_count == 1
+    assert result.protocol_risk_reports[0].health_factor == Decimal("4.125")
+
+
 def test_protocol_storage_failure_keeps_wallet_value_but_marks_total_partial() -> None:
     entry = WatchlistEntry(1, _WALLET, Chain.ETHEREUM, "Main", _OBSERVED_AT)
     service = PortfolioService(
         watchlist_reader=_WatchlistReader(entry),
         wallet_loader=_WalletLoader(_overview()),
         protocol_snapshot_reader=_FailingSnapshotReader(),
-        protocol_valuator=ProtocolPortfolioService(_PricingProvider({})),
+        protocol_valuator=_valuator(_PricingProvider({})),
     )
 
     result = service.load_portfolio()
@@ -175,9 +281,7 @@ def test_portfolio_can_refresh_and_load_one_exact_protocol_block() -> None:
         watchlist_reader=_WatchlistReader(entry),
         wallet_loader=_WalletLoader(_overview()),
         protocol_snapshot_reader=_SnapshotReader(snapshot),
-        protocol_valuator=ProtocolPortfolioService(
-            _PricingProvider({_UNDERLYING: Decimal("1")})
-        ),
+        protocol_valuator=_valuator(_PricingProvider({_UNDERLYING: Decimal("1")})),
         protocol_snapshot_collector=collector,
     )
 
@@ -200,7 +304,7 @@ def test_portfolio_marks_a_missing_exact_protocol_snapshot() -> None:
         watchlist_reader=_WatchlistReader(entry),
         wallet_loader=_WalletLoader(_overview()),
         protocol_snapshot_reader=_SnapshotReader(_snapshot()),
-        protocol_valuator=ProtocolPortfolioService(_PricingProvider({})),
+        protocol_valuator=_valuator(_PricingProvider({})),
     )
 
     result = service.load_portfolio(protocol_snapshot_block_number=23_000_000)
@@ -379,6 +483,21 @@ def _snapshot(
         source_events=(),
         raw_evidence=(evidence,),
         warnings=("partial fixture",) if status is ProtocolAdapterStatus.PARTIAL else (),
+        risk_snapshot=ProtocolRiskSnapshot(
+            wallet_address=_WALLET,
+            chain=Chain.ETHEREUM,
+            block_number=24_000_000,
+            protocol_id="aave-v3",
+            total_collateral_base="12500000000",
+            total_debt_base="2500000000",
+            available_borrow_base="6500000000",
+            liquidation_threshold_bps=8250,
+            ltv_bps=8000,
+            health_factor_wad="4125000000000000000",
+            base_currency_unit="100000000",
+            state=ProtocolRiskState.ABOVE_OR_EQUAL_LIQUIDATION_THRESHOLD,
+            provenance=provenance,
+        ),
     )
     return StoredProtocolSnapshot(
         wallet_address=_WALLET,

@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a11` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, aggregate, and export block-specific Aave V3 supplied assets, collateral, debt, and account health data on every supported chain. The Portfolio view can use the newest stored snapshots or one exact block and can manually refresh Aave data at that block.
+Version `0.4.0a12` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, aggregate, and export block-specific Aave V3 supplied assets, collateral, debt, and account health data on every supported chain. The Portfolio view reports snapshot freshness and raw account-health evidence, can use the newest stored snapshots or one exact block, and can manually refresh Aave data at that block.
 
 ## Features
 
@@ -44,6 +44,8 @@ Version `0.4.0a11` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Durable Aave V3 snapshots with per-reserve resume checkpoints and provider provenance
 - Protocol-aware portfolio totals with supplied assets, collateral, debt, missing-price states, and receipt-token double-count protection
 - Protocol-position CSV and JSON exports with exact-block, completeness, and provider details
+- Protocol risk and health reports with raw Aave account values, health factor, LTV, liquidation threshold, warnings, and adapter provenance
+- Configurable protocol snapshot freshness with clear fresh, stale, and future-observation states
 - Local protocol snapshot history selection and explicit exact-block refresh controls
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 

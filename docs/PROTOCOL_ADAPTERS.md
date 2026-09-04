@@ -90,7 +90,11 @@ Version `0.4.0a10` uses the newest stored snapshot for every protocol on a walle
 
 Version `0.4.0a11` adds newest-snapshot and exact-block controls to the Portfolio view. Finding stored blocks reads SQLite only. Refreshing a protocol snapshot is a separate action that requires one chain and one block, bypasses the finished result for that block, recollects Aave data, and safely replaces the stored snapshot. Wallet overview balances remain current, so exact protocol-block mode reports a known mixed-time estimate instead of a complete historical portfolio total.
 
-The dedicated protocol-position CSV and JSON templates use `oracle41-portfolio` format version 1. They include wallet, chain, protocol, block, position kind, asset role, token details, raw and normalized amounts, current price, gross and signed values, completeness, provider, and observation time. Historical price-at-block valuation remains later work.
+Version `0.4.0a12` adds protocol health and observation-age reporting to the Portfolio view. Each stored snapshot is marked `fresh`, `stale`, or `future` using a configurable age threshold. Stale and future observations keep known values visible but prevent a complete portfolio total. This is a time-based check and does not compare the snapshot block with the latest chain block.
+
+The protocol-risk report shows Aave health factor, loan-to-value, liquidation threshold, collateral, debt, available borrow, warnings, source provider, adapter identity, source reference, and observation age. Collateral, debt, available borrow, and base-currency unit remain raw Aave values. They are not labeled as USD, and Oracle41 does not turn these values into recommendations.
+
+The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 2. They include the position fields introduced in format version 1 plus freshness, risk, warnings, and adapter provenance. Historical price-at-block valuation remains later work.
 
 ## Adding an Adapter
 

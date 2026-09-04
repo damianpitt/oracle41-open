@@ -14,7 +14,7 @@ def test_version_command_exits_without_starting_gui(capsys: object) -> None:
 
     assert result == 0
     output = capsys.readouterr().out  # type: ignore[attr-defined]
-    assert output == "Oracle41 Open 0.4.0a11\n"
+    assert output == "Oracle41 Open 0.4.0a12\n"
 
 
 def test_live_validation_option_remains_disabled_without_opt_in(

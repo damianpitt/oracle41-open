@@ -106,6 +106,7 @@ class AppSettings(BaseModel):
     activity_cache_ttl_seconds: int = Field(default=120, ge=0, le=86_400)
     token_detail_cache_ttl_seconds: int = Field(default=120, ge=0, le=86_400)
     pricing_max_stale_age_seconds: int = Field(default=86_400, ge=0, le=604_800)
+    protocol_snapshot_stale_after_seconds: int = Field(default=3_600, ge=0, le=604_800)
     cache_max_size_mb: int = Field(default=150, ge=10, le=500)
     provider_preferences: list[ProviderPreference] = Field(
         default_factory=_default_provider_preferences

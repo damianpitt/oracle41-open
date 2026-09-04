@@ -120,6 +120,8 @@ class SettingsView(QWidget):
         self._token_detail_cache_ttl_input.setPlaceholderText("0-86400")
         self._pricing_stale_age_input = QLineEdit(self)
         self._pricing_stale_age_input.setPlaceholderText("0-604800")
+        self._protocol_stale_age_input = QLineEdit(self)
+        self._protocol_stale_age_input.setPlaceholderText("0-604800")
         self._cache_max_size_input = QLineEdit(self)
         self._cache_max_size_input.setPlaceholderText("10-500")
 
@@ -264,6 +266,7 @@ class SettingsView(QWidget):
         settings_form.addRow("Activity Cache TTL (s)", self._activity_cache_ttl_input)
         settings_form.addRow("Token Detail Cache TTL (s)", self._token_detail_cache_ttl_input)
         settings_form.addRow("Pricing Stale Age (s)", self._pricing_stale_age_input)
+        settings_form.addRow("Protocol Snapshot Stale Age (s)", self._protocol_stale_age_input)
         settings_form.addRow("Cache Max Size (MB)", self._cache_max_size_input)
         settings_form.addRow("", self._save_settings_button)
         settings_box.setLayout(settings_form)
@@ -459,6 +462,16 @@ class SettingsView(QWidget):
         if pricing_stale_age is None:
             self._status.setText("Invalid pricing stale age. Enter an integer between 0 and 604800.")
             return
+        protocol_stale_age = _parse_int_input(
+            self._protocol_stale_age_input.text(),
+            minimum=0,
+            maximum=604_800,
+        )
+        if protocol_stale_age is None:
+            self._status.setText(
+                "Invalid protocol snapshot stale age. Enter an integer between 0 and 604800."
+            )
+            return
         cache_max_size = _parse_int_input(
             self._cache_max_size_input.text(),
             minimum=10,
@@ -480,6 +493,7 @@ class SettingsView(QWidget):
                     "activity_cache_ttl_seconds": activity_ttl,
                     "token_detail_cache_ttl_seconds": token_detail_ttl,
                     "pricing_max_stale_age_seconds": pricing_stale_age,
+                    "protocol_snapshot_stale_after_seconds": protocol_stale_age,
                     "cache_max_size_mb": cache_max_size,
                     "provider_preferences": provider_preferences,
                     "provider_credential_diagnostics": (
@@ -1004,6 +1018,9 @@ class SettingsView(QWidget):
         self._activity_cache_ttl_input.setText(str(settings.activity_cache_ttl_seconds))
         self._token_detail_cache_ttl_input.setText(str(settings.token_detail_cache_ttl_seconds))
         self._pricing_stale_age_input.setText(str(settings.pricing_max_stale_age_seconds))
+        self._protocol_stale_age_input.setText(
+            str(settings.protocol_snapshot_stale_after_seconds)
+        )
         self._cache_max_size_input.setText(str(settings.cache_max_size_mb))
         alchemy = settings.provider_preference(WalletDataProviderId.ALCHEMY)
         ankr = settings.provider_preference(WalletDataProviderId.ANKR)
