@@ -631,6 +631,8 @@ def _render_result(result: PortfolioLoadResult) -> str:
                 f"health_factor={health} | state={risk_state} | "
                 f"ltv={_fmt_bps(report.ltv_bps)} | "
                 f"liquidation_threshold={_fmt_bps(report.liquidation_threshold_bps)} | "
+                f"borrow_collateralized={_fmt_bool(report.is_borrow_collateralized)} | "
+                f"liquidatable={_fmt_bool(report.is_liquidatable)} | "
                 f"observation={report.observation_freshness.value} "
                 f"({_fmt_age(report.observation_age_seconds)}, "
                 f"threshold={_fmt_age(report.stale_after_seconds)}) | "
@@ -692,6 +694,12 @@ def _fmt_bps(value: int | None) -> str:
     if value is None:
         return "n/a"
     return f"{Decimal(value) / Decimal('100'):.2f}%"
+
+
+def _fmt_bool(value: bool | None) -> str:
+    if value is None:
+        return "n/a"
+    return "yes" if value else "no"
 
 
 def _fmt_age(seconds: int) -> str:

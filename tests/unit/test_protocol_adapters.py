@@ -1,7 +1,8 @@
 """Test the versioned protocol-adapter contract and fixture format.
 
-The same conformance path covers a matched reference protocol and an unknown protocol.
-Tests confirm deterministic positions, explicit capabilities, safe registry selection, and complete evidence passthrough.
+Recorded Aave, Compound, reference, and unknown cases share one conformance path. Focused tests
+cover explicit capabilities, deterministic risk states, safe registry selection, and complete
+source-evidence passthrough.
 """
 
 from __future__ import annotations
@@ -34,10 +35,13 @@ from oracle41_open.core.models import (
 )
 from oracle41_open.core.protocols import (
     AaveV3Adapter,
+    CompoundV3Adapter,
     ProtocolAdapter,
     ProtocolAdapterRegistry,
     ReferenceLendingAdapter,
     UnknownProtocolAdapter,
+    compound_v3_market,
+    compound_v3_markets,
     production_protocol_registry,
 )
 
@@ -49,13 +53,20 @@ _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "protocols"
     (
         "reference_lending_v1.json",
         "aave_v3_ethereum_v1.json",
+        "compound_v3_ethereum_usdc_v1.json",
         "unknown_protocol_v1.json",
     ),
 )
 def test_protocol_fixture_conformance(fixture_name: str) -> None:
     fixture = _load_fixture(fixture_name)
     context = _context_from_fixture(fixture)
-    registry = ProtocolAdapterRegistry((ReferenceLendingAdapter(), AaveV3Adapter()))
+    registry = ProtocolAdapterRegistry(
+        (
+            ReferenceLendingAdapter(),
+            AaveV3Adapter(),
+            CompoundV3Adapter(compound_v3_market(Chain.ETHEREUM, "usdc")),
+        )
+    )
 
     first = registry.analyze(context)
     second = registry.analyze(context)
@@ -128,10 +139,127 @@ def test_aave_adapter_matches_each_supported_pool(chain: Chain, pool: str) -> No
     assert AaveV3Adapter().supports(context)
 
 
-def test_production_registry_contains_aave_v3() -> None:
+def test_production_registry_contains_aave_and_compound_v3() -> None:
     registry = production_protocol_registry()
 
-    assert [item.adapter_id for item in registry.capabilities] == ["oracle41.aave-v3"]
+    adapter_ids = [item.adapter_id for item in registry.capabilities]
+    assert len(adapter_ids) == 21
+    assert adapter_ids[0] == "oracle41.aave-v3"
+    assert "oracle41.compound-v3.ethereum.usdc" in adapter_ids
+    assert "oracle41.compound-v3.arbitrum.weth" in adapter_ids
+
+
+def test_compound_market_catalog_covers_every_supported_chain() -> None:
+    counts = {
+        chain: len(compound_v3_markets(chain))
+        for chain in Chain
+    }
+
+    assert counts == {
+        Chain.ETHEREUM: 6,
+        Chain.OPTIMISM: 3,
+        Chain.POLYGON: 2,
+        Chain.BASE: 5,
+        Chain.ARBITRUM: 4,
+    }
+
+
+def test_compound_adapter_exposes_one_market_contract() -> None:
+    market = compound_v3_market(Chain.ETHEREUM, "usdc")
+    adapter = CompoundV3Adapter(market)
+
+    assert isinstance(adapter, ProtocolAdapter)
+    assert adapter.capabilities.protocol_id == "compound-v3-usdc"
+    assert adapter.capabilities.chains == frozenset({Chain.ETHEREUM})
+    assert adapter.capabilities.contracts == (
+        ProtocolContract(chain=Chain.ETHEREUM, address=market.comet),
+    )
+    context = _context_from_fixture(_load_fixture("compound_v3_ethereum_usdc_v1.json"))
+    assert adapter.supports(replace(context, contract_addresses=(market.comet.upper(),)))
+
+
+@pytest.mark.parametrize(
+    ("borrowed", "collateralized", "liquidatable", "expected"),
+    (
+        ("0", "true", "false", ProtocolRiskState.NO_DEBT),
+        ("25000000", "true", "true", ProtocolRiskState.BELOW_LIQUIDATION_THRESHOLD),
+        (
+            "25000000",
+            "false",
+            "false",
+            ProtocolRiskState.BELOW_BORROW_COLLATERAL_REQUIREMENT,
+        ),
+    ),
+)
+def test_compound_adapter_preserves_native_account_safety_state(
+    borrowed: str,
+    collateralized: str,
+    liquidatable: str,
+    expected: ProtocolRiskState,
+) -> None:
+    context = _context_from_fixture(_load_fixture("compound_v3_ethereum_usdc_v1.json"))
+    base = context.raw_evidence[0]
+    replacements = {
+        "supplied_base": "0" if borrowed != "0" else "100000000",
+        "borrowed_base": borrowed,
+        "is_borrow_collateralized": collateralized,
+        "is_liquidatable": liquidatable,
+    }
+    values = tuple(
+        replace(item, value=replacements[item.name]) if item.name in replacements else item
+        for item in base.values
+    )
+    adapter = CompoundV3Adapter(compound_v3_market(Chain.ETHEREUM, "usdc"))
+
+    result = adapter.analyze(
+        replace(context, raw_evidence=(replace(base, values=values), context.raw_evidence[1]))
+    )
+
+    assert result.risk_snapshot is not None
+    assert result.risk_snapshot.state is expected
+    assert result.risk_snapshot.is_borrow_collateralized is (collateralized == "true")
+    assert result.risk_snapshot.is_liquidatable is (liquidatable == "true")
+
+
+def test_compound_adapter_rejects_simultaneous_base_supply_and_debt() -> None:
+    context = _context_from_fixture(_load_fixture("compound_v3_ethereum_usdc_v1.json"))
+    base = context.raw_evidence[0]
+    values = tuple(
+        replace(item, value="25000000") if item.name == "borrowed_base" else item
+        for item in base.values
+    )
+    adapter = CompoundV3Adapter(compound_v3_market(Chain.ETHEREUM, "usdc"))
+
+    result = adapter.analyze(
+        replace(context, raw_evidence=(replace(base, values=values), context.raw_evidence[1]))
+    )
+
+    assert result.status is ProtocolAdapterStatus.PARTIAL
+    assert [position.kind for position in result.positions] == [
+        ProtocolPositionKind.COLLATERAL
+    ]
+    assert result.risk_snapshot is None
+    assert "cannot both be positive" in result.warnings[0]
+
+
+def test_compound_malformed_collateral_is_partial_without_inventing_position() -> None:
+    context = _context_from_fixture(_load_fixture("compound_v3_ethereum_usdc_v1.json"))
+    collateral = context.raw_evidence[1]
+    values = tuple(
+        replace(item, value="not-an-integer") if item.name == "balance" else item
+        for item in collateral.values
+    )
+    adapter = CompoundV3Adapter(compound_v3_market(Chain.ETHEREUM, "usdc"))
+
+    result = adapter.analyze(
+        replace(context, raw_evidence=(context.raw_evidence[0], replace(collateral, values=values)))
+    )
+
+    assert result.status is ProtocolAdapterStatus.PARTIAL
+    assert [position.kind for position in result.positions] == [
+        ProtocolPositionKind.SUPPLIED,
+    ]
+    assert "malformed required fields" in result.warnings[0]
 
 
 def test_aave_missing_account_snapshot_returns_partial_positions() -> None:

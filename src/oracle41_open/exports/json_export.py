@@ -208,6 +208,8 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "health_factor_wad",
         "health_factor",
         "base_currency_unit",
+        "is_borrow_collateralized",
+        "is_liquidatable",
         "warning_count",
         "warnings",
         "source_provider",
@@ -523,6 +525,8 @@ def _portfolio_records(
                     str(report.health_factor) if report.health_factor is not None else None
                 ),
                 "base_currency_unit": report.base_currency_unit,
+                "is_borrow_collateralized": report.is_borrow_collateralized,
+                "is_liquidatable": report.is_liquidatable,
                 "warning_count": report.warning_count,
                 "warnings": list(report.warnings),
                 "source_provider": report.source_provider,

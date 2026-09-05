@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a12] - Unreleased
+## [0.4.0a13] - Unreleased
+
+### Added
+
+- A production Compound V3 adapter for base supply, base debt, collateral, and native account-safety checks.
+- Exact-block collection for 20 official Comet markets on Ethereum, Optimism, Polygon, Base, and Arbitrum.
+- Per-market SQLite snapshots and per-collateral resume checkpoints with strict single-provider provenance.
+- Compound Comet receipt-token exclusion for positive base supply to prevent portfolio double counting.
+- Recorded conformance and collector tests for complete, malformed, partial, cached, refreshed, and resumed snapshots.
+
+### Changed
+
+- Manual protocol refresh now collects Aave V3 and all configured Compound V3 markets for the selected chain and block.
+- Protocol risk records can preserve Compound's `isBorrowCollateralized` and `isLiquidatable` results without inventing an Aave-style health factor.
+- The `oracle41-portfolio` export format is now version 3 and includes the two Compound account-safety fields.
+- Shared ABI and exact-block provider checks are now reused by both lending collectors.
+
+### Known Limitations
+
+- Current prices are applied to stored position amounts. Historical price-at-block valuation is not included yet.
+- Compound collateral factors and supply caps remain preserved as raw evidence; Oracle41 does not calculate a custom health factor from them.
+- One refresh operation still uses one chain and one block number. Cross-chain block heights must be refreshed separately.
+- Historical contract reads depend on the transaction provider, account plan, and node retention.
+
+## [0.4.0a12] - 2026-09-04
 
 ### Added
 
@@ -23,7 +47,7 @@ All notable changes to Oracle41 Open will be documented here.
 - Freshness measures provider observation age. It does not compare a stored block with the latest chain block.
 - Aave collateral, debt, available borrow, and base-currency values remain raw protocol units and are not presented as USD.
 - Health data reports protocol evidence and does not provide financial advice.
-- Aave V3 remains the only production protocol adapter.
+- Aave V3 was the only production protocol adapter in this release.
 
 ## [0.4.0a11] - 2026-09-02
 

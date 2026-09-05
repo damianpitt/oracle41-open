@@ -1,6 +1,6 @@
 # Supported Platforms
 
-Oracle41 Open is a Linux-first desktop application. Version `0.4.0a12` is an alpha release, so the distinction between CI validation and broader compatibility targets is important.
+Oracle41 Open is a Linux-first desktop application. Version `0.4.0a13` is an alpha release, so the distinction between CI validation and broader compatibility targets is important.
 
 ## Debian Package Matrix
 

@@ -1,0 +1,63 @@
+{
+  "format": "oracle41-protocol-adapter-fixture",
+  "format_version": 1,
+  "case_id": "compound-v3-ethereum-usdc-complete",
+  "input": {
+    "wallet_address": "0x1111111111111111111111111111111111111111",
+    "chain": "ethereum",
+    "block_number": 24000000,
+    "contract_addresses": [
+      "0xc3d688b66703497daa19211eedff47f25384cdc3"
+    ],
+    "source_provider": "recorded-json-rpc",
+    "observed_at": "2026-09-04T00:00:00+00:00",
+    "token_balances": [],
+    "decoded_events": [],
+    "raw_evidence": [
+      {
+        "kind": "compound_v3_base_position",
+        "reference": "eth_call:base-position:block:24000000",
+        "contract_address": "0xc3d688b66703497daa19211eedff47f25384cdc3",
+        "tx_hash": null,
+        "signature": "balanceOf(address),borrowBalanceOf(address)",
+        "values": {
+          "base_contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "base_symbol": "USDC",
+          "base_scale": "1000000",
+          "supplied_base": "100000000",
+          "borrowed_base": "0",
+          "is_borrow_collateralized": "true",
+          "is_liquidatable": "false"
+        }
+      },
+      {
+        "kind": "compound_v3_collateral_position",
+        "reference": "eth_call:userCollateral:block:24000000",
+        "contract_address": "0xc3d688b66703497daa19211eedff47f25384cdc3",
+        "tx_hash": null,
+        "signature": "userCollateral(address,address)",
+        "values": {
+          "asset_contract": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "symbol": "WETH",
+          "scale": "1000000000000000000",
+          "balance": "2000000000000000000",
+          "borrow_collateral_factor_wad": "830000000000000000",
+          "liquidate_collateral_factor_wad": "900000000000000000",
+          "liquidation_factor_wad": "950000000000000000",
+          "supply_cap": "500000000000000000000000"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "status": "matched",
+    "adapter_id": "oracle41.compound-v3.ethereum.usdc",
+    "protocol_id": "compound-v3-usdc",
+    "position_kinds": ["supplied", "collateral"],
+    "raw_amounts": ["100000000", "2000000000000000000"],
+    "risk_state": "no_debt",
+    "source_balance_count": 0,
+    "source_event_count": 0,
+    "raw_evidence_count": 2
+  }
+}

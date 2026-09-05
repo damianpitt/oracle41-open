@@ -53,6 +53,7 @@ class ProtocolRiskState(str, Enum):
 
     NO_DEBT = "no_debt"
     ABOVE_OR_EQUAL_LIQUIDATION_THRESHOLD = "above_or_equal_liquidation_threshold"
+    BELOW_BORROW_COLLATERAL_REQUIREMENT = "below_borrow_collateral_requirement"
     BELOW_LIQUIDATION_THRESHOLD = "below_liquidation_threshold"
     UNKNOWN = "unknown"
 
@@ -99,21 +100,23 @@ class ProtocolPositionProvenance:
 
 @dataclass(frozen=True)
 class ProtocolRiskSnapshot:
-    """Keep protocol account metrics in their original base-currency units."""
+    """Keep protocol-native account risk evidence without inventing common units."""
 
     wallet_address: str
     chain: Chain
     block_number: int
     protocol_id: str
-    total_collateral_base: str
-    total_debt_base: str
-    available_borrow_base: str
-    liquidation_threshold_bps: int
-    ltv_bps: int
-    health_factor_wad: str
-    base_currency_unit: str
+    total_collateral_base: str | None
+    total_debt_base: str | None
+    available_borrow_base: str | None
+    liquidation_threshold_bps: int | None
+    ltv_bps: int | None
+    health_factor_wad: str | None
+    base_currency_unit: str | None
     state: ProtocolRiskState
     provenance: ProtocolPositionProvenance
+    is_borrow_collateralized: bool | None = None
+    is_liquidatable: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -184,7 +187,7 @@ class ProtocolAdapterResult:
 
 @dataclass(frozen=True)
 class ProtocolCollectionCheckpoint:
-    """Keep enough Aave collection state to continue after an interruption."""
+    """Keep enough per-item collection state to continue after an interruption."""
 
     wallet_address: str
     chain: Chain

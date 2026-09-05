@@ -1,7 +1,7 @@
 """Price stored protocol positions for safe portfolio aggregation.
 
 The service values underlying assets with the existing pricing provider, treats debt as a
-liability, and identifies Aave receipt tokens that represent already-counted positions. It also
+liability, and identifies protocol receipt tokens that represent already-counted positions. It also
 builds immutable health and freshness reports from stored protocol evidence. Missing prices and
 partial, stale, or future-dated snapshots remain explicit so callers cannot present an incomplete
 net total as complete.
@@ -115,6 +115,8 @@ class ProtocolRiskReport:
     health_factor_wad: str | None
     health_factor: Decimal | None
     base_currency_unit: str | None
+    is_borrow_collateralized: bool | None = None
+    is_liquidatable: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -334,7 +336,11 @@ class ProtocolPortfolioService:
         risk = snapshot.result.risk_snapshot
         provenance = risk.provenance if risk is not None else None
         health_factor = None
-        if risk is not None and risk.state is not ProtocolRiskState.NO_DEBT:
+        if (
+            risk is not None
+            and risk.state is not ProtocolRiskState.NO_DEBT
+            and risk.health_factor_wad is not None
+        ):
             health_factor = _decimal_amount(risk.health_factor_wad, 18)
         return ProtocolRiskReport(
             wallet_address=snapshot.wallet_address,
@@ -371,6 +377,10 @@ class ProtocolPortfolioService:
             health_factor_wad=risk.health_factor_wad if risk is not None else None,
             health_factor=health_factor,
             base_currency_unit=risk.base_currency_unit if risk is not None else None,
+            is_borrow_collateralized=(
+                risk.is_borrow_collateralized if risk is not None else None
+            ),
+            is_liquidatable=risk.is_liquidatable if risk is not None else None,
         )
 
     def _load_prices(
@@ -463,14 +473,17 @@ def protocol_receipt_token_addresses(snapshot: StoredProtocolSnapshot) -> set[st
     """Return receipt tokens that mirror positive positions in this snapshot."""
     addresses: set[str] = set()
     for evidence in snapshot.result.raw_evidence:
-        if evidence.kind != "aave_v3_reserve_position":
-            continue
-        if _positive(evidence.value("current_a_token_balance")):
-            _add_address(addresses, evidence.value("a_token_contract"))
-        if _positive(evidence.value("current_stable_debt")):
-            _add_address(addresses, evidence.value("stable_debt_token_contract"))
-        if _positive(evidence.value("current_variable_debt")):
-            _add_address(addresses, evidence.value("variable_debt_token_contract"))
+        if evidence.kind == "aave_v3_reserve_position":
+            if _positive(evidence.value("current_a_token_balance")):
+                _add_address(addresses, evidence.value("a_token_contract"))
+            if _positive(evidence.value("current_stable_debt")):
+                _add_address(addresses, evidence.value("stable_debt_token_contract"))
+            if _positive(evidence.value("current_variable_debt")):
+                _add_address(addresses, evidence.value("variable_debt_token_contract"))
+        elif evidence.kind == "compound_v3_base_position" and _positive(
+            evidence.value("supplied_base")
+        ):
+            _add_address(addresses, evidence.contract_address)
     return addresses
 
 

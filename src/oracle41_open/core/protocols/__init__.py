@@ -10,6 +10,12 @@ from oracle41_open.core.protocols.aave_v3 import (
     aave_v3_deployment,
 )
 from oracle41_open.core.protocols.adapter import ProtocolAdapter
+from oracle41_open.core.protocols.compound_v3 import (
+    CompoundV3Adapter,
+    CompoundV3Market,
+    compound_v3_market,
+    compound_v3_markets,
+)
 from oracle41_open.core.protocols.reference_lending import ReferenceLendingAdapter
 from oracle41_open.core.protocols.registry import (
     ProtocolAdapterRegistry,
@@ -20,10 +26,14 @@ from oracle41_open.core.protocols.registry import (
 __all__ = [
     "AaveV3Adapter",
     "AaveV3Deployment",
+    "CompoundV3Adapter",
+    "CompoundV3Market",
     "ProtocolAdapter",
     "ProtocolAdapterRegistry",
     "ReferenceLendingAdapter",
     "UnknownProtocolAdapter",
     "aave_v3_deployment",
+    "compound_v3_market",
+    "compound_v3_markets",
     "production_protocol_registry",
 ]

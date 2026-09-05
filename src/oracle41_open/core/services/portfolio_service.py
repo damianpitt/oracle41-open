@@ -66,13 +66,13 @@ class ProtocolSnapshotReader(Protocol):
 
 
 class ProtocolSnapshotCollector(Protocol):
-    def load_aave_v3_positions(
+    def refresh_supported_positions(
         self,
         wallet_address: str,
         chain: Chain,
         block_number: int,
         force_refresh: bool = False,
-    ) -> ProtocolAdapterResult:
+    ) -> tuple[ProtocolAdapterResult, ...]:
         ...
 
 
@@ -246,7 +246,7 @@ class PortfolioService:
                     if refresh_protocol_snapshots:
                         assert protocol_snapshot_block_number is not None
                         assert self._protocol_snapshot_collector is not None
-                        self._protocol_snapshot_collector.load_aave_v3_positions(
+                        self._protocol_snapshot_collector.refresh_supported_positions(
                             entry.address,
                             entry.chain,
                             protocol_snapshot_block_number,

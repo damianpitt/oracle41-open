@@ -84,8 +84,17 @@ class ProtocolAdapterRegistry:
 def production_protocol_registry() -> ProtocolAdapterRegistry:
     """Return the adapters that are ready for production evidence."""
     from oracle41_open.core.protocols.aave_v3 import AaveV3Adapter
+    from oracle41_open.core.protocols.compound_v3 import (
+        CompoundV3Adapter,
+        compound_v3_markets,
+    )
 
-    return ProtocolAdapterRegistry((AaveV3Adapter(),))
+    return ProtocolAdapterRegistry(
+        (
+            AaveV3Adapter(),
+            *(CompoundV3Adapter(market) for market in compound_v3_markets()),
+        )
+    )
 
 
 def _validate_adapter_set(adapters: tuple[ProtocolAdapter, ...]) -> None:

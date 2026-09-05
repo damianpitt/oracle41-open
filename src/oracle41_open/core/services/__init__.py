@@ -7,6 +7,9 @@ Individual service implementations remain separated by responsibility.
 from oracle41_open.core.services.abi_decoder import SignatureRegistry, StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.address_validator import AddressValidator
+from oracle41_open.core.services.compound_v3_position_service import (
+    CompoundV3PositionService,
+)
 from oracle41_open.core.services.contract_abi_service import ContractABIService
 from oracle41_open.core.services.label_resolution_service import (
     AddressResolution,
@@ -44,6 +47,7 @@ from oracle41_open.core.services.watchlist_service import WatchlistService
 __all__ = [
     "AddressResolution",
     "ContractABIService",
+    "CompoundV3PositionService",
     "SignatureRegistry",
     "StandardABIDecoder",
     "ActivityService",

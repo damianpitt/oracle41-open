@@ -274,7 +274,7 @@ def test_portfolio_exports_support_all_templates() -> None:
         "export_format",
         "export_format_version",
     ]
-    assert summary_rows[1][-2:] == ["oracle41-portfolio", "2"]
+    assert summary_rows[1][-2:] == ["oracle41-portfolio", "3"]
 
     chain_rows = list(
         csv.reader(
@@ -334,7 +334,7 @@ def test_portfolio_exports_support_all_templates() -> None:
     )
     assert protocol_payload["template"] == "protocol_positions"
     assert protocol_payload["format"] == "oracle41-portfolio"
-    assert protocol_payload["format_version"] == 2
+    assert protocol_payload["format_version"] == 3
     assert protocol_payload["items"][0]["asset_role"] == "borrowed"
     assert protocol_payload["items"][0]["block_number"] == 24_000_000
 
@@ -367,6 +367,8 @@ def test_portfolio_exports_support_all_templates() -> None:
         "above_or_equal_liquidation_threshold"
     )
     assert risk_payload["items"][0]["observation_freshness"] == "fresh"
+    assert risk_payload["items"][0]["is_borrow_collateralized"] is None
+    assert risk_payload["items"][0]["is_liquidatable"] is None
 
 
 def test_write_activity_exports_create_files(tmp_path: Path) -> None:

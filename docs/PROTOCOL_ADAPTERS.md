@@ -88,13 +88,48 @@ The stored snapshot keeps normalized positions, assets, risk values, completenes
 
 Version `0.4.0a10` uses the newest stored snapshot for every protocol on a wallet and chain. Underlying assets receive current available prices, debt is reported as a liability, and missing prices remain visible. Aave aTokens and debt tokens are removed from wallet totals only when positive reserve evidence proves that the matching economic position is included. This prevents receipt-token double counting without hiding unrelated wallet tokens.
 
-Version `0.4.0a11` adds newest-snapshot and exact-block controls to the Portfolio view. Finding stored blocks reads SQLite only. Refreshing a protocol snapshot is a separate action that requires one chain and one block, bypasses the finished result for that block, recollects Aave data, and safely replaces the stored snapshot. Wallet overview balances remain current, so exact protocol-block mode reports a known mixed-time estimate instead of a complete historical portfolio total.
+Version `0.4.0a11` adds newest-snapshot and exact-block controls to the Portfolio view. Finding stored blocks reads SQLite only. Refreshing a protocol snapshot is a separate action that requires one chain and one block, bypasses the finished result for that block, recollects provider data, and safely replaces the stored snapshot. Wallet overview balances remain current, so exact protocol-block mode reports a known mixed-time estimate instead of a complete historical portfolio total.
 
 Version `0.4.0a12` adds protocol health and observation-age reporting to the Portfolio view. Each stored snapshot is marked `fresh`, `stale`, or `future` using a configurable age threshold. Stale and future observations keep known values visible but prevent a complete portfolio total. This is a time-based check and does not compare the snapshot block with the latest chain block.
 
 The protocol-risk report shows Aave health factor, loan-to-value, liquidation threshold, collateral, debt, available borrow, warnings, source provider, adapter identity, source reference, and observation age. Collateral, debt, available borrow, and base-currency unit remain raw Aave values. They are not labeled as USD, and Oracle41 does not turn these values into recommendations.
 
-The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 2. They include the position fields introduced in format version 1 plus freshness, risk, warnings, and adapter provenance. Historical price-at-block valuation remains later work.
+## Compound V3 Adapter
+
+`CompoundV3Adapter` handles official Compound III Comet markets. Compound documents each market as one base asset with a separate set of collateral assets. Oracle41 therefore keeps every Comet market as its own protocol result instead of merging raw balances across markets. Configured proxy addresses were checked against the [official Comet deployment roots](https://github.com/compound-finance/comet/tree/main/deployments) on 2026-09-04.
+
+The configured production markets are:
+
+| Chain | Markets |
+| --- | --- |
+| Ethereum | USDC, USDS, USDT, WBTC, WETH, wstETH |
+| Optimism | USDC, USDT, WETH |
+| Polygon | USDC, USDT |
+| Base | AERO, USDbC, USDC, USDS, WETH |
+| Arbitrum | USDC.e, USDC, USDT, WETH |
+
+The collector reads these public Comet methods at one exact block:
+
+- `baseToken()` and `baseScale()` identify the base asset and its unit.
+- `balanceOf(address)` returns positive base supply.
+- `borrowBalanceOf(address)` returns base debt.
+- `isBorrowCollateralized(address)` and `isLiquidatable(address)` preserve Compound's account checks.
+- `numAssets()` and `getAssetInfo(uint8)` discover collateral configuration.
+- `userCollateral(address,address)` returns the wallet's raw collateral balance.
+
+Market discovery and configuration must succeed because missing assets could hide collateral. A failed token-symbol or wallet-collateral read creates a partial result and keeps all valid evidence. The collector saves a checkpoint after discovery and after every collateral asset. A resumed run uses the same provider provenance and continues at the next unfinished asset.
+
+Compound does not return an Aave-style account health factor, account loan-to-value value, or one common raw collateral total from these methods. Oracle41 leaves those fields empty. It reports Compound's collateralized and liquidatable results directly and keeps collateral factors, price-feed addresses, scales, and supply caps in raw evidence. These values are observations, not financial advice.
+
+Positive Comet base-supply tokens are excluded from wallet-token totals when the matching underlying position is included. Debt-only Comet balances are not excluded. This follows the same evidence-first double-count protection used for Aave receipt tokens.
+
+Alchemy, Ankr, and configured custom JSON-RPC endpoints can perform these reads when their chain access, plan, and historical-state retention allow it. Moralis and GoldRush remain indexed wallet-data providers and do not perform protocol contract reads.
+
+## Storage, Portfolio, and Exports
+
+Version `0.4.0a13` refreshes Aave V3 and every configured Compound V3 market for the selected chain and exact block. Each finished result is stored separately by wallet, chain, protocol ID, and block. Current available token prices are applied later by the portfolio service; they are not historical price-at-block quotes.
+
+The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 3. They include position fields, freshness, warnings, adapter provenance, Aave risk metrics, and Compound's collateralized and liquidatable fields. Unsupported protocol-specific metrics remain empty instead of being estimated.
 
 ## Adding an Adapter
 

@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3F is complete in `0.4.0a12`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 positions with exact-block controls, health evidence, and clear partial or stale states. Historical prices and broader protocol coverage remain open.
+**Implementation status:** M6.3G is complete in `0.4.0a13`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 and Compound V3 lending positions with exact-block controls, protocol-native risk evidence, and clear partial or stale states. Historical prices and non-lending protocol coverage remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -513,3 +513,15 @@ The Portfolio view now shows protocol health details and marks observations as f
 `oracle41-portfolio` format version 2 adds observation age and freshness to protocol-position exports and adds dedicated protocol-risk CSV and JSON records. Tests use a fixed clock and cover fresh, stale, future, no-debt, missing-risk, export, settings, and portfolio-completeness behavior.
 
 Raw Aave account totals remain in protocol base units and are not presented as USD. The application reports evidence and state without giving financial advice. Historical price-at-block valuation and additional protocol adapters remain future work.
+
+### Completed Slice: M6.3G
+
+**Status:** Complete in `0.4.0a13`.
+
+M6.3G adds a production Compound V3 adapter for 20 official Comet markets on Ethereum, Optimism, Polygon, Base, and Arbitrum. Each market remains a separate protocol snapshot because one Comet market has one base asset and its own collateral list. The adapter reports positive base supply, base debt, and collateral without combining assets that use different raw units.
+
+The collector reads the base token, base scale, supplied and borrowed base balances, Compound's collateralized and liquidatable checks, collateral configuration, and wallet collateral balances at one exact block. Market discovery is required. Later symbol or collateral-balance failures produce a partial result while preserving completed evidence. Progress is saved after discovery and after each collateral asset.
+
+Compound risk reports keep `isBorrowCollateralized` and `isLiquidatable` as returned by Comet. Oracle41 does not invent a health factor, loan-to-value value, or common collateral total when Compound does not return one at the account level. A positive Comet base-supply token is excluded from the wallet balance before its underlying base position is added, preventing double counting.
+
+The production registry now contains Aave V3 and all configured Compound V3 markets. Manual exact-block refresh collects both supported lending protocols for the selected chain. `oracle41-portfolio` format version 3 adds the Compound safety fields to CSV and JSON risk exports.

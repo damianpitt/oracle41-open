@@ -560,6 +560,8 @@ def _risk_payload(risk: ProtocolRiskSnapshot) -> dict[str, object]:
         "health_factor_wad": risk.health_factor_wad,
         "base_currency_unit": risk.base_currency_unit,
         "state": risk.state.value,
+        "is_borrow_collateralized": risk.is_borrow_collateralized,
+        "is_liquidatable": risk.is_liquidatable,
         "provenance": _provenance_payload(risk.provenance),
     }
 
@@ -570,15 +572,26 @@ def _risk_from_payload(payload: dict[str, object]) -> ProtocolRiskSnapshot:
         chain=Chain(_text(payload.get("chain"), "risk chain")),
         block_number=_integer(payload.get("block_number"), "risk block"),
         protocol_id=_text(payload.get("protocol_id"), "risk protocol ID"),
-        total_collateral_base=_text(payload.get("total_collateral_base"), "total collateral"),
-        total_debt_base=_text(payload.get("total_debt_base"), "total debt"),
-        available_borrow_base=_text(payload.get("available_borrow_base"), "available borrow"),
-        liquidation_threshold_bps=_integer(payload.get("liquidation_threshold_bps"), "liquidation threshold"),
-        ltv_bps=_integer(payload.get("ltv_bps"), "loan-to-value"),
-        health_factor_wad=_text(payload.get("health_factor_wad"), "health factor"),
-        base_currency_unit=_text(payload.get("base_currency_unit"), "base currency unit"),
+        total_collateral_base=_optional_text(payload.get("total_collateral_base")),
+        total_debt_base=_optional_text(payload.get("total_debt_base")),
+        available_borrow_base=_optional_text(payload.get("available_borrow_base")),
+        liquidation_threshold_bps=_optional_integer(
+            payload.get("liquidation_threshold_bps"),
+            "liquidation threshold",
+        ),
+        ltv_bps=_optional_integer(payload.get("ltv_bps"), "loan-to-value"),
+        health_factor_wad=_optional_text(payload.get("health_factor_wad")),
+        base_currency_unit=_optional_text(payload.get("base_currency_unit")),
         state=ProtocolRiskState(_text(payload.get("state"), "risk state")),
         provenance=_provenance_from_payload(_mapping(payload.get("provenance"), "risk provenance")),
+        is_borrow_collateralized=_optional_boolean(
+            payload.get("is_borrow_collateralized"),
+            "borrow collateralized state",
+        ),
+        is_liquidatable=_optional_boolean(
+            payload.get("is_liquidatable"),
+            "liquidatable state",
+        ),
     )
 
 
@@ -676,5 +689,19 @@ def _optional_text(raw: object) -> str | None:
 
 def _integer(raw: object, label: str) -> int:
     if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ValueError(f"Stored {label} is invalid.")
+    return raw
+
+
+def _optional_integer(raw: object, label: str) -> int | None:
+    if raw is None:
+        return None
+    return _integer(raw, label)
+
+
+def _optional_boolean(raw: object, label: str) -> bool | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, bool):
         raise ValueError(f"Stored {label} is invalid.")
     return raw

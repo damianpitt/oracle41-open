@@ -39,12 +39,14 @@ from oracle41_open.core.services.protocol_portfolio_service import (
     ProtocolObservationFreshness,
     ProtocolPortfolioInput,
     ProtocolPortfolioService,
+    protocol_receipt_token_addresses,
 )
 
 _WALLET = "0x1111111111111111111111111111111111111111"
 _UNDERLYING = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
 _A_TOKEN = "0x98c23e9d8f34fefeaaba7d1bfee3b5b2720c4a39"
 _VARIABLE_DEBT_TOKEN = "0x72e95bcba2c5d0fe2291e84a3081dbe01fabd900"
+_COMET = "0xc3d688b66703497daa19211eedff47f25384cdc3"
 _DAI = "0x6b175474e89094c44da98b954eedeac495271d0f"
 _OBSERVED_AT = datetime(2026, 9, 1, tzinfo=UTC)
 
@@ -96,6 +98,34 @@ def test_protocol_valuation_adds_assets_subtracts_debt_and_excludes_receipts() -
     assert result.risk_reports[0].adapter_version == "1"
     assert result.risk_reports[0].source_reference == "eth_call:block:24000000"
     assert result.positions[0].observation_freshness is ProtocolObservationFreshness.FRESH
+
+
+def test_compound_base_receipt_is_excluded_only_for_positive_supply() -> None:
+    evidence = ProtocolRawEvidence(
+        kind="compound_v3_base_position",
+        reference="eth_call:base-position:block:24000000",
+        contract_address=_COMET,
+        tx_hash=None,
+        signature="balanceOf(address),borrowBalanceOf(address)",
+        values=(ProtocolEvidenceValue("supplied_base", "100000000"),),
+    )
+    snapshot = _snapshot()
+    positive = replace(snapshot, result=replace(snapshot.result, raw_evidence=(evidence,)))
+    zero = replace(
+        positive,
+        result=replace(
+            positive.result,
+            raw_evidence=(
+                replace(
+                    evidence,
+                    values=(ProtocolEvidenceValue("supplied_base", "0"),),
+                ),
+            ),
+        ),
+    )
+
+    assert protocol_receipt_token_addresses(positive) == {_COMET}
+    assert protocol_receipt_token_addresses(zero) == set()
 
 
 def test_protocol_observation_age_reports_stale_and_future_times() -> None:
@@ -416,15 +446,15 @@ class _SnapshotCollector:
         self._result = result
         self.calls: list[tuple[str, Chain, int, bool]] = []
 
-    def load_aave_v3_positions(
+    def refresh_supported_positions(
         self,
         wallet_address: str,
         chain: Chain,
         block_number: int,
         force_refresh: bool = False,
-    ) -> ProtocolAdapterResult:
+    ) -> tuple[ProtocolAdapterResult, ...]:
         self.calls.append((wallet_address, chain, block_number, force_refresh))
-        return self._result
+        return (self._result,)
 
 
 def _snapshot(

@@ -7,6 +7,7 @@ state that survives application restarts. Provider calls are covered by the serv
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -95,6 +96,36 @@ def test_finished_snapshot_round_trip_removes_checkpoint(tmp_path: Path) -> None
     assert restored.result == result
     assert restored.source_provider == "alchemy"
     assert repository.get_checkpoint(_WALLET, Chain.ETHEREUM, "aave-v3", _BLOCK) is None
+
+
+def test_snapshot_round_trip_preserves_protocol_native_risk_flags(tmp_path: Path) -> None:
+    repository = ProtocolPositionRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    result = _result()
+    assert result.risk_snapshot is not None
+    result = replace(
+        result,
+        risk_snapshot=replace(
+            result.risk_snapshot,
+            is_borrow_collateralized=False,
+            is_liquidatable=True,
+        ),
+    )
+
+    repository.save_snapshot(
+        _WALLET,
+        Chain.ETHEREUM,
+        "aave-v3",
+        _BLOCK,
+        result,
+        "alchemy",
+        _OBSERVED_AT,
+    )
+    restored = repository.get_snapshot(_WALLET, Chain.ETHEREUM, "aave-v3", _BLOCK)
+
+    assert restored is not None
+    assert restored.result.risk_snapshot is not None
+    assert restored.result.risk_snapshot.is_borrow_collateralized is False
+    assert restored.result.risk_snapshot.is_liquidatable is True
 
 
 def test_snapshot_finalization_rolls_back_when_checkpoint_delete_fails(tmp_path: Path) -> None:

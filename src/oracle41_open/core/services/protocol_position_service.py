@@ -1,31 +1,23 @@
-"""Collect block-specific protocol evidence and normalize DeFi positions.
+"""Collect block-specific Aave V3 evidence and normalize lending positions.
 
-M6.3B uses standard read-only EVM calls to collect Aave V3 reserve and account snapshots.
-Every call targets one explicit block and one provider. Failed optional calls become partial evidence;
-reserve discovery remains mandatory because an incomplete reserve list could hide debt.
+The service discovers Aave reserves and reads wallet balances, reserve settings, account health,
+and oracle units at one exact block. Failed optional calls remain visible as partial evidence, while
+reserve discovery is mandatory because an incomplete reserve list could hide debt.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Protocol, cast
-
-from eth_abi.abi import decode as abi_decode
-from eth_abi.abi import encode as abi_encode
-from eth_abi.exceptions import DecodingError
-from eth_utils.crypto import keccak
+from typing import cast
 
 from oracle41_open.core.models import (
     Chain,
-    ContractReadResult,
     ProtocolAdapterContext,
     ProtocolAdapterResult,
     ProtocolCollectionCheckpoint,
-    ProtocolEvidenceValue,
     ProtocolRawEvidence,
     ProviderError,
     ProviderResponseError,
-    StoredProtocolSnapshot,
     ValidationError,
 )
 from oracle41_open.core.protocols import (
@@ -34,58 +26,21 @@ from oracle41_open.core.protocols import (
     production_protocol_registry,
 )
 from oracle41_open.core.services.address_validator import AddressValidator
+from oracle41_open.core.services.compound_v3_position_service import (
+    CompoundV3PositionService,
+)
+from oracle41_open.core.services.protocol_collection import (
+    ContractStateReader,
+    ProtocolSnapshotRepository,
+    SnapshotReadTracker,
+    call_data,
+    decode_call_result,
+    evidence_values,
+)
 
 _MAX_AAVE_RESERVES = 128
 _ZERO_ADDRESS = "0x" + "00" * 20
 _AAVE_V3_PROTOCOL_ID = "aave-v3"
-
-
-class ContractStateReader(Protocol):
-    def read_contract(
-        self,
-        contract_address: str,
-        call_data: str,
-        chain: Chain,
-        block_number: int,
-    ) -> ContractReadResult:
-        ...
-
-
-class ProtocolSnapshotRepository(Protocol):
-    """Describe the durable methods used by protocol collection."""
-
-    def get_snapshot(
-        self,
-        wallet_address: str,
-        chain: Chain,
-        protocol_id: str,
-        block_number: int,
-    ) -> StoredProtocolSnapshot | None:
-        ...
-
-    def get_checkpoint(
-        self,
-        wallet_address: str,
-        chain: Chain,
-        protocol_id: str,
-        block_number: int,
-    ) -> ProtocolCollectionCheckpoint | None:
-        ...
-
-    def save_checkpoint(self, checkpoint: ProtocolCollectionCheckpoint) -> None:
-        ...
-
-    def save_snapshot(
-        self,
-        wallet_address: str,
-        chain: Chain,
-        protocol_id: str,
-        block_number: int,
-        result: ProtocolAdapterResult,
-        source_provider: str,
-        observed_at: datetime,
-    ) -> StoredProtocolSnapshot:
-        ...
 
 
 class ProtocolPositionService:
@@ -100,6 +55,48 @@ class ProtocolPositionService:
         self._provider = provider
         self._registry = registry or production_protocol_registry()
         self._repository = repository
+        self._compound_v3 = CompoundV3PositionService(
+            provider,
+            registry=self._registry,
+            repository=repository,
+        )
+
+    def load_compound_v3_positions(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+        force_refresh: bool = False,
+    ) -> tuple[ProtocolAdapterResult, ...]:
+        """Load every configured Compound V3 market on one chain."""
+        return self._compound_v3.load_positions(
+            wallet_address,
+            chain,
+            block_number,
+            force_refresh=force_refresh,
+        )
+
+    def refresh_supported_positions(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+        force_refresh: bool = False,
+    ) -> tuple[ProtocolAdapterResult, ...]:
+        """Load every production lending integration for one wallet and block."""
+        aave = self.load_aave_v3_positions(
+            wallet_address,
+            chain,
+            block_number,
+            force_refresh=force_refresh,
+        )
+        compound = self.load_compound_v3_positions(
+            wallet_address,
+            chain,
+            block_number,
+            force_refresh=force_refresh,
+        )
+        return (aave, *compound)
 
     def load_aave_v3_positions(
         self,
@@ -127,13 +124,13 @@ class ProtocolPositionService:
         deployment = aave_v3_deployment(chain)
         checkpoint = self._load_checkpoint(wallet, chain, block_number)
         if checkpoint is None:
-            tracker = _SnapshotReadTracker(self._provider, chain, block_number)
+            tracker = SnapshotReadTracker(self._provider, chain, block_number)
             reserves = self._load_reserves(tracker, deployment.protocol_data_provider)
             evidence: list[ProtocolRawEvidence] = []
             next_reserve_index = 0
             self._save_checkpoint(wallet, chain, block_number, reserves, 0, evidence, tracker)
         else:
-            tracker = _SnapshotReadTracker(
+            tracker = SnapshotReadTracker(
                 self._provider,
                 chain,
                 block_number,
@@ -222,7 +219,7 @@ class ProtocolPositionService:
         reserves: tuple[tuple[str, str], ...],
         next_reserve_index: int,
         evidence: list[ProtocolRawEvidence],
-        tracker: _SnapshotReadTracker,
+        tracker: SnapshotReadTracker,
     ) -> None:
         if self._repository is None:
             return
@@ -243,11 +240,11 @@ class ProtocolPositionService:
 
     def _load_reserves(
         self,
-        tracker: _SnapshotReadTracker,
+        tracker: SnapshotReadTracker,
         data_provider: str,
     ) -> tuple[tuple[str, str], ...]:
-        result = tracker.read(data_provider, _call_data("getAllReservesTokens()"))
-        decoded = _decode(result.data, ("(string,address)[]",), "Aave reserve list")
+        result = tracker.read(data_provider, call_data("getAllReservesTokens()"))
+        decoded = decode_call_result(result.data, ("(string,address)[]",), "Aave reserve list")
         raw_reserves = cast(tuple[tuple[str, str], ...], decoded[0])
         if len(raw_reserves) > _MAX_AAVE_RESERVES:
             raise ProviderResponseError(
@@ -267,7 +264,7 @@ class ProtocolPositionService:
 
     def _load_reserve_evidence(
         self,
-        tracker: _SnapshotReadTracker,
+        tracker: SnapshotReadTracker,
         data_provider: str,
         symbol: str,
         reserve: str,
@@ -282,13 +279,13 @@ class ProtocolPositionService:
         try:
             user_result = tracker.read(
                 data_provider,
-                _call_data(
+                call_data(
                     "getUserReserveData(address,address)",
                     ("address", "address"),
                     (reserve, wallet),
                 ),
             )
-            user_data = _decode(
+            user_data = decode_call_result(
                 user_result.data,
                 ("uint256",) * 7 + ("uint40", "bool"),
                 "Aave user reserve data",
@@ -305,13 +302,13 @@ class ProtocolPositionService:
         try:
             config_result = tracker.read(
                 data_provider,
-                _call_data(
+                call_data(
                     "getReserveConfigurationData(address)",
                     ("address",),
                     (reserve,),
                 ),
             )
-            config = _decode(
+            config = decode_call_result(
                 config_result.data,
                 ("uint256",) * 5 + ("bool",) * 5,
                 "Aave reserve configuration",
@@ -324,13 +321,13 @@ class ProtocolPositionService:
             try:
                 token_result = tracker.read(
                     data_provider,
-                    _call_data(
+                    call_data(
                         "getReserveTokensAddresses(address)",
                         ("address",),
                         (reserve,),
                     ),
                 )
-                token_addresses = _decode(
+                token_addresses = decode_call_result(
                     token_result.data,
                     ("address", "address", "address"),
                     "Aave reserve token addresses",
@@ -349,13 +346,13 @@ class ProtocolPositionService:
             contract_address=data_provider,
             tx_hash=None,
             signature="getUserReserveData(address,address)",
-            values=_evidence_values(values),
+            values=evidence_values(values),
         )
         return (evidence, *issues)
 
     def _load_account_evidence(
         self,
-        tracker: _SnapshotReadTracker,
+        tracker: SnapshotReadTracker,
         addresses_provider: str,
         pool: str,
         wallet: str,
@@ -365,9 +362,9 @@ class ProtocolPositionService:
         try:
             account_result = tracker.read(
                 pool,
-                _call_data("getUserAccountData(address)", ("address",), (wallet,)),
+                call_data("getUserAccountData(address)", ("address",), (wallet,)),
             )
-            account = _decode(
+            account = decode_call_result(
                 account_result.data,
                 ("uint256",) * 6,
                 "Aave user account data",
@@ -386,13 +383,19 @@ class ProtocolPositionService:
         try:
             oracle_result = tracker.read(
                 addresses_provider,
-                _call_data("getPriceOracle()"),
+                call_data("getPriceOracle()"),
             )
-            oracle = str(_decode(oracle_result.data, ("address",), "Aave oracle address")[0]).lower()
+            oracle = str(
+                decode_call_result(oracle_result.data, ("address",), "Aave oracle address")[0]
+            ).lower()
             if not AddressValidator.is_valid(oracle) or oracle == _ZERO_ADDRESS:
                 raise ProviderResponseError("Aave returned an invalid price oracle address.")
-            unit_result = tracker.read(oracle, _call_data("BASE_CURRENCY_UNIT()"))
-            base_unit = _decode(unit_result.data, ("uint256",), "Aave base currency unit")[0]
+            unit_result = tracker.read(oracle, call_data("BASE_CURRENCY_UNIT()"))
+            base_unit = decode_call_result(
+                unit_result.data,
+                ("uint256",),
+                "Aave base currency unit",
+            )[0]
             values["base_currency_unit"] = str(base_unit)
         except ProviderError as error:
             issues.append(_collection_issue(addresses_provider, None, "base currency unit", error))
@@ -403,79 +406,9 @@ class ProtocolPositionService:
             contract_address=pool,
             tx_hash=None,
             signature="getUserAccountData(address)",
-            values=_evidence_values(values),
+            values=evidence_values(values),
         )
         return (account_evidence, *issues)
-
-
-class _SnapshotReadTracker:
-    """Require all successful calls in one snapshot to use the same provider."""
-
-    def __init__(
-        self,
-        provider: ContractStateReader,
-        chain: Chain,
-        block_number: int,
-        source_provider: str | None = None,
-        observed_at: datetime | None = None,
-    ) -> None:
-        self._provider = provider
-        self._chain = chain
-        self.block_number = block_number
-        self._source_provider = source_provider
-        self._observed_at = observed_at
-
-    @property
-    def source_provider(self) -> str:
-        if self._source_provider is None:
-            raise ProviderResponseError("Protocol snapshot did not complete any contract reads.")
-        return self._source_provider
-
-    @property
-    def observed_at(self) -> datetime:
-        if self._observed_at is None:
-            raise ProviderResponseError("Protocol snapshot has no observation time.")
-        return self._observed_at
-
-    def read(self, contract: str, data: str) -> ContractReadResult:
-        result = self._provider.read_contract(
-            contract,
-            data,
-            self._chain,
-            self.block_number,
-        )
-        if (
-            result.chain is not self._chain
-            or result.contract_address.lower() != contract.lower()
-            or result.block_number != self.block_number
-        ):
-            raise ProviderResponseError("Contract provider returned a result outside the snapshot context.")
-        if self._source_provider is not None and result.source_provider != self._source_provider:
-            raise ProviderResponseError(
-                "Protocol snapshot reads changed provider; retry to keep provenance consistent."
-            )
-        self._source_provider = result.source_provider
-        if self._observed_at is None or result.fetched_at > self._observed_at:
-            self._observed_at = result.fetched_at
-        return result
-
-
-def _call_data(
-    signature: str,
-    input_types: tuple[str, ...] = (),
-    values: tuple[object, ...] = (),
-) -> str:
-    selector = keccak(text=signature)[:4]
-    arguments = abi_encode(input_types, values) if input_types else b""
-    return "0x" + (selector + arguments).hex()
-
-
-def _decode(data: str, output_types: tuple[str, ...], operation: str) -> tuple[object, ...]:
-    try:
-        raw = bytes.fromhex(data.removeprefix("0x"))
-        return tuple(abi_decode(output_types, raw, strict=True))
-    except (DecodingError, ValueError) as error:
-        raise ProviderResponseError(f"{operation} returned malformed ABI data.") from error
 
 
 def _has_nonzero_position(values: dict[str, str]) -> bool:
@@ -504,12 +437,5 @@ def _collection_issue(
         contract_address=contract,
         tx_hash=None,
         signature=None,
-        values=_evidence_values(values),
-    )
-
-
-def _evidence_values(values: dict[str, str]) -> tuple[ProtocolEvidenceValue, ...]:
-    return tuple(
-        ProtocolEvidenceValue(name=name, value=value)
-        for name, value in sorted(values.items())
+        values=evidence_values(values),
     )

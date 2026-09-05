@@ -15,7 +15,7 @@ from oracle41_open.core.models import CompletenessState, DataProvenance
 ACTIVITY_EXPORT_FORMAT = "oracle41-activity"
 ACTIVITY_EXPORT_FORMAT_VERSION = 2
 PORTFOLIO_EXPORT_FORMAT = "oracle41-portfolio"
-PORTFOLIO_EXPORT_FORMAT_VERSION = 2
+PORTFOLIO_EXPORT_FORMAT_VERSION = 3
 
 
 @dataclass(frozen=True)
