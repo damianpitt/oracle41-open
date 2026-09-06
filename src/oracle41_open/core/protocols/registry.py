@@ -88,11 +88,13 @@ def production_protocol_registry() -> ProtocolAdapterRegistry:
         CompoundV3Adapter,
         compound_v3_markets,
     )
+    from oracle41_open.core.protocols.uniswap_v3 import UniswapV3Adapter
 
     return ProtocolAdapterRegistry(
         (
             AaveV3Adapter(),
             *(CompoundV3Adapter(market) for market in compound_v3_markets()),
+            UniswapV3Adapter(),
         )
     )
 

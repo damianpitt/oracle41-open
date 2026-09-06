@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a13` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, aggregate, and export block-specific Aave V3 and Compound V3 lending positions on every supported chain. The Portfolio view reports protocol-native risk evidence and snapshot freshness, can use the newest stored snapshots or one exact block, and can manually refresh supported lending data at that block.
+Version `0.4.0a14` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, aggregate, and export block-specific Aave V3, Compound V3, and directly owned Uniswap V3 positions on every supported chain. The Portfolio view reports protocol risk, liquidity ranges, snapshot freshness, and exact-block source details.
 
 ## Features
 
@@ -44,8 +44,10 @@ Version `0.4.0a13` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Durable Aave V3 snapshots with per-reserve resume checkpoints and provider provenance
 - Compound V3 base supply, debt, and collateral across 20 official Comet markets on every supported chain
 - Exact-block Compound V3 collection with per-collateral resume checkpoints and native safety checks
+- Uniswap V3 position-manager NFT discovery with concentrated-liquidity principal and fee estimates
+- Pool, fee-tier, tick-range, current-range-state, and liquidity details for Uniswap V3 positions
 - Protocol-aware portfolio totals with supplied assets, collateral, debt, missing-price states, and receipt-token double-count protection
-- Protocol-position CSV and JSON exports with exact-block, completeness, and provider details
+- Protocol-position CSV and JSON exports with exact-block, range, completeness, and provider details
 - Protocol risk and health reports with Aave account metrics, Compound safety checks, warnings, and adapter provenance
 - Configurable protocol snapshot freshness with clear fresh, stale, and future-observation states
 - Local protocol snapshot history selection and explicit exact-block refresh controls
@@ -205,8 +207,9 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Provider APIs and rate limits vary by chain and account.
 - Token metadata quality depends on provider responses and local filtering rules.
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
-- Aave V3 and Compound V3 positions use current available prices for stored snapshot amounts. Historical price-at-block valuation is not included yet.
-- Manual protocol refresh supports Aave V3 and configured Compound V3 markets for one chain and block at a time.
+- Aave V3, Compound V3, and Uniswap V3 positions use current available prices for stored snapshot amounts. Historical price-at-block valuation is not included yet.
+- Manual protocol refresh supports Aave V3, configured Compound V3 markets, and directly owned Uniswap V3 NFTs for one chain and block at a time.
+- Uniswap V3 amounts are deterministic estimates from pool state. They are not withdrawal quotes and do not include NFTs held by staking, vault, or custody contracts.
 - Exact protocol-block mode uses current wallet balances, so it reports a known estimate rather than a complete historical portfolio total.
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.

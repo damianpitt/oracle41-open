@@ -41,6 +41,7 @@ from oracle41_open.core.services.transaction_inspection_service import (
     TransactionInspectionResult,
     TransactionInspectionService,
 )
+from oracle41_open.core.services.uniswap_v3_position_service import UniswapV3PositionService
 from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
 
@@ -68,6 +69,7 @@ __all__ = [
     "SnapshotComparisonResult",
     "SnapshotTokenDelta",
     "TokenFilterService",
+    "UniswapV3PositionService",
     "TransactionInspectionResult",
     "TransactionInspectionService",
     "TokenDetailService",

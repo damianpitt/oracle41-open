@@ -37,6 +37,7 @@ from oracle41_open.core.services.protocol_collection import (
     decode_call_result,
     evidence_values,
 )
+from oracle41_open.core.services.uniswap_v3_position_service import UniswapV3PositionService
 
 _MAX_AAVE_RESERVES = 128
 _ZERO_ADDRESS = "0x" + "00" * 20
@@ -56,6 +57,11 @@ class ProtocolPositionService:
         self._registry = registry or production_protocol_registry()
         self._repository = repository
         self._compound_v3 = CompoundV3PositionService(
+            provider,
+            registry=self._registry,
+            repository=repository,
+        )
+        self._uniswap_v3 = UniswapV3PositionService(
             provider,
             registry=self._registry,
             repository=repository,
@@ -83,7 +89,7 @@ class ProtocolPositionService:
         block_number: int,
         force_refresh: bool = False,
     ) -> tuple[ProtocolAdapterResult, ...]:
-        """Load every production lending integration for one wallet and block."""
+        """Load every production protocol integration for one wallet and block."""
         aave = self.load_aave_v3_positions(
             wallet_address,
             chain,
@@ -96,7 +102,28 @@ class ProtocolPositionService:
             block_number,
             force_refresh=force_refresh,
         )
-        return (aave, *compound)
+        uniswap = self.load_uniswap_v3_positions(
+            wallet_address,
+            chain,
+            block_number,
+            force_refresh=force_refresh,
+        )
+        return (aave, *compound, uniswap)
+
+    def load_uniswap_v3_positions(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+        force_refresh: bool = False,
+    ) -> ProtocolAdapterResult:
+        """Load directly owned Uniswap V3 position NFTs on one chain."""
+        return self._uniswap_v3.load_positions(
+            wallet_address,
+            chain,
+            block_number,
+            force_refresh=force_refresh,
+        )
 
     def load_aave_v3_positions(
         self,

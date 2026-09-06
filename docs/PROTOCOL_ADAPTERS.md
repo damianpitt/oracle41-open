@@ -125,11 +125,23 @@ Positive Comet base-supply tokens are excluded from wallet-token totals when the
 
 Alchemy, Ankr, and configured custom JSON-RPC endpoints can perform these reads when their chain access, plan, and historical-state retention allow it. Moralis and GoldRush remain indexed wallet-data providers and do not perform protocol contract reads.
 
+## Uniswap V3 Adapter
+
+`UniswapV3Adapter` handles official Uniswap V3 position-manager NFTs on Ethereum, Optimism, Polygon, Base, and Arbitrum. Contract addresses were checked against the [official Uniswap SDK deployment catalog](https://github.com/Uniswap/sdks/blob/main/sdks/sdk-core/src/addresses.ts) on 2026-09-06. The collector first calls `balanceOf(address)` and `tokenOfOwnerByIndex(address,uint256)` to find NFTs owned directly by the wallet. It then reads [`positions(uint256)`](https://github.com/Uniswap/v3-periphery/blob/main/contracts/interfaces/INonfungiblePositionManager.sol), finds the pool through the official factory, and loads `slot0()`, global fee growth, and both boundary ticks at one exact block.
+
+Each NFT becomes one liquidity position. The adapter calculates the token0 and token1 amounts represented by its liquidity at the observed square-root price. It also calculates estimated uncollected fees from fee growth and adds the manager's recorded `tokensOwed` values. Principal and fee components stay separate, so exported rows explain why an amount is present.
+
+The position keeps its pool address, fee tier, lower tick, upper tick, current tick, current range state, and liquidity. A range state can be `below_range`, `in_range`, or `above_range`. Being outside the range is normal protocol behavior and is not reported as an error.
+
+These amounts are deterministic analytics estimates from the saved contract state. They are not withdrawal quotes. Price movement, fee collection, burns, transfers, or other transactions after the saved block can change the result. The first release finds only NFTs owned directly by the wallet. It does not discover positions whose NFT is held by a staking, vault, farming, custody, or wrapper contract.
+
+Alchemy, Ankr, and configured custom JSON-RPC endpoints can perform these reads when historical contract state is available. Moralis and GoldRush do not provide this JSON-RPC collection path.
+
 ## Storage, Portfolio, and Exports
 
-Version `0.4.0a13` refreshes Aave V3 and every configured Compound V3 market for the selected chain and exact block. Each finished result is stored separately by wallet, chain, protocol ID, and block. Current available token prices are applied later by the portfolio service; they are not historical price-at-block quotes.
+Version `0.4.0a14` refreshes Aave V3, every configured Compound V3 market, and directly owned Uniswap V3 positions for the selected chain and exact block. Each finished result is stored separately by wallet, chain, protocol ID, and block. Current available token prices are applied later by the portfolio service; they are not historical price-at-block quotes.
 
-The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 3. They include position fields, freshness, warnings, adapter provenance, Aave risk metrics, and Compound's collateralized and liquidatable fields. Unsupported protocol-specific metrics remain empty instead of being estimated.
+The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 4. They include position fields, freshness, warnings, adapter provenance, Aave risk metrics, Compound safety fields, and Uniswap pool and range details. Unsupported protocol-specific metrics remain empty instead of being estimated.
 
 ## Adding an Adapter
 

@@ -1,8 +1,8 @@
 """Test the versioned protocol-adapter contract and fixture format.
 
-Recorded Aave, Compound, reference, and unknown cases share one conformance path. Focused tests
-cover explicit capabilities, deterministic risk states, safe registry selection, and complete
-source-evidence passthrough.
+Recorded Aave, Compound, Uniswap, reference, and unknown cases share one conformance path. Focused
+tests cover explicit capabilities, deterministic risk states, safe registry selection, liquidity
+math, and complete source-evidence passthrough.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from oracle41_open.core.models import (
     ProtocolAdapterContext,
     ProtocolAdapterResult,
     ProtocolAdapterStatus,
+    ProtocolAssetRole,
     ProtocolContract,
     ProtocolEvidenceValue,
     ProtocolPositionKind,
@@ -39,10 +40,14 @@ from oracle41_open.core.protocols import (
     ProtocolAdapter,
     ProtocolAdapterRegistry,
     ReferenceLendingAdapter,
+    UniswapV3Adapter,
     UnknownProtocolAdapter,
     compound_v3_market,
     compound_v3_markets,
+    liquidity_amounts,
     production_protocol_registry,
+    sqrt_ratio_at_tick,
+    uniswap_v3_deployment,
 )
 
 _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "protocols"
@@ -54,6 +59,7 @@ _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "protocols"
         "reference_lending_v1.json",
         "aave_v3_ethereum_v1.json",
         "compound_v3_ethereum_usdc_v1.json",
+        "uniswap_v3_ethereum_v1.json",
         "unknown_protocol_v1.json",
     ),
 )
@@ -65,6 +71,7 @@ def test_protocol_fixture_conformance(fixture_name: str) -> None:
             ReferenceLendingAdapter(),
             AaveV3Adapter(),
             CompoundV3Adapter(compound_v3_market(Chain.ETHEREUM, "usdc")),
+            UniswapV3Adapter(),
         )
     )
 
@@ -143,10 +150,85 @@ def test_production_registry_contains_aave_and_compound_v3() -> None:
     registry = production_protocol_registry()
 
     adapter_ids = [item.adapter_id for item in registry.capabilities]
-    assert len(adapter_ids) == 21
+    assert len(adapter_ids) == 22
     assert adapter_ids[0] == "oracle41.aave-v3"
     assert "oracle41.compound-v3.ethereum.usdc" in adapter_ids
     assert "oracle41.compound-v3.arbitrum.weth" in adapter_ids
+    assert adapter_ids[-1] == "oracle41.uniswap-v3"
+
+
+def test_uniswap_adapter_exposes_official_deployments() -> None:
+    adapter = UniswapV3Adapter()
+
+    assert isinstance(adapter, ProtocolAdapter)
+    assert adapter.capabilities.chains == frozenset(Chain)
+    assert adapter.capabilities.position_kinds == frozenset(
+        {ProtocolPositionKind.LIQUIDITY}
+    )
+    assert len(adapter.capabilities.contracts) == 10
+    assert uniswap_v3_deployment(Chain.ETHEREUM).position_manager == (
+        "0xc36442b4a4522e871399cd717abdd847ab11fe88"
+    )
+    assert uniswap_v3_deployment(Chain.BASE).factory == (
+        "0x33128a8fc17869897dce68ed026d694621f6fdfd"
+    )
+
+
+def test_uniswap_adapter_keeps_range_and_fee_components() -> None:
+    fixture = _load_fixture("uniswap_v3_ethereum_v1.json")
+
+    result = UniswapV3Adapter().analyze(_context_from_fixture(fixture))
+
+    assert result.status is ProtocolAdapterStatus.MATCHED
+    assert result.risk_snapshot is not None
+    assert result.risk_snapshot.state is ProtocolRiskState.NOT_APPLICABLE
+    position = result.positions[0]
+    assert position.metadata_value("range_state") == "in_range"
+    assert position.metadata_value("fee_tier") == "3000"
+    assert [asset.role for asset in position.assets] == [
+        ProtocolAssetRole.UNDERLYING,
+        ProtocolAssetRole.UNDERLYING,
+        ProtocolAssetRole.REWARD,
+        ProtocolAssetRole.REWARD,
+    ]
+    assert position.assets[2].raw_amount == str(2 * 10**18 + 100)
+
+
+def test_uniswap_tick_zero_has_exact_q96_ratio() -> None:
+    assert sqrt_ratio_at_tick(0) == 2**96
+    assert sqrt_ratio_at_tick(-887_272) == 4_295_128_739
+    assert sqrt_ratio_at_tick(887_272) == 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342
+
+
+def test_uniswap_liquidity_amounts_follow_range_boundaries() -> None:
+    liquidity = 10**18
+    lower = sqrt_ratio_at_tick(-60)
+    upper = sqrt_ratio_at_tick(60)
+
+    below = liquidity_amounts(liquidity, lower - 1, -60, 60)
+    inside = liquidity_amounts(liquidity, 2**96, -60, 60)
+    above = liquidity_amounts(liquidity, upper, -60, 60)
+
+    assert below[0] > 0 and below[1] == 0
+    assert inside[0] > 0 and inside[1] > 0
+    assert above[0] == 0 and above[1] > 0
+
+
+def test_uniswap_malformed_position_is_partial() -> None:
+    context = _context_from_fixture(_load_fixture("uniswap_v3_ethereum_v1.json"))
+    position = context.raw_evidence[1]
+    values = tuple(
+        replace(item, value="bad") if item.name == "liquidity" else item
+        for item in position.values
+    )
+
+    result = UniswapV3Adapter().analyze(
+        replace(context, raw_evidence=(context.raw_evidence[0], replace(position, values=values)))
+    )
+
+    assert result.status is ProtocolAdapterStatus.PARTIAL
+    assert result.positions == ()
+    assert "malformed required fields" in result.warnings[0]
 
 
 def test_compound_market_catalog_covers_every_supported_chain() -> None:

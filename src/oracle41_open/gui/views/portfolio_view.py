@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oracle41_open.core.models import Chain, ValidationError, WatchlistEntry
+from oracle41_open.core.models import Chain, ProtocolRiskState, ValidationError, WatchlistEntry
 from oracle41_open.core.services.portfolio_service import PortfolioLoadResult, PortfolioWalletResult
 from oracle41_open.exports import PortfolioExportTemplate, write_portfolio_csv, write_portfolio_json
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
@@ -603,6 +603,13 @@ def _render_result(result: PortfolioLoadResult) -> str:
     else:
         for position in result.protocol_positions[:200]:
             liability_label = "liability" if position.is_liability else "asset"
+            range_detail = ""
+            if position.range_state is not None:
+                range_detail = (
+                    f" | range={position.range_state} "
+                    f"[{position.tick_lower}, {position.tick_upper}) "
+                    f"current_tick={position.current_tick} | fee_tier={position.fee_tier}"
+                )
             lines.append(
                 f"- [{position.chain.display_name}] {position.label} | {liability_label} | "
                 f"amount={_fmt_decimal(position.amount)} {position.symbol or 'unknown'} | "
@@ -610,7 +617,7 @@ def _render_result(result: PortfolioLoadResult) -> str:
                 f"net_usd={_fmt_decimal(position.net_value_usd)} | "
                 f"block={position.block_number} | provider={position.source_provider} | "
                 f"observation={position.observation_freshness.value} "
-                f"({_fmt_age(position.observation_age_seconds)})"
+                f"({_fmt_age(position.observation_age_seconds)}){range_detail}"
             )
         remaining_positions = len(result.protocol_positions) - 200
         if remaining_positions > 0:
@@ -624,6 +631,8 @@ def _render_result(result: PortfolioLoadResult) -> str:
             health = _fmt_decimal(report.health_factor)
             if report.risk_state is not None and report.risk_state.value == "no_debt":
                 health = "n/a (no debt)"
+            if report.risk_state is ProtocolRiskState.NOT_APPLICABLE:
+                health = "n/a"
             risk_state = report.risk_state.value if report.risk_state is not None else "unavailable"
             lines.append(
                 f"- [{report.chain.display_name}] {report.protocol_name} | "

@@ -83,6 +83,13 @@ class ProtocolPositionValuation:
     observed_at: datetime
     observation_age_seconds: int
     observation_freshness: ProtocolObservationFreshness
+    pool_address: str | None = None
+    fee_tier: int | None = None
+    tick_lower: int | None = None
+    tick_upper: int | None = None
+    current_tick: int | None = None
+    range_state: str | None = None
+    liquidity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -448,6 +455,13 @@ def _value_asset(
         observed_at=_as_utc(snapshot.observed_at),
         observation_age_seconds=observation_age_seconds,
         observation_freshness=observation_freshness,
+        pool_address=position.metadata_value("pool_address"),
+        fee_tier=_optional_integer(position.metadata_value("fee_tier")),
+        tick_lower=_optional_integer(position.metadata_value("tick_lower")),
+        tick_upper=_optional_integer(position.metadata_value("tick_upper")),
+        current_tick=_optional_integer(position.metadata_value("current_tick")),
+        range_state=position.metadata_value("range_state"),
+        liquidity=position.metadata_value("liquidity"),
     )
 
 
@@ -467,6 +481,13 @@ def _decimal_amount(raw_amount: str, decimals: int | None) -> Decimal | None:
     if not amount.is_finite() or amount < 0:
         return None
     return amount.scaleb(-decimals)
+
+
+def _optional_integer(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
 
 
 def protocol_receipt_token_addresses(snapshot: StoredProtocolSnapshot) -> set[str]:

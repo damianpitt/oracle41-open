@@ -499,6 +499,10 @@ def _position_payload(position: ProtocolPosition) -> dict[str, object]:
         "completeness": position.completeness.value,
         "warnings": list(position.warnings),
         "provenance": _provenance_payload(position.provenance),
+        "metadata": [
+            {"name": item.name, "value": item.value}
+            for item in position.metadata
+        ],
     }
 
 
@@ -528,6 +532,13 @@ def _position_from_payload(raw: object) -> ProtocolPosition:
         ),
         provenance=_provenance_from_payload(
             _mapping(payload.get("provenance"), "position provenance")
+        ),
+        metadata=tuple(
+            ProtocolEvidenceValue(
+                name=_text(_mapping(item, "position metadata").get("name"), "metadata name"),
+                value=_text(_mapping(item, "position metadata").get("value"), "metadata value"),
+            )
+            for item in _list_value(payload.get("metadata", []), "position metadata")
         ),
     )
 

@@ -22,6 +22,13 @@ from oracle41_open.core.protocols.registry import (
     UnknownProtocolAdapter,
     production_protocol_registry,
 )
+from oracle41_open.core.protocols.uniswap_v3 import (
+    UniswapV3Adapter,
+    UniswapV3Deployment,
+    liquidity_amounts,
+    sqrt_ratio_at_tick,
+    uniswap_v3_deployment,
+)
 
 __all__ = [
     "AaveV3Adapter",
@@ -32,8 +39,13 @@ __all__ = [
     "ProtocolAdapterRegistry",
     "ReferenceLendingAdapter",
     "UnknownProtocolAdapter",
+    "UniswapV3Adapter",
+    "UniswapV3Deployment",
     "aave_v3_deployment",
     "compound_v3_market",
     "compound_v3_markets",
     "production_protocol_registry",
+    "liquidity_amounts",
+    "sqrt_ratio_at_tick",
+    "uniswap_v3_deployment",
 ]

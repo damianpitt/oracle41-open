@@ -2,7 +2,30 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a13] - Unreleased
+## [0.4.0a14] - Unreleased
+
+### Added
+
+- A production Uniswap V3 adapter for directly owned concentrated-liquidity position NFTs on every supported chain.
+- Exact-block NFT enumeration, position reads, pool discovery, square-root price, fee-growth, and boundary-tick collection.
+- Deterministic token0 and token1 principal estimates with separate estimated uncollected-fee components.
+- Pool, fee-tier, tick-range, current-range-state, and liquidity metadata in stored positions, exports, and the Portfolio view.
+- Per-NFT resume checkpoints and recorded tests for complete, partial, cached, and resumed collection.
+
+### Changed
+
+- Manual protocol refresh now collects Aave V3, configured Compound V3 markets, and Uniswap V3 positions.
+- Protocol risk state can be `not_applicable` when a protocol has no lending liquidation model.
+- The `oracle41-portfolio` export format is now version 4 and includes Uniswap V3 range fields.
+
+### Known Limitations
+
+- Uniswap V3 discovery includes only position NFTs owned directly by the wallet. Deposited or wrapped NFTs require another integration.
+- Calculated principal and uncollected fees are analytics estimates from saved contract state, not withdrawal quotes.
+- Current prices are applied to stored position amounts. Historical price-at-block valuation is not included yet.
+- Historical contract reads depend on the transaction provider, account plan, and node retention.
+
+## [0.4.0a13] - 2026-09-04
 
 ### Added
 

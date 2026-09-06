@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3G is complete in `0.4.0a13`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 and Compound V3 lending positions with exact-block controls, protocol-native risk evidence, and clear partial or stale states. Historical prices and non-lending protocol coverage remain open.
+**Implementation status:** M6.3H is complete in `0.4.0a14`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 and Compound V3 lending positions plus directly owned Uniswap V3 concentrated-liquidity NFTs. Historical prices and additional staking, vault, bridge, and NFT coverage remain open.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -525,3 +525,15 @@ The collector reads the base token, base scale, supplied and borrowed base balan
 Compound risk reports keep `isBorrowCollateralized` and `isLiquidatable` as returned by Comet. Oracle41 does not invent a health factor, loan-to-value value, or common collateral total when Compound does not return one at the account level. A positive Comet base-supply token is excluded from the wallet balance before its underlying base position is added, preventing double counting.
 
 The production registry now contains Aave V3 and all configured Compound V3 markets. Manual exact-block refresh collects both supported lending protocols for the selected chain. `oracle41-portfolio` format version 3 adds the Compound safety fields to CSV and JSON risk exports.
+
+### Completed Slice: M6.3H
+
+**Status:** Complete in `0.4.0a14`.
+
+M6.3H adds a production Uniswap V3 adapter for concentrated-liquidity position NFTs on Ethereum, Optimism, Polygon, Base, and Arbitrum. The collector enumerates NFTs owned directly by the wallet and reads position, pool, fee-growth, tick, and token state at one exact block.
+
+Each NFT becomes one liquidity position. Principal token amounts and estimated uncollected fees remain separate. The position records its pool, fee tier, lower and upper ticks, current tick, range state, and liquidity. Outside-range positions remain valid and visible.
+
+Collection progress is saved after discovery and after every NFT. Stored snapshots are priced and added to portfolio totals through the existing protocol path. CSV and JSON format version 4 exposes the new range fields. Tests cover deterministic fixture output, tick-range branches, partial metadata, exact-block reads, stored reuse, and interrupted-run resume.
+
+The first Uniswap slice discovers only NFTs owned directly by the wallet. Positions deposited into staking, vault, custody, or wrapper contracts need separate adapters or ownership discovery. The calculated amounts are analytics estimates, not withdrawal quotes.

@@ -1,0 +1,75 @@
+{
+  "format": "oracle41-protocol-adapter-fixture",
+  "format_version": 1,
+  "case_id": "uniswap-v3-ethereum-in-range",
+  "input": {
+    "wallet_address": "0x1111111111111111111111111111111111111111",
+    "chain": "ethereum",
+    "block_number": 24000000,
+    "contract_addresses": [
+      "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+      "0xc36442b4a4522e871399cd717abdd847ab11fe88"
+    ],
+    "token_balances": [],
+    "decoded_events": [],
+    "raw_evidence": [
+      {
+        "kind": "uniswap_v3_collection",
+        "reference": "eth_call:owned-positions:block:24000000",
+        "contract_address": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
+        "tx_hash": null,
+        "signature": "balanceOf(address),tokenOfOwnerByIndex(address,uint256)",
+        "values": {
+          "position_count": "1",
+          "token_ids": "42"
+        }
+      },
+      {
+        "kind": "uniswap_v3_position",
+        "reference": "eth_call:positions:block:24000000:token:42",
+        "contract_address": "0xc36442b4a4522e871399cd717abdd847ab11fe88",
+        "tx_hash": null,
+        "signature": "positions(uint256)",
+        "values": {
+          "token_id": "42",
+          "token0": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "token1": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "symbol0": "USDC",
+          "symbol1": "WETH",
+          "decimals0": "6",
+          "decimals1": "18",
+          "fee": "3000",
+          "tick_lower": "-60",
+          "tick_upper": "60",
+          "current_tick": "0",
+          "sqrt_price_x96": "79228162514264337593543950336",
+          "liquidity": "1000000000000000000",
+          "pool": "0x2222222222222222222222222222222222222222",
+          "fee_growth_global0_x128": "3402823669209384634633746074317682114560",
+          "fee_growth_global1_x128": "6805647338418769269267492148635364229120",
+          "fee_growth_outside0_lower_x128": "340282366920938463463374607431768211456",
+          "fee_growth_outside1_lower_x128": "1020847100762815390390123822295304634368",
+          "fee_growth_outside0_upper_x128": "680564733841876926926749214863536422912",
+          "fee_growth_outside1_upper_x128": "1361129467683753853853498429727072845824",
+          "fee_growth_inside0_last_x128": "1701411834604692317316873037158841057280",
+          "fee_growth_inside1_last_x128": "4083388403051261567560495289181218537472",
+          "tokens_owed0": "100",
+          "tokens_owed1": "200"
+        }
+      }
+    ],
+    "source_provider": "fixture-rpc",
+    "observed_at": "2026-09-06T00:00:00+00:00"
+  },
+  "expected": {
+    "status": "matched",
+    "adapter_id": "oracle41.uniswap-v3",
+    "protocol_id": "uniswap-v3",
+    "position_kinds": ["liquidity"],
+    "raw_amounts": ["2995354955910780"],
+    "risk_state": "not_applicable",
+    "source_balance_count": 0,
+    "source_event_count": 0,
+    "raw_evidence_count": 2
+  }
+}

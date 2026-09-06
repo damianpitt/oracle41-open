@@ -279,6 +279,10 @@ def _result(
         completeness=ProtocolPositionCompleteness.COMPLETE,
         warnings=(),
         provenance=provenance,
+        metadata=(
+            ProtocolEvidenceValue("range_state", "in_range"),
+            ProtocolEvidenceValue("current_tick", "0"),
+        ),
     )
     risk = ProtocolRiskSnapshot(
         wallet_address=_WALLET,

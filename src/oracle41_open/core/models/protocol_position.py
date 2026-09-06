@@ -55,6 +55,7 @@ class ProtocolRiskState(str, Enum):
     ABOVE_OR_EQUAL_LIQUIDATION_THRESHOLD = "above_or_equal_liquidation_threshold"
     BELOW_BORROW_COLLATERAL_REQUIREMENT = "below_borrow_collateral_requirement"
     BELOW_LIQUIDATION_THRESHOLD = "below_liquidation_threshold"
+    NOT_APPLICABLE = "not_applicable"
     UNKNOWN = "unknown"
 
 
@@ -135,6 +136,11 @@ class ProtocolPosition:
     completeness: ProtocolPositionCompleteness
     warnings: tuple[str, ...]
     provenance: ProtocolPositionProvenance
+    metadata: tuple[ProtocolEvidenceValue, ...] = ()
+
+    def metadata_value(self, name: str) -> str | None:
+        """Return one position detail without exposing a mutable mapping."""
+        return next((item.value for item in self.metadata if item.name == name), None)
 
 
 @dataclass(frozen=True)
