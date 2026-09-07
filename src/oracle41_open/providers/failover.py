@@ -22,6 +22,10 @@ from oracle41_open.core.models import (
     ProviderResponseError,
     TokenBalancePage,
 )
+from oracle41_open.providers.capabilities import (
+    WalletDataFeature,
+    WalletDataProviderDescriptor,
+)
 from oracle41_open.providers.data_provider import DataProvider
 
 _CURSOR_PREFIX = "o41-provider-cursor-v1:"
@@ -34,6 +38,12 @@ class ProviderPoolEntry:
 
     provider_id: str
     provider: DataProvider
+    capabilities: WalletDataProviderDescriptor | None = None
+
+    def supports(self, feature: WalletDataFeature, chain: Chain) -> bool:
+        """Allow legacy entries everywhere and enforce declared production coverage."""
+
+        return self.capabilities is None or self.capabilities.supports(feature, chain)
 
 
 class OrderedDataProviderPool:
@@ -61,6 +71,8 @@ class OrderedDataProviderPool:
         _, result = self._run_fresh_request(
             "native balance",
             lambda provider: provider.get_native_balance(address, chain),
+            feature=WalletDataFeature.NATIVE_BALANCE,
+            chain=chain,
         )
         return result
 
@@ -81,11 +93,15 @@ class OrderedDataProviderPool:
                     chain,
                     page_key=raw_cursor,
                 ),
+                feature=WalletDataFeature.TOKEN_BALANCES,
+                chain=chain,
             )
         else:
             entry, page = self._run_fresh_request(
                 "token balances",
                 lambda provider: provider.get_token_balances(address, chain),
+                feature=WalletDataFeature.TOKEN_BALANCES,
+                chain=chain,
             )
             owner = entry.provider_id
         return replace(
@@ -113,6 +129,8 @@ class OrderedDataProviderPool:
                     cursor=raw_cursor,
                     from_block=from_block,
                 ),
+                feature=WalletDataFeature.WALLET_ACTIVITY,
+                chain=chain,
             )
         else:
             entry, page = self._run_fresh_request(
@@ -122,6 +140,8 @@ class OrderedDataProviderPool:
                     chain,
                     from_block=from_block,
                 ),
+                feature=WalletDataFeature.WALLET_ACTIVITY,
+                chain=chain,
             )
             owner = entry.provider_id
         return replace(
@@ -139,6 +159,11 @@ class OrderedDataProviderPool:
         include_approvals: bool = False,
     ) -> ActivityPage:
         operation = "token_transfers"
+        required_feature = (
+            WalletDataFeature.APPROVAL_HISTORY
+            if include_approvals
+            else WalletDataFeature.TOKEN_HISTORY
+        )
         if cursor is not None:
             owner, raw_cursor = self._decode_cursor(cursor, operation)
             page = self._run_continuation(
@@ -151,6 +176,8 @@ class OrderedDataProviderPool:
                     cursor=raw_cursor,
                     include_approvals=include_approvals,
                 ),
+                feature=required_feature,
+                chain=chain,
             )
         else:
             entry, page = self._run_fresh_request(
@@ -161,6 +188,8 @@ class OrderedDataProviderPool:
                     chain,
                     include_approvals=include_approvals,
                 ),
+                feature=required_feature,
+                chain=chain,
             )
             owner = entry.provider_id
         return replace(
@@ -173,9 +202,19 @@ class OrderedDataProviderPool:
         self,
         operation: str,
         call: Callable[[DataProvider], _ResultT],
+        feature: WalletDataFeature,
+        chain: Chain,
     ) -> tuple[ProviderPoolEntry, _ResultT]:
         failures: list[str] = []
-        for entry in self._entries:
+        eligible_entries = tuple(
+            entry for entry in self._entries if entry.supports(feature, chain)
+        )
+        if not eligible_entries:
+            raise ProviderResponseError(
+                f"No enabled wallet-data provider supports {operation} on "
+                f"{chain.display_name}."
+            )
+        for entry in eligible_entries:
             try:
                 return entry, call(entry.provider)
             except ProviderError as error:
@@ -189,11 +228,18 @@ class OrderedDataProviderPool:
         owner: str,
         operation: str,
         call: Callable[[DataProvider], _ResultT],
+        feature: WalletDataFeature,
+        chain: Chain,
     ) -> _ResultT:
         entry = self._entries_by_id.get(owner)
         if entry is None:
             raise ProviderResponseError(
                 f"Cannot continue {operation}: its source provider is not enabled. Start a new load."
+            )
+        if not entry.supports(feature, chain):
+            raise ProviderResponseError(
+                f"Cannot continue {operation}: {owner} does not support it on "
+                f"{chain.display_name}. Start a new load."
             )
         try:
             return call(entry.provider)

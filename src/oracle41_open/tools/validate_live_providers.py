@@ -23,6 +23,11 @@ from oracle41_open.core.services.provider_live_validation_service import (
 )
 from oracle41_open.providers.alchemy import AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
+from oracle41_open.providers.capabilities import (
+    WalletDataFeature,
+    WalletDataProviderId,
+    provider_descriptor,
+)
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.goldrush import GoldRushProvider
 from oracle41_open.providers.moralis import MoralisProvider
@@ -53,17 +58,6 @@ def run_live_provider_validation(
         )
         return 2
 
-    missing = [
-        name
-        for name in (_WALLET_NAME, _TOKEN_NAME, *_KEY_NAMES.values())
-        if not values.get(name, "").strip()
-    ]
-    if missing:
-        print("Live provider validation is missing required environment variables:")
-        for name in missing:
-            print(f"- {name}")
-        return 2
-
     raw_chain = values.get(_CHAIN_NAME, Chain.ETHEREUM.value).strip().lower()
     try:
         chain = Chain(raw_chain)
@@ -72,10 +66,38 @@ def run_live_provider_validation(
         print(f"Invalid {_CHAIN_NAME}. Supported values: {supported}.")
         return 2
 
-    live_providers = providers or _build_providers(values)
+    provider_ids = tuple(
+        provider_id
+        for provider_id in WalletDataProviderId
+        if _supports_live_validation(provider_id, chain)
+    )
+    if not provider_ids:
+        print(
+            f"No wallet-data provider has validated live operations on "
+            f"{chain.display_name}."
+        )
+        return 2
+
+    missing = [
+        name
+        for name in (
+            _WALLET_NAME,
+            _TOKEN_NAME,
+            *(_KEY_NAMES[provider_id.value] for provider_id in provider_ids),
+        )
+        if not values.get(name, "").strip()
+    ]
+    if missing:
+        print("Live provider validation is missing required environment variables:")
+        for name in missing:
+            print(f"- {name}")
+        return 2
+
+    live_providers = providers or _build_providers(values, provider_ids)
     validator = ProviderLiveValidationService()
     failed = False
-    for provider_id in _KEY_NAMES:
+    for stable_id in provider_ids:
+        provider_id = stable_id.value
         try:
             report = validator.validate(
                 provider_id=provider_id,
@@ -97,13 +119,36 @@ def run_live_provider_validation(
     return 1 if failed else 0
 
 
-def _build_providers(environment: Mapping[str, str]) -> dict[str, DataProvider]:
-    return {
-        "alchemy": AlchemyProvider(api_key=environment[_KEY_NAMES["alchemy"]]),
-        "ankr": AnkrProvider(api_key=environment[_KEY_NAMES["ankr"]]),
-        "moralis": MoralisProvider(api_key=environment[_KEY_NAMES["moralis"]]),
-        "goldrush": GoldRushProvider(api_key=environment[_KEY_NAMES["goldrush"]]),
-    }
+def _build_providers(
+    environment: Mapping[str, str],
+    provider_ids: tuple[WalletDataProviderId, ...],
+) -> dict[str, DataProvider]:
+    providers: dict[str, DataProvider] = {}
+    for provider_id in provider_ids:
+        key = environment[_KEY_NAMES[provider_id.value]]
+        if provider_id is WalletDataProviderId.ALCHEMY:
+            providers[provider_id.value] = AlchemyProvider(api_key=key)
+        elif provider_id is WalletDataProviderId.ANKR:
+            providers[provider_id.value] = AnkrProvider(api_key=key)
+        elif provider_id is WalletDataProviderId.MORALIS:
+            providers[provider_id.value] = MoralisProvider(api_key=key)
+        else:
+            providers[provider_id.value] = GoldRushProvider(api_key=key)
+    return providers
+
+
+def _supports_live_validation(
+    provider_id: WalletDataProviderId,
+    chain: Chain,
+) -> bool:
+    descriptor = provider_descriptor(provider_id)
+    required = (
+        WalletDataFeature.NATIVE_BALANCE,
+        WalletDataFeature.TOKEN_BALANCES,
+        WalletDataFeature.WALLET_ACTIVITY,
+        WalletDataFeature.TOKEN_HISTORY,
+    )
+    return all(descriptor.supports(feature, chain) for feature in required)
 
 
 def _safe_failure(error: ProviderError) -> str:

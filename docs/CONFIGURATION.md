@@ -85,9 +85,12 @@ export ORACLE41_RPC_OPTIMISM_URL="https://..."
 export ORACLE41_RPC_POLYGON_URL="https://..."
 export ORACLE41_RPC_BASE_URL="https://..."
 export ORACLE41_RPC_ARBITRUM_URL="https://..."
+export ORACLE41_RPC_ROBINHOOD_URL="https://..."
 ```
 
 A keyring endpoint takes precedence over its environment variable. Treat endpoint URLs as secrets when they contain embedded API keys.
+
+Robinhood Chain is registered with chain ID `4663`. An Alchemy key or a custom Robinhood JSON-RPC endpoint can provide transaction inspection. Indexed wallet loading stays unavailable until the Alchemy and GoldRush Robinhood adapters pass their separate conformance work. Ankr and Moralis are not presented as Robinhood providers.
 
 Without a live key, the application uses local stub providers so the interface can be explored without network access.
 

@@ -31,7 +31,10 @@ from oracle41_open.core.services.watchlist_service import WatchlistService
 from oracle41_open.providers.alchemy import AlchemyPricingProvider, AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.blockscout import BlockscoutABIProvider
-from oracle41_open.providers.capabilities import WalletDataProviderId
+from oracle41_open.providers.capabilities import (
+    WalletDataProviderId,
+    provider_descriptor,
+)
 from oracle41_open.providers.data_provider import DataProvider
 from oracle41_open.providers.evm_rpc import EVMJSONRPCProvider, FailoverTransactionDataProvider
 from oracle41_open.providers.failover import OrderedDataProviderPool, ProviderPoolEntry
@@ -169,6 +172,7 @@ def build_container() -> AppContainer:
         ProviderPoolEntry(
             provider_id=provider_id.value,
             provider=configured_providers[provider_id],
+            capabilities=provider_descriptor(provider_id),
         )
         for provider_id in enabled_provider_ids
         if provider_id in configured_providers
@@ -232,6 +236,7 @@ def build_container() -> AppContainer:
                         f"{alchemy_api_key}"
                     )
                     for chain in Chain
+                    if chain.network.alchemy_network_path is not None
                 },
                 source_name="alchemy",
             )
@@ -242,6 +247,7 @@ def build_container() -> AppContainer:
                 {
                     chain: f"https://rpc.ankr.com/{chain.ankr_rpc_path}/{ankr_api_key}"
                     for chain in Chain
+                    if chain.network.ankr_rpc_path is not None
                 },
                 source_name="ankr",
             )

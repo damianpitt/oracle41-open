@@ -89,7 +89,7 @@ class AnkrProvider(DataProvider):
         url = self._multichain_endpoint()
         options: dict[str, Any] = {
             "walletAddress": address,
-            "blockchain": [chain.ankr_blockchain_code],
+            "blockchain": [_ankr_blockchain_code(chain)],
             "pageSize": 50,
         }
         if page_key:
@@ -197,7 +197,7 @@ class AnkrProvider(DataProvider):
     ) -> ActivityPage:
         url = self._multichain_endpoint()
         options: dict[str, Any] = {
-            "blockchain": [chain.ankr_blockchain_code],
+            "blockchain": [_ankr_blockchain_code(chain)],
             "address": address,
             "descOrder": True,
             "pageSize": 50,
@@ -537,10 +537,20 @@ class AnkrProvider(DataProvider):
         return ProviderResponseError(f"Ankr RPC call failed for {method}: {error}")
 
     def _rpc_endpoint(self, chain: Chain) -> str:
-        return f"https://rpc.ankr.com/{chain.ankr_rpc_path}/{self._api_key}"
+        path = chain.network.ankr_rpc_path
+        if path is None:
+            raise ProviderResponseError(f"Ankr does not support {chain.display_name}.")
+        return f"https://rpc.ankr.com/{path}/{self._api_key}"
 
     def _multichain_endpoint(self) -> str:
         return f"https://rpc.ankr.com/multichain/{self._api_key}"
+
+
+def _ankr_blockchain_code(chain: Chain) -> str:
+    code = chain.network.ankr_blockchain_code
+    if code is None:
+        raise ProviderResponseError(f"Ankr does not support {chain.display_name}.")
+    return code
 
 
 def _map_ankr_asset_to_balance(raw_asset: Any) -> TokenBalance | None:

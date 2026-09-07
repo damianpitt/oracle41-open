@@ -22,6 +22,25 @@ Custom JSON-RPC is intentionally separate. Standard EVM nodes can return balance
 
 "Available" means the role is implemented in Oracle41. It does not guarantee that every provider account or endpoint exposes traces and historical state. These features can depend on the selected chain, provider plan, node configuration, and retention policy.
 
+## Network Coverage
+
+Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data coverage through all four providers. Robinhood Chain is being enabled in smaller steps because provider support differs.
+
+Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
+
+| Provider or source | Robinhood status in `0.4.0a15` |
+| --- | --- |
+| Alchemy wallet data | Registered but disabled until M6.4B fixtures pass |
+| Alchemy JSON-RPC | Available for transaction inspection |
+| Alchemy token pricing | Not confirmed; token prices remain missing |
+| Ankr | Not supported |
+| Moralis | Not supported |
+| GoldRush wallet data | Registered but disabled until M6.4C fixtures pass |
+| Custom JSON-RPC | Available for transaction inspection; no complete wallet index |
+| Blockscout | Available for explorer and verified-contract context |
+
+The provider pool checks the selected chain and operation before making a request. Unsupported providers are skipped. If no enabled provider has validated coverage, the application reports that limitation instead of contacting an unsuitable endpoint.
+
 ## Choosing a Setup
 
 | Setup | Wallet analytics | Transaction inspection | Pricing | Main trade-off |
@@ -37,7 +56,7 @@ Alchemy currently gives the broadest single-provider experience. It is not requi
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for the EVM chains Oracle41 supports.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also lists Robinhood as a Frontier Chain; that path remains disabled until M6.4C validation is complete.
 
 The provider pool follows these rules:
 
@@ -52,7 +71,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a6` has one local catalog for stable provider IDs, availability, supported chains, wallet features, and credential-check destinations. Alchemy, Ankr, Moralis, and GoldRush are available.
+Version `0.4.0a15` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 

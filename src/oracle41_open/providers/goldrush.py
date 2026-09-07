@@ -665,13 +665,10 @@ def _nonnegative_int(value: object, default: int, maximum: int) -> int:
 
 
 def _chain_name(chain: Chain) -> str:
-    return {
-        Chain.ETHEREUM: "eth-mainnet",
-        Chain.OPTIMISM: "optimism-mainnet",
-        Chain.POLYGON: "matic-mainnet",
-        Chain.BASE: "base-mainnet",
-        Chain.ARBITRUM: "arbitrum-mainnet",
-    }[chain]
+    chain_name = chain.network.goldrush_chain_name
+    if chain_name is None:
+        raise ProviderResponseError(f"GoldRush does not support {chain.display_name}.")
+    return chain_name
 
 
 def _deduplicate(items: list[ActivityItem]) -> list[ActivityItem]:

@@ -140,6 +140,20 @@ def test_live_command_reports_missing_variable_names_only(
     assert "secret" not in output
 
 
+def test_live_command_rejects_chain_without_validated_wallet_provider(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    environment = {
+        "ORACLE41_RUN_LIVE_PROVIDER_VALIDATION": "1",
+        "ORACLE41_LIVE_TEST_CHAIN": "robinhood",
+    }
+
+    result = run_live_provider_validation(environment=environment)
+
+    assert result == 2
+    assert "No wallet-data provider has validated" in capsys.readouterr().out
+
+
 def test_live_command_runs_all_providers_without_printing_inputs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

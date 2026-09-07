@@ -44,6 +44,19 @@ def test_alchemy_provider_parses_native_balance_hex() -> None:
     assert "eth-mainnet.g.alchemy.com/v2/alchemy-key" in rpc_client.calls[0]["url"]
 
 
+def test_alchemy_provider_uses_robinhood_node_path() -> None:
+    rpc_client = _FakeRPCClient()
+    rpc_client.responses["eth_getBalance"] = "0x0"
+    provider = AlchemyProvider(api_key="alchemy-key", rpc_client=rpc_client)
+
+    provider.get_native_balance(
+        address="0x742d35cc6634c0532925a3b844bc454e4438f44e",
+        chain=Chain.ROBINHOOD,
+    )
+
+    assert "robinhood-mainnet.g.alchemy.com/v2/alchemy-key" in rpc_client.calls[0]["url"]
+
+
 def test_alchemy_provider_does_not_map_unexpected_rpc_client_errors() -> None:
     rpc_client = _FakeRPCClient()
     rpc_client.errors["eth_getBalance"] = RuntimeError("implementation defect")
@@ -163,6 +176,19 @@ def test_alchemy_pricing_provider_parses_token_prices_from_address_endpoint() ->
     assert http_client.requests[0].url.endswith("/tokens/by-address")
     assert http_client.requests[0].method == "POST"
     assert http_client.requests[0].json is not None
+
+
+def test_alchemy_pricing_skips_unconfirmed_robinhood_token_network() -> None:
+    http_client = _FakeHTTPClient(responses=[])
+    provider = AlchemyPricingProvider(api_key="alchemy-key", http_client=http_client)
+
+    prices = provider.get_token_prices(
+        chain=Chain.ROBINHOOD,
+        contract_addresses=["0x" + "1" * 40],
+    )
+
+    assert prices == {}
+    assert http_client.requests == []
 
 
 def test_alchemy_provider_merges_incoming_and_outgoing_activity_pages() -> None:

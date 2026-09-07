@@ -772,6 +772,9 @@ class AlchemyPricingProvider(PricingProvider):
         return quotes.get(chain.native_pricing_symbol.upper())
 
     def get_token_prices(self, chain: Chain, contract_addresses: list[str]) -> dict[str, Decimal]:
+        pricing_network = chain.network.alchemy_pricing_network_path
+        if pricing_network is None:
+            return {}
         addresses = sorted(
             {
                 address.strip().lower()
@@ -787,7 +790,7 @@ class AlchemyPricingProvider(PricingProvider):
             payload = {
                 "addresses": [
                     {
-                        "network": chain.alchemy_network_path,
+                        "network": pricing_network,
                         "address": address,
                     }
                     for address in chunk

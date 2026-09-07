@@ -4,18 +4,19 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a14` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. All four adapters pass the same recorded-fixture checks for normalized wallet operations. Oracle41 can collect, resume, save, price, aggregate, and export block-specific Aave V3, Compound V3, and directly owned Uniswap V3 positions on every supported chain. The Portfolio view reports protocol risk, liquidity ranges, snapshot freshness, and exact-block source details.
+Version `0.4.0a15` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Robinhood Chain is registered for settings, local data, exports, Alchemy JSON-RPC, custom JSON-RPC, and Blockscout. Indexed Robinhood wallet data will be enabled after the next provider conformance slices.
 
 ## Features
 
 - Wallet overview with native and ERC-20 balances
 - Portfolio pricing enrichment with cached last-known values
-- Ethereum, Optimism, Polygon, Base, and Arbitrum support
+- Full wallet analytics on Ethereum, Optimism, Polygon, Base, and Arbitrum
+- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) foundation with chain ID 4663, ETH gas, Alchemy and custom JSON-RPC transaction access, and Blockscout links
 - Activity feed with durable history, resumable pagination, lookback, and filters
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
 - Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
 - Provider-owned pagination cursors that prevent mixed-vendor continuation pages
-- Provider capability summaries with supported chains, wallet features, and validation destinations
+- Per-chain provider capability summaries with supported wallet features and validation destinations
 - Non-secret credential source and last-validation diagnostics
 - Shared recorded-fixture conformance tests for available wallet-data adapters
 - Retry/backoff and structured rate-limit, timeout, and authentication errors
@@ -39,10 +40,10 @@ Version `0.4.0a14` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Action-set completeness and missing-evidence reasons based on trace availability
 - Optional Blockscout transaction context with contract names, creation details, verification state, and source links
 - Versioned protocol-position models, capability registry, fixture schema, reference adapter, and evidence-preserving unknown fallback
-- Aave V3 supplied, collateral, and debt normalization with raw account-health metrics on every supported chain
+- Aave V3 supplied, collateral, and debt normalization with raw account-health metrics on the five established networks
 - Exact-block Aave V3 snapshot collection through configured JSON-RPC transaction providers
 - Durable Aave V3 snapshots with per-reserve resume checkpoints and provider provenance
-- Compound V3 base supply, debt, and collateral across 20 official Comet markets on every supported chain
+- Compound V3 base supply, debt, and collateral across 20 official Comet markets on the five established networks
 - Exact-block Compound V3 collection with per-collateral resume checkpoints and native safety checks
 - Uniswap V3 position-manager NFT discovery with concentrated-liquidity principal and fee estimates
 - Pool, fee-tier, tick-range, current-range-state, and liquidity details for Uniswap V3 positions
@@ -88,19 +89,20 @@ More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Oracle41 Open uses separate provider roles. A wallet-data provider supplies indexed balances and history. A transaction provider supplies receipts, logs, contract reads, and optional execution traces through JSON-RPC. A pricing provider supplies market prices. One service does not need to fill every role.
 
-| Provider | Wallet balances and history | Transaction inspection | Market pricing |
-| --- | --- | --- | --- |
-| Alchemy | Yes | Yes | Yes |
-| Ankr | Yes | Yes | No |
-| Moralis | Yes | No | No |
-| GoldRush | Yes | No | No |
-| Custom JSON-RPC endpoint | No complete wallet index | Yes | No |
+| Provider | Established five networks | Robinhood indexed wallet data | Robinhood transaction inspection | Market pricing |
+| --- | --- | --- | --- | --- |
+| Alchemy | Wallet data and transactions | Planned for M6.4B validation | Available through JSON-RPC | ETH price only; Robinhood token pricing is not confirmed |
+| Ankr | Wallet data and transactions | Not supported | Not supported | Not used |
+| Moralis | Wallet data | Not supported | Not used | Not used |
+| GoldRush | Wallet data | Planned for M6.4C validation | Not used | Not used |
+| Custom JSON-RPC endpoint | Transactions only | No wallet index | Available | Not used |
+| Blockscout | Explorer context | No wallet index | Contract and explorer context | Not used |
 
-Alchemy currently offers the broadest coverage from one account. Ankr can supply wallet data and transaction inspection but not Oracle41's dedicated market-price feed. Moralis and GoldRush specialize in indexed wallet analytics. A custom JSON-RPC endpoint can complete transaction inspection when Moralis or GoldRush supplies wallet history.
+Alchemy currently offers the broadest coverage from one account on the five established networks. Ankr can supply wallet data and transaction inspection there but does not currently support Robinhood Chain. Moralis also does not currently list Robinhood. GoldRush lists Robinhood as a Frontier Chain, but Oracle41 will not enable its indexed adapter until recorded and live checks pass.
 
 Common setups:
 
-- **Alchemy only:** covers the complete current feature set with one provider.
+- **Alchemy only:** covers the complete current feature set on the five established networks.
 - **Alchemy plus another wallet provider:** adds wallet-data failover while keeping transaction inspection and pricing available.
 - **Ankr plus Alchemy:** provides full current coverage and indexed wallet-data failover.
 - **Moralis or GoldRush plus custom JSON-RPC:** provides wallet analytics and transaction inspection, but dedicated market pricing remains unavailable.
@@ -213,7 +215,8 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Exact protocol-block mode uses current wallet balances, so it reports a known estimate rather than a complete historical portfolio total.
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
-- The application currently targets EVM-compatible chains supported by the configured providers.
+- Robinhood Chain indexed wallet balances, activity, token history, and approvals remain disabled until their provider conformance slices are complete.
+- No Aave V3, Compound V3, or Uniswap V3 deployment is assumed on Robinhood Chain.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.
 - Decoding currently covers bundled common token-standard signatures; unknown contract interactions remain available as raw calldata and logs.

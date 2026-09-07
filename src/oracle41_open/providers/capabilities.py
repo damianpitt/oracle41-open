@@ -1,7 +1,7 @@
-"""Describe wallet-data providers without creating network clients.
+"""Describe validated wallet-data capabilities without creating clients.
 
-The catalog gives Settings and tests one source for provider names, availability, supported chains, wallet features, and validation destinations.
-Available capabilities reflect code that exists in this release; planned providers do not claim support before their adapters pass conformance tests.
+Capabilities are recorded per chain instead of being inherited from the global chain list.
+This prevents a newly registered network from being sent to a provider before its adapter has passed recorded-fixture validation.
 """
 
 from __future__ import annotations
@@ -56,70 +56,112 @@ class WalletDataFeature(str, Enum):
 
 
 @dataclass(frozen=True)
+class ProviderChainCapabilities:
+    """Record the fixture-validated wallet features for one provider and chain."""
+
+    chain: Chain
+    features: frozenset[WalletDataFeature]
+
+
+@dataclass(frozen=True)
 class WalletDataProviderDescriptor:
     """Hold public, non-secret facts about one provider adapter."""
 
     provider_id: WalletDataProviderId
     display_name: str
     availability: ProviderAvailability
-    supported_chains: tuple[Chain, ...]
-    features: tuple[WalletDataFeature, ...]
+    chain_capabilities: tuple[ProviderChainCapabilities, ...]
     validation_destination: str | None
+
+    @property
+    def supported_chains(self) -> tuple[Chain, ...]:
+        """Return chains with at least one validated wallet-data feature."""
+
+        return tuple(item.chain for item in self.chain_capabilities if item.features)
+
+    @property
+    def features(self) -> tuple[WalletDataFeature, ...]:
+        """Return the union of features used by the Settings summary."""
+
+        supported = {feature for item in self.chain_capabilities for feature in item.features}
+        return tuple(feature for feature in WalletDataFeature if feature in supported)
+
+    def features_for(self, chain: Chain) -> frozenset[WalletDataFeature]:
+        """Return only the features validated on the requested chain."""
+
+        for item in self.chain_capabilities:
+            if item.chain is chain:
+                return item.features
+        return frozenset()
 
     def supports(self, feature: WalletDataFeature, chain: Chain | None = None) -> bool:
         """Check a feature and, when provided, its chain coverage."""
 
         if self.availability is not ProviderAvailability.AVAILABLE:
             return False
-        if feature not in self.features:
-            return False
-        return chain is None or chain in self.supported_chains
+        if chain is not None:
+            return feature in self.features_for(chain)
+        return feature in self.features
 
 
-_CURRENT_CHAINS = tuple(Chain)
-_COMMON_FEATURES = (
-    WalletDataFeature.NATIVE_BALANCE,
-    WalletDataFeature.TOKEN_BALANCES,
-    WalletDataFeature.WALLET_ACTIVITY,
-    WalletDataFeature.TOKEN_HISTORY,
-    WalletDataFeature.NFT_TRANSFERS,
-    WalletDataFeature.PAGINATION,
+_ESTABLISHED_CHAINS = (
+    Chain.ETHEREUM,
+    Chain.OPTIMISM,
+    Chain.POLYGON,
+    Chain.BASE,
+    Chain.ARBITRUM,
 )
-_INDEXED_HISTORY_FEATURES = (*_COMMON_FEATURES, WalletDataFeature.APPROVAL_HISTORY)
-_MORALIS_FEATURES = (*_COMMON_FEATURES, WalletDataFeature.ACTIVE_APPROVALS)
+_COMMON_FEATURES = frozenset(
+    {
+        WalletDataFeature.NATIVE_BALANCE,
+        WalletDataFeature.TOKEN_BALANCES,
+        WalletDataFeature.WALLET_ACTIVITY,
+        WalletDataFeature.TOKEN_HISTORY,
+        WalletDataFeature.NFT_TRANSFERS,
+        WalletDataFeature.PAGINATION,
+    }
+)
+_INDEXED_HISTORY_FEATURES = _COMMON_FEATURES | {WalletDataFeature.APPROVAL_HISTORY}
+_MORALIS_FEATURES = _COMMON_FEATURES | {WalletDataFeature.ACTIVE_APPROVALS}
+
+
+def _same_capabilities(
+    chains: tuple[Chain, ...],
+    features: frozenset[WalletDataFeature],
+) -> tuple[ProviderChainCapabilities, ...]:
+    """Build explicit entries without coupling coverage to every registered chain."""
+
+    return tuple(ProviderChainCapabilities(chain, features) for chain in chains)
+
 
 PROVIDER_DESCRIPTORS = (
     WalletDataProviderDescriptor(
-        provider_id=WalletDataProviderId.ALCHEMY,
-        display_name="Alchemy",
-        availability=ProviderAvailability.AVAILABLE,
-        supported_chains=_CURRENT_CHAINS,
-        features=_INDEXED_HISTORY_FEATURES,
-        validation_destination="api.g.alchemy.com",
+        WalletDataProviderId.ALCHEMY,
+        "Alchemy",
+        ProviderAvailability.AVAILABLE,
+        _same_capabilities(_ESTABLISHED_CHAINS, _INDEXED_HISTORY_FEATURES),
+        "api.g.alchemy.com",
     ),
     WalletDataProviderDescriptor(
-        provider_id=WalletDataProviderId.ANKR,
-        display_name="Ankr",
-        availability=ProviderAvailability.AVAILABLE,
-        supported_chains=_CURRENT_CHAINS,
-        features=_INDEXED_HISTORY_FEATURES,
-        validation_destination="rpc.ankr.com",
+        WalletDataProviderId.ANKR,
+        "Ankr",
+        ProviderAvailability.AVAILABLE,
+        _same_capabilities(_ESTABLISHED_CHAINS, _INDEXED_HISTORY_FEATURES),
+        "rpc.ankr.com",
     ),
     WalletDataProviderDescriptor(
-        provider_id=WalletDataProviderId.MORALIS,
-        display_name="Moralis",
-        availability=ProviderAvailability.AVAILABLE,
-        supported_chains=_CURRENT_CHAINS,
-        features=_MORALIS_FEATURES,
-        validation_destination="deep-index.moralis.io",
+        WalletDataProviderId.MORALIS,
+        "Moralis",
+        ProviderAvailability.AVAILABLE,
+        _same_capabilities(_ESTABLISHED_CHAINS, _MORALIS_FEATURES),
+        "deep-index.moralis.io",
     ),
     WalletDataProviderDescriptor(
-        provider_id=WalletDataProviderId.GOLDRUSH,
-        display_name="GoldRush",
-        availability=ProviderAvailability.AVAILABLE,
-        supported_chains=_CURRENT_CHAINS,
-        features=_INDEXED_HISTORY_FEATURES,
-        validation_destination="api.covalenthq.com",
+        WalletDataProviderId.GOLDRUSH,
+        "GoldRush",
+        ProviderAvailability.AVAILABLE,
+        _same_capabilities(_ESTABLISHED_CHAINS, _INDEXED_HISTORY_FEATURES),
+        "api.covalenthq.com",
     ),
 )
 

@@ -141,6 +141,8 @@ Alchemy, Ankr, and configured custom JSON-RPC endpoints can perform these reads 
 
 Version `0.4.0a14` refreshes Aave V3, every configured Compound V3 market, and directly owned Uniswap V3 positions for the selected chain and exact block. Each finished result is stored separately by wallet, chain, protocol ID, and block. Current available token prices are applied later by the portfolio service; they are not historical price-at-block quotes.
 
+Robinhood Chain is registered in `0.4.0a15`, but no protocol deployment is inferred from that registration. Aave V3, Compound V3, and Uniswap V3 remain limited to the five networks with verified contract entries. Robinhood support requires separate official deployment evidence and fixtures.
+
 The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 4. They include position fields, freshness, warnings, adapter provenance, Aave risk metrics, Compound safety fields, and Uniswap pool and range details. Unsupported protocol-specific metrics remain empty instead of being estimated.
 
 ## Adding an Adapter

@@ -24,6 +24,7 @@ from oracle41_open.core.models import (
     ProviderResponseError,
     ProviderTimeoutError,
     TransactionEnrichment,
+    network_descriptors,
 )
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.core.services.contract_abi_service import VerifiedABIResult
@@ -37,11 +38,8 @@ from oracle41_open.providers.http_client import (
 from oracle41_open.providers.retry import retry_with_backoff
 
 _DEFAULT_ENDPOINTS = {
-    Chain.ETHEREUM: "https://eth.blockscout.com",
-    Chain.OPTIMISM: "https://optimism.blockscout.com",
-    Chain.POLYGON: "https://polygon.blockscout.com",
-    Chain.BASE: "https://base.blockscout.com",
-    Chain.ARBITRUM: "https://arbitrum.blockscout.com",
+    descriptor.chain: descriptor.explorer_url
+    for descriptor in network_descriptors()
 }
 
 

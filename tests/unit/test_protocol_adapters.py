@@ -108,7 +108,9 @@ def test_aave_adapter_exposes_official_supported_market_contracts() -> None:
     adapter = AaveV3Adapter()
 
     assert isinstance(adapter, ProtocolAdapter)
-    assert adapter.capabilities.chains == frozenset(Chain)
+    assert adapter.capabilities.chains == frozenset(
+        chain for chain in Chain if chain is not Chain.ROBINHOOD
+    )
     assert {item.value for item in adapter.capabilities.position_kinds} == {
         "supplied",
         "collateral",
@@ -161,7 +163,9 @@ def test_uniswap_adapter_exposes_official_deployments() -> None:
     adapter = UniswapV3Adapter()
 
     assert isinstance(adapter, ProtocolAdapter)
-    assert adapter.capabilities.chains == frozenset(Chain)
+    assert adapter.capabilities.chains == frozenset(
+        chain for chain in Chain if chain is not Chain.ROBINHOOD
+    )
     assert adapter.capabilities.position_kinds == frozenset(
         {ProtocolPositionKind.LIQUIDITY}
     )
@@ -243,6 +247,7 @@ def test_compound_market_catalog_covers_every_supported_chain() -> None:
         Chain.POLYGON: 2,
         Chain.BASE: 5,
         Chain.ARBITRUM: 4,
+        Chain.ROBINHOOD: 0,
     }
 
 

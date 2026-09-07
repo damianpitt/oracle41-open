@@ -5,7 +5,13 @@ Model implementations remain split into small files by subject.
 """
 
 from oracle41_open.core.models.activity import ActivityCategory, ActivityItem, ActivityPage
-from oracle41_open.core.models.chain import Chain
+from oracle41_open.core.models.chain import (
+    NETWORK_REGISTRY,
+    Chain,
+    NetworkDescriptor,
+    network_descriptor,
+    network_descriptors,
+)
 from oracle41_open.core.models.decoding import (
     ABIArgumentDefinition,
     ContractABIRecord,
@@ -135,6 +141,8 @@ __all__ = [
     "InternalCall",
     "LedgerCheckpoint",
     "NormalizedEvent",
+    "NETWORK_REGISTRY",
+    "NetworkDescriptor",
     "Oracle41Error",
     "ProviderAuthError",
     "ProviderCapabilities",
@@ -178,6 +186,8 @@ __all__ = [
     "TransactionEnrichment",
     "ValidationError",
     "WalletOverviewResult",
+    "network_descriptor",
+    "network_descriptors",
     "WalletAction",
     "WalletActionKind",
     "WalletActionSet",

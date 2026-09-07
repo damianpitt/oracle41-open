@@ -39,6 +39,19 @@ def test_watchlist_repository_upsert_list_and_remove(tmp_path: Path) -> None:
     assert repository.get_entry(address=address, chain=Chain.ETHEREUM) is None
 
 
+def test_watchlist_repository_roundtrips_robinhood_chain(tmp_path: Path) -> None:
+    database = SQLiteDatabase(file_path=tmp_path / "state.sqlite3")
+    repository = WatchlistRepository(database)
+    address = "0x4141414141414141414141414141414141414141"
+
+    repository.upsert_entry(address=address, chain=Chain.ROBINHOOD, label="RWA")
+
+    loaded = repository.get_entry(address=address, chain=Chain.ROBINHOOD)
+    assert loaded is not None
+    assert loaded.chain is Chain.ROBINHOOD
+    assert loaded.label == "RWA"
+
+
 def test_wallet_notes_repository_persists_note_and_tags(tmp_path: Path) -> None:
     database = SQLiteDatabase(file_path=tmp_path / "state.sqlite3")
     repository = WalletNotesRepository(database)

@@ -38,6 +38,7 @@ from oracle41_open.core.services.provider_credential_diagnostics_service import 
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationResult
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
 from oracle41_open.providers.capabilities import (
+    WalletDataFeature,
     WalletDataProviderDescriptor,
     WalletDataProviderId,
     provider_descriptor,
@@ -1064,12 +1065,22 @@ def _provider_capability_label(
     descriptor: WalletDataProviderDescriptor,
     parent: QWidget,
 ) -> QLabel:
-    chains = ", ".join(chain.display_name for chain in descriptor.supported_chains)
-    features = ", ".join(feature.display_name for feature in descriptor.features)
+    grouped_chains: dict[frozenset[WalletDataFeature], list[Chain]] = {}
+    for capabilities in descriptor.chain_capabilities:
+        if capabilities.features:
+            grouped_chains.setdefault(capabilities.features, []).append(
+                capabilities.chain
+            )
+    coverage = "\n".join(
+        f"{', '.join(chain.display_name for chain in chains)}: "
+        f"{', '.join(feature.display_name for feature in WalletDataFeature if feature in features)}"
+        for features, chains in grouped_chains.items()
+    )
+    if not coverage:
+        coverage = "No validated wallet-data coverage"
     destination = descriptor.validation_destination or "Not available"
     label = QLabel(
-        f"Chains: {chains}\n"
-        f"Wallet features: {features}\n"
+        f"Validated wallet coverage:\n{coverage}\n"
         f"Credential check connects to: {destination}",
         parent,
     )

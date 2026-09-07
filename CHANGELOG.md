@@ -2,7 +2,29 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a14] - Unreleased
+## [0.4.0a15] - Unreleased
+
+### Added
+
+- A central EVM network registry for chain IDs, native assets, explorers, public RPC endpoints, and provider network names.
+- Robinhood Chain mainnet identity, chain ID `4663`, ETH gas asset, official RPC, Blockscout explorer, Alchemy network path, and GoldRush chain name.
+- Regression tests for registry completeness, unique chain IDs, settings persistence, provider routing, and unsupported protocol coverage.
+
+### Changed
+
+- Wallet-data capabilities are now declared separately for each provider and chain.
+- Ordered failover skips providers that have not validated the selected chain and operation.
+- Alchemy and Ankr transaction endpoints are built only for networks with registered provider paths.
+- Blockscout endpoints now come from the shared network registry.
+- Robinhood token-by-address pricing remains disabled until Alchemy confirms and passes that integration.
+
+### Known Limitations
+
+- Indexed Robinhood wallet data remains disabled until the Alchemy and GoldRush conformance slices are complete.
+- Ankr and Moralis do not currently support Robinhood Chain.
+- Robinhood protocol deployments, token pricing, L2 fee separation, and bridge intelligence are not included in this slice.
+
+## [0.4.0a14] - 2026-09-08
 
 ### Added
 

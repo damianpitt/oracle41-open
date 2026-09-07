@@ -569,13 +569,10 @@ def _bool(value: object) -> bool | None:
 
 
 def _chain_code(chain: Chain) -> str:
-    return {
-        Chain.ETHEREUM: "eth",
-        Chain.OPTIMISM: "optimism",
-        Chain.POLYGON: "polygon",
-        Chain.BASE: "base",
-        Chain.ARBITRUM: "arbitrum",
-    }[chain]
+    chain_code = chain.network.moralis_chain_code
+    if chain_code is None:
+        raise ProviderResponseError(f"Moralis does not support {chain.display_name}.")
+    return chain_code
 
 
 def _deduplicate(items: list[ActivityItem]) -> list[ActivityItem]:

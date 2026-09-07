@@ -18,6 +18,15 @@ _ADDRESS = "0x1111111111111111111111111111111111111111"
 _ABI = [{"type": "error", "name": "Denied", "inputs": []}]
 
 
+def test_default_blockscout_catalog_includes_robinhood() -> None:
+    provider = BlockscoutABIProvider(http_client=_FakeHTTPClient())  # type: ignore[arg-type]
+
+    capabilities = provider.capabilities(Chain.ROBINHOOD)
+
+    assert capabilities.transaction_context is True
+    assert capabilities.contract_context is True
+
+
 def test_blockscout_provider_loads_attributed_verified_abi() -> None:
     client = _FakeHTTPClient(
         HTTPResponse(

@@ -33,7 +33,7 @@ The following are not priorities before `1.0`:
 
 Version `0.1.0` already provides:
 
-- Wallet balances and activity across Ethereum, Optimism, Polygon, Base, and Arbitrum
+- Wallet balances and activity across Ethereum, Optimism, Polygon, Base, and Arbitrum, plus the Robinhood Chain foundation
 - ERC-20, ERC-721, and ERC-1155 token details and recent approvals
 - Alchemy and Ankr adapters with failover, retries, and structured errors
 - ENS and address labels, token filtering, pricing cache, and diagnostics
@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.3H is complete in `0.4.0a14`. Oracle41 collects, resumes, stores, prices, aggregates, displays, refreshes, and exports Aave V3 and Compound V3 lending positions plus directly owned Uniswap V3 concentrated-liquidity NFTs. Historical prices and additional staking, vault, bridge, and NFT coverage remain open.
+**Implementation status:** M6.4A is complete in `0.4.0a15`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain is registered for local records, Alchemy and custom JSON-RPC transaction access, and Blockscout. Indexed Alchemy and GoldRush wallet coverage remains scheduled for M6.4B and M6.4C.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -537,3 +537,11 @@ Each NFT becomes one liquidity position. Principal token amounts and estimated u
 Collection progress is saved after discovery and after every NFT. Stored snapshots are priced and added to portfolio totals through the existing protocol path. CSV and JSON format version 4 exposes the new range fields. Tests cover deterministic fixture output, tick-range branches, partial metadata, exact-block reads, stored reuse, and interrupted-run resume.
 
 The first Uniswap slice discovers only NFTs owned directly by the wallet. Positions deposited into staking, vault, custody, or wrapper contracts need separate adapters or ownership discovery. The calculated amounts are analytics estimates, not withdrawal quotes.
+
+### Completed Slice: M6.4A
+
+**Status:** Complete in `0.4.0a15`.
+
+M6.4A adds a central registry for network identity, chain IDs, native assets, explorers, public RPC endpoints, and provider network names. Robinhood Chain is registered with mainnet chain ID `4663`, ETH gas, its official RPC and Blockscout explorer, and its Alchemy and GoldRush names.
+
+Wallet-data capabilities are now declared by provider and chain. Runtime failover checks the selected chain and operation before making a request. Robinhood does not inherit Ankr, Moralis, pricing, or protocol support. Alchemy and GoldRush indexed wallet operations remain disabled until M6.4B and M6.4C add their fixtures and validation.

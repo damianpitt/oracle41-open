@@ -32,7 +32,9 @@ Provider errors are normalized into domain error types. Failover is applied at t
 
 Wallet-data providers are placed in a pool using the enabled state and priority saved in Settings. A fresh request tries that order after structured provider errors. Every pagination cursor records its provider owner and operation. A continuation request returns only to that provider, even when another provider is available.
 
-The provider capability catalog is separate from network clients. It records stable IDs, availability, supported chains, wallet features, and the public host used for credential checks. Settings reads this catalog without creating a provider or making a request. New providers have no runtime capabilities until their adapters pass the shared conformance suite.
+The network registry is the single source for chain IDs, native assets, explorers, public RPC addresses, and provider network names. A network can be registered without becoming available through every provider. The provider capability catalog records wallet features separately for each chain. The request pool checks this catalog before contacting a provider, and a continuation page checks its original provider again.
+
+Robinhood Chain is registered with chain ID `4663`, ETH as its gas asset, its official public RPC, its Blockscout explorer, and its Alchemy and GoldRush network names. In `0.4.0a15`, Alchemy and custom JSON-RPC can provide transaction inspection and Blockscout can provide explorer context. Indexed wallet operations remain disabled until their dedicated provider fixtures pass. Ankr and Moralis have no Robinhood network identifiers.
 
 The format-v1 provider conformance suite gives each adapter its own recorded response shapes and applies the same assertions to the normalized results. The suite covers all four `DataProvider` methods, pagination markers, source provenance, chain identity, and ERC-721/ERC-1155 history.
 
@@ -82,6 +84,6 @@ Backup files include settings and the complete SQLite state, including event-led
 
 ## Extension Points
 
-New chains should be added to the `Chain` model and implemented in the provider network mappings. New provider vendors should implement the provider protocols, add fixture tests, and be connected through the application bootstrap or failover layer. New reports should be implemented under `exports` without adding serialization logic to GUI views.
+New chains require one network registry entry. Provider support is then enabled one chain and feature at a time after recorded fixtures pass. Protocol support requires verified deployment addresses and never follows the global chain list automatically. New reports should be implemented under `exports` without adding serialization logic to GUI views.
 
 Architecture decisions that affect trust boundaries or distribution are recorded under `docs/adr`.

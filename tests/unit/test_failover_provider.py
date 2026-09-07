@@ -16,6 +16,13 @@ from oracle41_open.core.models import (
     ProviderResponseError,
     TokenBalancePage,
 )
+from oracle41_open.providers.capabilities import (
+    ProviderAvailability,
+    ProviderChainCapabilities,
+    WalletDataFeature,
+    WalletDataProviderDescriptor,
+    WalletDataProviderId,
+)
 from oracle41_open.providers.failover import (
     FailoverDataProvider,
     OrderedDataProviderPool,
@@ -115,6 +122,55 @@ def test_ordered_pool_tries_all_entries_in_priority_order() -> None:
     assert provider.provider_ids == ("alchemy", "ankr", "future-provider")
     assert provider.get_native_balance("0x" + "1" * 40, Chain.BASE) == Decimal("3")
     assert [first.native_calls, second.native_calls, third.native_calls] == [1, 1, 1]
+
+
+def test_ordered_pool_skips_provider_without_chain_capability() -> None:
+    unsupported = _Provider(native_result=Decimal("99"))
+    supported = _Provider(native_result=Decimal("2"))
+    ethereum_only = _descriptor(
+        WalletDataProviderId.ANKR,
+        Chain.ETHEREUM,
+        WalletDataFeature.NATIVE_BALANCE,
+    )
+    robinhood = _descriptor(
+        WalletDataProviderId.ALCHEMY,
+        Chain.ROBINHOOD,
+        WalletDataFeature.NATIVE_BALANCE,
+    )
+    provider = OrderedDataProviderPool(
+        (
+            ProviderPoolEntry("ankr", unsupported, ethereum_only),
+            ProviderPoolEntry("alchemy", supported, robinhood),
+        )
+    )
+
+    result = provider.get_native_balance("0x" + "1" * 40, Chain.ROBINHOOD)
+
+    assert result == Decimal("2")
+    assert unsupported.native_calls == 0
+    assert supported.native_calls == 1
+
+
+def test_ordered_pool_reports_when_chain_has_no_eligible_provider() -> None:
+    adapter = _Provider(native_result=Decimal("99"))
+    provider = OrderedDataProviderPool(
+        (
+            ProviderPoolEntry(
+                "ankr",
+                adapter,
+                _descriptor(
+                    WalletDataProviderId.ANKR,
+                    Chain.ETHEREUM,
+                    WalletDataFeature.NATIVE_BALANCE,
+                ),
+            ),
+        )
+    )
+
+    with pytest.raises(ProviderResponseError, match="No enabled wallet-data provider"):
+        provider.get_native_balance("0x" + "1" * 40, Chain.ROBINHOOD)
+
+    assert adapter.native_calls == 0
 
 
 def test_failover_does_not_hide_programming_errors() -> None:
@@ -262,3 +318,19 @@ def test_pool_rejects_empty_or_duplicate_provider_entries() -> None:
                 ProviderPoolEntry("alchemy", adapter),
             )
         )
+
+
+def _descriptor(
+    provider_id: WalletDataProviderId,
+    chain: Chain,
+    *features: WalletDataFeature,
+) -> WalletDataProviderDescriptor:
+    return WalletDataProviderDescriptor(
+        provider_id=provider_id,
+        display_name=provider_id.value,
+        availability=ProviderAvailability.AVAILABLE,
+        chain_capabilities=(
+            ProviderChainCapabilities(chain=chain, features=frozenset(features)),
+        ),
+        validation_destination="example.test",
+    )

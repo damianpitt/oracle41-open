@@ -120,6 +120,14 @@ def test_settings_store_roundtrip(tmp_path: Path) -> None:
     )
 
 
+def test_settings_store_roundtrips_robinhood_chain(tmp_path: Path) -> None:
+    store = SettingsStore(file_path=tmp_path / "settings.json")
+
+    store.save(AppSettings(selected_chain=Chain.ROBINHOOD))
+
+    assert store.load().selected_chain is Chain.ROBINHOOD
+
+
 def test_settings_store_loads_legacy_payload_with_new_defaults(tmp_path: Path) -> None:
     store = SettingsStore(file_path=tmp_path / "settings.json")
     legacy_payload = {
