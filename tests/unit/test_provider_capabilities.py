@@ -33,9 +33,14 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
         WalletDataProviderId.MORALIS,
         WalletDataProviderId.GOLDRUSH,
     ]
-    established_chains = tuple(chain for chain in Chain if chain is not Chain.ROBINHOOD)
     for descriptor in available:
-        assert descriptor.supported_chains == established_chains
+        expected_chains = tuple(
+            chain
+            for chain in Chain
+            if chain is not Chain.ROBINHOOD
+            or descriptor.provider_id is WalletDataProviderId.ALCHEMY
+        )
+        assert descriptor.supported_chains == expected_chains
         assert descriptor.supports(
             WalletDataFeature.NATIVE_BALANCE,
             Chain.ETHEREUM,
@@ -47,8 +52,18 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
         assert descriptor.validation_destination
 
 
-def test_new_chain_does_not_inherit_unvalidated_provider_features() -> None:
+def test_robinhood_only_exposes_fixture_validated_alchemy_features() -> None:
+    alchemy = provider_descriptor(WalletDataProviderId.ALCHEMY)
+    assert alchemy.features_for(Chain.ROBINHOOD)
+    assert alchemy.supports(
+        WalletDataFeature.APPROVAL_HISTORY,
+        Chain.ROBINHOOD,
+    )
+    assert alchemy.supports(WalletDataFeature.NFT_TRANSFERS, Chain.ROBINHOOD)
+
     for descriptor in PROVIDER_DESCRIPTORS:
+        if descriptor.provider_id is WalletDataProviderId.ALCHEMY:
+            continue
         assert descriptor.features_for(Chain.ROBINHOOD) == frozenset()
         assert not descriptor.supports(
             WalletDataFeature.NATIVE_BALANCE,
@@ -78,3 +93,6 @@ def test_data_provider_conformance_schema_is_published_as_version_one() -> None:
         "oracle41-data-provider-conformance"
     )
     assert schema["properties"]["version"]["const"] == 1
+    assert set(schema["properties"]["chain"]["enum"]) == {
+        chain.value for chain in Chain
+    }

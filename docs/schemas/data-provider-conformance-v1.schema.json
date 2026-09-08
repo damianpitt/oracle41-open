@@ -26,6 +26,17 @@
         "goldrush"
       ]
     },
+    "chain": {
+      "enum": [
+        "ethereum",
+        "optimism",
+        "polygon",
+        "base",
+        "arbitrum",
+        "robinhood"
+      ],
+      "default": "ethereum"
+    },
     "operations": {
       "type": "object",
       "additionalProperties": false,
@@ -46,6 +57,9 @@
           "$ref": "#/$defs/operation"
         },
         "token_history": {
+          "$ref": "#/$defs/operation"
+        },
+        "approval_history": {
           "$ref": "#/$defs/operation"
         }
       }
@@ -92,6 +106,12 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "approval_hash": {
+          "type": "string"
+        },
+        "approval_value": {
+          "type": "string"
         }
       }
     }

@@ -292,6 +292,50 @@ def test_shared_receipt_fixture_decodes_identically_across_providers() -> None:
     assert alchemy_actions[0].evidence[0].reference == "log:3"
 
 
+def test_robinhood_alchemy_receipt_preserves_chain_and_decoded_action() -> None:
+    http_client = _FixtureHTTPClient(
+        events=[
+            _fixture_response(
+                "alchemy/robinhood_eth_getTransactionByHash.json"
+            ),
+            _fixture_response(
+                "alchemy/robinhood_eth_getTransactionReceipt.json"
+            ),
+        ]
+    )
+    provider = EVMJSONRPCProvider(
+        {
+            Chain.ROBINHOOD: (
+                "https://robinhood-mainnet.g.alchemy.com/v2/fixture-key"
+            )
+        },
+        source_name="alchemy",
+        rpc_client=JSONRPCClient(http_client=http_client),
+    )
+
+    inspection = provider.get_transaction_inspection(
+        "0x" + "cd" * 32,
+        Chain.ROBINHOOD,
+    )
+    decoding = StandardABIDecoder().decode(inspection)
+    actions = WalletActionNormalizer().normalize(inspection, decoding, None)
+
+    assert inspection.chain is Chain.ROBINHOOD
+    assert inspection.source_provider == "alchemy"
+    assert inspection.status is True
+    assert inspection.fee_wei == 50_000_000_000_000
+    assert decoding.call is not None
+    assert decoding.call.canonical_signature == "transfer(address,uint256)"
+    assert len(actions) == 1
+    assert actions[0].chain is Chain.ROBINHOOD
+    assert actions[0].kind is WalletActionKind.TRANSFER
+    assert actions[0].evidence[0].reference == "log:2"
+    assert all(
+        request.url.startswith("https://robinhood-mainnet.g.alchemy.com/")
+        for request in http_client.requests
+    )
+
+
 def _inspection_from_fixtures(provider_name: str) -> TransactionInspection:
     http_client = _FixtureHTTPClient(
         events=[

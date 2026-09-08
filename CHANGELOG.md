@@ -2,7 +2,26 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a15] - Unreleased
+## [0.4.0a16] - Unreleased
+
+### Added
+
+- Recorded Alchemy conformance coverage for Robinhood native and token balances, paginated wallet activity, ERC-20 transfers, ERC-721 and ERC-1155 history, and approval logs.
+- Robinhood transaction fixtures for receipt status, gas fees, deterministic calldata and event decoding, normalized wallet actions, and Alchemy debug traces.
+- Chain identity in the provider conformance format so one shared suite can validate networks without assuming Ethereum.
+
+### Changed
+
+- Alchemy wallet-data routing is now enabled for Robinhood Chain after its chain-specific fixture suite passed.
+- Provider capability summaries now advertise Robinhood only for Alchemy; Ankr, Moralis, and GoldRush remain excluded from that route.
+
+### Known Limitations
+
+- Robinhood token-by-address pricing is not enabled because it is not part of Alchemy's documented Robinhood API set.
+- GoldRush Robinhood wallet data remains disabled until M6.4C validation is complete.
+- Robinhood protocol deployments, L2 fee separation, and bridge intelligence are not included in this slice.
+
+## [0.4.0a15] - 2026-09-09
 
 ### Added
 

@@ -139,7 +139,13 @@ PROVIDER_DESCRIPTORS = (
         WalletDataProviderId.ALCHEMY,
         "Alchemy",
         ProviderAvailability.AVAILABLE,
-        _same_capabilities(_ESTABLISHED_CHAINS, _INDEXED_HISTORY_FEATURES),
+        _same_capabilities(_ESTABLISHED_CHAINS, _INDEXED_HISTORY_FEATURES)
+        + (
+            ProviderChainCapabilities(
+                Chain.ROBINHOOD,
+                _INDEXED_HISTORY_FEATURES,
+            ),
+        ),
         "api.g.alchemy.com",
     ),
     WalletDataProviderDescriptor(

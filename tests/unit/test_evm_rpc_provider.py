@@ -396,6 +396,36 @@ def test_trace_discovery_prefers_debug_call_tracer_and_remembers_support() -> No
     ]
 
 
+def test_robinhood_alchemy_trace_uses_standard_debug_call_tracer() -> None:
+    rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
+    rpc.responses_by_method["debug_traceTransaction"] = {
+        "type": "CALL",
+        "from": _FROM,
+        "to": _TO,
+        "gas": "0x5208",
+        "gasUsed": "0x5100",
+        "input": "0x",
+        "output": "0x",
+    }
+    provider = EVMJSONRPCProvider(
+        {
+            Chain.ROBINHOOD: (
+                "https://robinhood-mainnet.g.alchemy.com/v2/fixture-key"
+            )
+        },
+        source_name="alchemy",
+        rpc_client=rpc,
+    )
+
+    result = provider.get_transaction_trace(_TX_HASH, Chain.ROBINHOOD)
+
+    assert result.chain is Chain.ROBINHOOD
+    assert result.status is TraceStatus.COMPLETE
+    assert result.dialect is TraceDialect.DEBUG_CALL_TRACER
+    assert result.source_provider == "alchemy"
+    assert provider.capabilities(Chain.ROBINHOOD).traces is True
+
+
 def test_trace_discovery_falls_back_to_parity_trace() -> None:
     rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
     rpc.errors_by_method["debug_traceTransaction"] = JSONRPCRemoteError(

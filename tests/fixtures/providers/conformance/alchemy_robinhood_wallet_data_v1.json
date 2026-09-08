@@ -1,0 +1,217 @@
+{
+  "format": "oracle41-data-provider-conformance",
+  "version": 1,
+  "provider_id": "alchemy",
+  "chain": "robinhood",
+  "operations": {
+    "native_balance": {
+      "responses": [
+        {
+          "method": "eth_getBalance",
+          "result": "0x1bc16d674ec80000"
+        }
+      ]
+    },
+    "token_balances": {
+      "responses": [
+        {
+          "method": "alchemy_getTokenBalances",
+          "result": {
+            "tokenBalances": [
+              {
+                "contractAddress": "0x9999999999999999999999999999999999999999",
+                "tokenBalance": "0x2625a0"
+              }
+            ],
+            "pageKey": "robinhood-balances-page-2"
+          }
+        },
+        {
+          "method": "alchemy_getTokenMetadata",
+          "result": {
+            "symbol": "RWA",
+            "name": "Recorded Robinhood Asset",
+            "decimals": 6
+          }
+        }
+      ]
+    },
+    "activity": {
+      "responses": [
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [
+              {
+                "blockNum": "0x4a01",
+                "hash": "0xrobinhoodactivity",
+                "logIndex": "0x1",
+                "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "asset": "RWA",
+                "category": "erc20",
+                "value": 2.5,
+                "rawContract": {
+                  "address": "0x9999999999999999999999999999999999999999",
+                  "decimal": "0x6",
+                  "value": "0x2625a0"
+                },
+                "metadata": {
+                  "blockTimestamp": "2026-09-08T12:00:00Z"
+                }
+              }
+            ],
+            "pageKey": "robinhood-activity-page-2"
+          }
+        },
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [],
+            "pageKey": null
+          }
+        }
+      ]
+    },
+    "token_history": {
+      "responses": [
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [
+              {
+                "blockNum": "0x4a02",
+                "hash": "0xrobinhoodnft721",
+                "logIndex": "0x2",
+                "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "asset": "RH-NFT",
+                "category": "erc721",
+                "erc721TokenId": "0x2a",
+                "rawContract": {
+                  "address": "0x9999999999999999999999999999999999999999",
+                  "decimal": "0",
+                  "value": null
+                },
+                "metadata": {
+                  "blockTimestamp": "2026-09-08T12:01:00Z"
+                }
+              },
+              {
+                "blockNum": "0x4a03",
+                "hash": "0xrobinhoodnft1155",
+                "logIndex": "0x3",
+                "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "to": "0xcccccccccccccccccccccccccccccccccccccccc",
+                "asset": "RH-MULTI",
+                "category": "erc1155",
+                "erc1155Metadata": [
+                  {
+                    "tokenId": "0x7",
+                    "value": "0x4"
+                  }
+                ],
+                "rawContract": {
+                  "address": "0x9999999999999999999999999999999999999999",
+                  "decimal": "0",
+                  "value": null
+                },
+                "metadata": {
+                  "blockTimestamp": "2026-09-08T12:02:00Z"
+                }
+              }
+            ],
+            "pageKey": null
+          }
+        },
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [],
+            "pageKey": null
+          }
+        }
+      ]
+    },
+    "approval_history": {
+      "responses": [
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [],
+            "pageKey": null
+          }
+        },
+        {
+          "method": "alchemy_getAssetTransfers",
+          "result": {
+            "transfers": [],
+            "pageKey": null
+          }
+        },
+        {
+          "method": "alchemy_getTokenMetadata",
+          "result": {
+            "symbol": "RWA",
+            "name": "Recorded Robinhood Asset",
+            "decimals": 6
+          }
+        },
+        {
+          "method": "eth_blockNumber",
+          "result": "0x186a0"
+        },
+        {
+          "method": "eth_getLogs",
+          "result": [
+            {
+              "address": "0x9999999999999999999999999999999999999999",
+              "topics": [
+                "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
+                "0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              ],
+              "data": "0x0f4240",
+              "blockNumber": "0x186a0",
+              "transactionHash": "0xrobinhoodapproval",
+              "logIndex": "0x4"
+            }
+          ]
+        },
+        {
+          "method": "eth_getLogs",
+          "result": []
+        },
+        {
+          "method": "eth_getLogs",
+          "result": []
+        },
+        {
+          "method": "eth_getLogs",
+          "result": []
+        },
+        {
+          "method": "eth_getBlockByNumber",
+          "result": {
+            "number": "0x186a0",
+            "timestamp": "0x68bee100"
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "native_balance": "2",
+    "token_balance_symbol": "RWA",
+    "token_balance": "2.5",
+    "token_balance_has_next": true,
+    "activity_hash": "0xrobinhoodactivity",
+    "activity_value": "2.5",
+    "token_history_categories": [
+      "erc721",
+      "erc1155"
+    ],
+    "approval_hash": "0xrobinhoodapproval",
+    "approval_value": "1"
+  }
+}

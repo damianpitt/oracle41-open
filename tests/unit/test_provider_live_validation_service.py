@@ -140,7 +140,7 @@ def test_live_command_reports_missing_variable_names_only(
     assert "secret" not in output
 
 
-def test_live_command_rejects_chain_without_validated_wallet_provider(
+def test_live_command_requires_only_alchemy_credentials_for_robinhood(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     environment = {
@@ -151,7 +151,35 @@ def test_live_command_rejects_chain_without_validated_wallet_provider(
     result = run_live_provider_validation(environment=environment)
 
     assert result == 2
-    assert "No wallet-data provider has validated" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "ORACLE41_ALCHEMY_API_KEY" in output
+    assert "ORACLE41_ANKR_API_KEY" not in output
+    assert "ORACLE41_MORALIS_API_KEY" not in output
+    assert "ORACLE41_GOLDRUSH_API_KEY" not in output
+
+
+def test_live_command_runs_robinhood_through_alchemy_only(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    environment = {
+        "ORACLE41_RUN_LIVE_PROVIDER_VALIDATION": "1",
+        "ORACLE41_LIVE_TEST_CHAIN": "robinhood",
+        "ORACLE41_LIVE_TEST_WALLET": _WALLET,
+        "ORACLE41_LIVE_TEST_TOKEN": _TOKEN,
+        "ORACLE41_ALCHEMY_API_KEY": "alchemy-secret",
+    }
+    alchemy = _RecordingProvider("alchemy")
+
+    result = run_live_provider_validation(
+        environment=environment,
+        providers={"alchemy": alchemy},
+    )
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert output.count("PASS") == 1
+    assert "alchemy: PASS" in output
+    assert alchemy.calls == ["native", "balances", "activity", "token_history"]
 
 
 def test_live_command_runs_all_providers_without_printing_inputs(

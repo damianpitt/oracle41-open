@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4A is complete in `0.4.0a15`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain is registered for local records, Alchemy and custom JSON-RPC transaction access, and Blockscout. Indexed Alchemy and GoldRush wallet coverage remains scheduled for M6.4B and M6.4C.
+**Implementation status:** M6.4B is complete in `0.4.0a16`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy wallet coverage, Alchemy and custom JSON-RPC transaction access, and Blockscout context. GoldRush wallet coverage remains scheduled for M6.4C.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -545,3 +545,13 @@ The first Uniswap slice discovers only NFTs owned directly by the wallet. Positi
 M6.4A adds a central registry for network identity, chain IDs, native assets, explorers, public RPC endpoints, and provider network names. Robinhood Chain is registered with mainnet chain ID `4663`, ETH gas, its official RPC and Blockscout explorer, and its Alchemy and GoldRush names.
 
 Wallet-data capabilities are now declared by provider and chain. Runtime failover checks the selected chain and operation before making a request. Robinhood does not inherit Ankr, Moralis, pricing, or protocol support. Alchemy and GoldRush indexed wallet operations remain disabled until M6.4B and M6.4C add their fixtures and validation.
+
+### Completed Slice: M6.4B
+
+**Status:** Complete in `0.4.0a16`.
+
+M6.4B enables Alchemy indexed wallet data for Robinhood Chain. A chain-aware conformance fixture covers native and token balances, paginated wallet activity, ERC-20 transfers, ERC-721 and ERC-1155 history, and approval logs. The same normalized models and cursor rules used by the established networks are used for Robinhood.
+
+Recorded transaction fixtures also cover receipt status, gas fees, deterministic calldata and event decoding, normalized transfer actions, source details, chain identity, and Alchemy's debug call tracer. The implementation reuses the standard EVM transaction engine instead of adding a separate Robinhood parser.
+
+Alchemy token-by-address pricing remains disabled because that API is not listed in Alchemy's documented Robinhood support. GoldRush indexed wallet data remains scheduled for M6.4C. Protocol deployments, L2 fee separation, and bridge intelligence require later slices.

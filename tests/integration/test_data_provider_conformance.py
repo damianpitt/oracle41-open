@@ -26,10 +26,12 @@ from oracle41_open.providers.moralis import MoralisProvider
 _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "providers" / "conformance"
 _FIXTURE_NAMES = (
     "alchemy_wallet_data_v1.json",
+    "alchemy_robinhood_wallet_data_v1.json",
     "ankr_wallet_data_v1.json",
     "moralis_wallet_data_v1.json",
     "goldrush_wallet_data_v1.json",
 )
+_APPROVAL_FIXTURE_NAMES = ("alchemy_robinhood_wallet_data_v1.json",)
 _WALLET = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 _TOKEN = "0x9999999999999999999999999999999999999999"
 
@@ -39,7 +41,7 @@ def test_provider_conformance_native_balance(fixture_name: str) -> None:
     fixture = _load_fixture(fixture_name)
     provider, client = _provider_for(fixture, "native_balance")
 
-    balance = provider.get_native_balance(_WALLET, Chain.ETHEREUM)
+    balance = provider.get_native_balance(_WALLET, fixture.chain)
 
     assert balance == Decimal(fixture.expected_string("native_balance"))
     client.assert_consumed()
@@ -50,7 +52,7 @@ def test_provider_conformance_token_balances(fixture_name: str) -> None:
     fixture = _load_fixture(fixture_name)
     provider, client = _provider_for(fixture, "token_balances")
 
-    page = provider.get_token_balances(_WALLET, Chain.ETHEREUM)
+    page = provider.get_token_balances(_WALLET, fixture.chain)
 
     assert page.source_provider == fixture.provider_id
     has_next = fixture.expected_bool("token_balance_has_next")
@@ -72,7 +74,7 @@ def test_provider_conformance_wallet_activity(fixture_name: str) -> None:
 
     page = provider.get_activity(
         _WALLET,
-        Chain.ETHEREUM,
+        fixture.chain,
         from_block=100,
     )
 
@@ -84,7 +86,7 @@ def test_provider_conformance_wallet_activity(fixture_name: str) -> None:
     assert page.items[0].value_decimal == Decimal(
         fixture.expected_string("activity_value")
     )
-    assert page.items[0].chain is Chain.ETHEREUM
+    assert page.items[0].chain is fixture.chain
     client.assert_consumed()
 
 
@@ -96,7 +98,7 @@ def test_provider_conformance_token_history_and_nfts(fixture_name: str) -> None:
     page = provider.get_token_transfers(
         _WALLET,
         _TOKEN,
-        Chain.ETHEREUM,
+        fixture.chain,
         include_approvals=False,
     )
 
@@ -104,14 +106,41 @@ def test_provider_conformance_token_history_and_nfts(fixture_name: str) -> None:
     assert {
         item.category.value for item in page.items
     } == set(fixture.expected_strings("token_history_categories"))
-    assert all(item.chain is Chain.ETHEREUM for item in page.items)
+    assert all(item.chain is fixture.chain for item in page.items)
     assert all(item.contract_address == _TOKEN for item in page.items)
+    client.assert_consumed()
+
+
+@pytest.mark.parametrize("fixture_name", _APPROVAL_FIXTURE_NAMES)
+def test_provider_conformance_approval_history(fixture_name: str) -> None:
+    fixture = _load_fixture(fixture_name)
+    provider, client = _provider_for(fixture, "approval_history")
+
+    page = provider.get_token_transfers(
+        _WALLET,
+        _TOKEN,
+        fixture.chain,
+        include_approvals=True,
+    )
+
+    approval_items = [
+        item for item in page.items if item.category.value == "approval"
+    ]
+    assert len(approval_items) == 1
+    assert approval_items[0].tx_hash == fixture.expected_string("approval_hash")
+    assert approval_items[0].value_decimal == Decimal(
+        fixture.expected_string("approval_value")
+    )
+    assert approval_items[0].chain is fixture.chain
+    assert page.query_from_block is not None
+    assert page.query_to_block is not None
     client.assert_consumed()
 
 
 @dataclass(frozen=True)
 class _ConformanceFixture:
     provider_id: str
+    chain: Chain
     operations: dict[str, Any]
     expected: dict[str, str | bool | list[str]]
 
@@ -183,16 +212,22 @@ def _load_fixture(file_name: str) -> _ConformanceFixture:
     if raw.get("version") != 1:
         raise AssertionError("Unsupported provider conformance fixture version.")
     provider_id = raw.get("provider_id")
+    raw_chain = raw.get("chain", Chain.ETHEREUM.value)
     operations = raw.get("operations")
     expected = raw.get("expected")
     if not isinstance(provider_id, str):
         raise AssertionError("Fixture provider_id must be a string.")
+    try:
+        chain = Chain(raw_chain)
+    except (TypeError, ValueError) as error:
+        raise AssertionError("Fixture chain must be a supported chain ID.") from error
     if not isinstance(operations, dict):
         raise AssertionError("Fixture operations must be an object.")
     if not isinstance(expected, dict):
         raise AssertionError("Fixture expected values must be an object.")
     return _ConformanceFixture(
         provider_id=provider_id,
+        chain=chain,
         operations=operations,
         expected=expected,
     )

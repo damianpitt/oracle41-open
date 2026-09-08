@@ -1,7 +1,7 @@
-"""Run opt-in live wallet-data checks for all four providers.
+"""Run opt-in live wallet-data checks for every eligible provider.
 
 The command reads credentials and public test addresses only from environment variables.
-It refuses to run without explicit opt-in and never prints credentials, addresses, URLs, or wallet data.
+The selected chain decides which adapters are eligible. The command refuses to run without explicit opt-in and never prints credentials, addresses, URLs, or wallet data.
 """
 
 from __future__ import annotations

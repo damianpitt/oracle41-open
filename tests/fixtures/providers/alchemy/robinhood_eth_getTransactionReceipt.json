@@ -1,0 +1,32 @@
+{
+  "jsonrpc": "2.0",
+  "id": 202,
+  "result": {
+    "transactionHash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "blockNumber": "0x4a10",
+    "blockHash": "0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+    "transactionIndex": "0x1",
+    "from": "0x1111111111111111111111111111111111111111",
+    "to": "0x2222222222222222222222222222222222222222",
+    "contractAddress": null,
+    "status": "0x1",
+    "gasUsed": "0xc350",
+    "cumulativeGasUsed": "0x249f0",
+    "effectiveGasPrice": "0x3b9aca00",
+    "type": "0x2",
+    "logsBloom": "0x00",
+    "logs": [
+      {
+        "logIndex": "0x2",
+        "address": "0x2222222222222222222222222222222222222222",
+        "topics": [
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          "0x0000000000000000000000001111111111111111111111111111111111111111",
+          "0x0000000000000000000000003333333333333333333333333333333333333333"
+        ],
+        "data": "0x000000000000000000000000000000000000000000000000000000000000002a",
+        "removed": false
+      }
+    ]
+  }
+}
