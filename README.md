@@ -4,14 +4,14 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a16` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy now provides indexed Robinhood Chain wallet data and transaction inspection. GoldRush Robinhood support remains disabled until its separate conformance work is complete.
+Version `0.4.0a17` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush now provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide Robinhood transaction inspection.
 
 ## Features
 
 - Wallet overview with native and ERC-20 balances
 - Portfolio pricing enrichment with cached last-known values
 - Full wallet analytics on Ethereum, Optimism, Polygon, Base, and Arbitrum
-- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) analytics through Alchemy, with chain ID 4663, ETH gas, custom JSON-RPC support, and Blockscout links
+- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) wallet analytics through Alchemy or GoldRush, with chain ID 4663, ETH gas, JSON-RPC transaction inspection, and Blockscout links
 - Activity feed with durable history, resumable pagination, lookback, and filters
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
 - Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
@@ -94,16 +94,16 @@ Oracle41 Open uses separate provider roles. A wallet-data provider supplies inde
 | Alchemy | Wallet data and transactions | Available | Available through JSON-RPC | ETH price only; Robinhood token pricing is not confirmed |
 | Ankr | Wallet data and transactions | Not supported | Not supported | Not used |
 | Moralis | Wallet data | Not supported | Not used | Not used |
-| GoldRush | Wallet data | Planned for M6.4C validation | Not used | Not used |
+| GoldRush | Wallet data | Available | Not used | Not used |
 | Custom JSON-RPC endpoint | Transactions only | No wallet index | Available | Not used |
 | Blockscout | Explorer context | No wallet index | Contract and explorer context | Not used |
 
-Alchemy currently offers the broadest coverage from one account, including indexed wallet data and transaction inspection on Robinhood Chain. Ankr can supply wallet data and transaction inspection on the five established networks but does not currently support Robinhood. Moralis also does not currently list Robinhood. GoldRush lists Robinhood as a Frontier Chain, but Oracle41 will not enable that path until its separate conformance work passes.
+Alchemy currently offers the broadest coverage from one account, including indexed wallet data and transaction inspection on Robinhood Chain. GoldRush provides an independent indexed wallet-data route for Robinhood and can act as a fallback. Ankr can supply wallet data and transaction inspection on the five established networks but does not currently support Robinhood. Moralis also does not currently list Robinhood.
 
 Common setups:
 
 - **Alchemy only:** covers the current wallet and transaction feature set on all six registered networks. Robinhood token pricing and protocol positions remain unavailable.
-- **Alchemy plus another wallet provider:** adds wallet-data failover while keeping transaction inspection and pricing available.
+- **Alchemy plus GoldRush:** adds Robinhood wallet-data failover while Alchemy continues to provide transaction inspection.
 - **Ankr plus Alchemy:** provides full current coverage and indexed wallet-data failover.
 - **Moralis or GoldRush plus custom JSON-RPC:** provides wallet analytics and transaction inspection, but dedicated market pricing remains unavailable.
 - **Moralis or GoldRush only:** provides wallet balances and history; advanced transaction inspection and dedicated pricing are limited.
@@ -112,7 +112,7 @@ Execution traces and historical contract reads can still depend on the provider 
 
 ### Opt-in Live Validation
 
-Maintainers can test every eligible wallet-data adapter against one public wallet and token contract. The validator reads keys and test addresses from environment variables, performs only the first page of each operation, and does not print credentials, addresses, URLs, balances, or activity. The five established networks require all four keys; Robinhood currently requires only Alchemy.
+Maintainers can test every eligible wallet-data adapter against one public wallet and token contract. The validator reads keys and test addresses from environment variables, performs only the first page of each operation, and does not print credentials, addresses, URLs, balances, or activity. The five established networks require all four keys; Robinhood requires Alchemy and GoldRush.
 
 ```bash
 export ORACLE41_RUN_LIVE_PROVIDER_VALIDATION=1
@@ -215,7 +215,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Exact protocol-block mode uses current wallet balances, so it reports a known estimate rather than a complete historical portfolio total.
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
-- Robinhood Chain wallet data currently requires Alchemy. GoldRush support is still waiting for its provider conformance slice.
+- Robinhood Chain wallet data is available through Alchemy and GoldRush. Ankr and Moralis do not currently support this network.
 - Robinhood token-by-address pricing, L2 fee separation, and bridge intelligence are not included yet.
 - No Aave V3, Compound V3, or Uniswap V3 deployment is assumed on Robinhood Chain.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.

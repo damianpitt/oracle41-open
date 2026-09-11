@@ -30,8 +30,12 @@ _FIXTURE_NAMES = (
     "ankr_wallet_data_v1.json",
     "moralis_wallet_data_v1.json",
     "goldrush_wallet_data_v1.json",
+    "goldrush_robinhood_wallet_data_v1.json",
 )
-_APPROVAL_FIXTURE_NAMES = ("alchemy_robinhood_wallet_data_v1.json",)
+_APPROVAL_FIXTURE_NAMES = (
+    "alchemy_robinhood_wallet_data_v1.json",
+    "goldrush_robinhood_wallet_data_v1.json",
+)
 _WALLET = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 _TOKEN = "0x9999999999999999999999999999999999999999"
 
@@ -132,8 +136,10 @@ def test_provider_conformance_approval_history(fixture_name: str) -> None:
         fixture.expected_string("approval_value")
     )
     assert approval_items[0].chain is fixture.chain
-    assert page.query_from_block is not None
-    assert page.query_to_block is not None
+    has_query_range = (
+        page.query_from_block is not None and page.query_to_block is not None
+    )
+    assert has_query_range is fixture.expected_bool("approval_query_range")
     client.assert_consumed()
 
 

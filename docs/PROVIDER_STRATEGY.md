@@ -24,18 +24,18 @@ Custom JSON-RPC is intentionally separate. Standard EVM nodes can return balance
 
 ## Network Coverage
 
-Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data coverage through all four providers. Robinhood Chain has recorded Alchemy coverage and is being enabled for other providers only when each separate adapter passes.
+Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data coverage through all four providers. Robinhood Chain has recorded wallet-data coverage through Alchemy and GoldRush. Ankr and Moralis are excluded because they do not currently list Robinhood support.
 
 Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
 
-| Provider or source | Robinhood status in `0.4.0a16` |
+| Provider or source | Robinhood status in `0.4.0a17` |
 | --- | --- |
 | Alchemy wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Alchemy JSON-RPC | Available for transaction inspection |
 | Alchemy token pricing | Not confirmed; token prices remain missing |
 | Ankr | Not supported |
 | Moralis | Not supported |
-| GoldRush wallet data | Registered but disabled until M6.4C fixtures pass |
+| GoldRush wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Custom JSON-RPC | Available for transaction inspection; no complete wallet index |
 | Blockscout | Available for explorer and verified-contract context |
 
@@ -56,7 +56,7 @@ Alchemy currently gives the broadest single-provider experience. It is not requi
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also lists Robinhood as a Frontier Chain; that path remains disabled until M6.4C validation is complete.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a17` enables that path after chain-specific fixture validation.
 
 The provider pool follows these rules:
 
@@ -71,7 +71,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a16` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy wallet data only because that is the adapter with completed chain-specific fixtures.
+Version `0.4.0a17` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -141,7 +141,7 @@ The app must continue to work with one provider. Four configured providers impro
 
 ## Opt-in Live Validation
 
-Recorded fixtures remain the public CI requirement. Maintainers can separately run one bounded live page for native balance, token balances, wallet activity, and token history against every eligible provider. The selected chain controls which credentials are required. Robinhood currently runs only the Alchemy adapter.
+Recorded fixtures remain the public CI requirement. Maintainers can separately run one bounded live page for native balance, token balances, wallet activity, and token history against every eligible provider. The selected chain controls which credentials are required. Robinhood runs the Alchemy and GoldRush adapters.
 
 The local command requires explicit opt-in. This Ethereum example requires all four credentials:
 

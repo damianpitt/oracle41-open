@@ -2,7 +2,26 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a16] - Unreleased
+## [0.4.0a17] - Unreleased
+
+### Added
+
+- Recorded GoldRush Robinhood coverage for native and token balances, paginated wallet activity, ERC-20 transfers, ERC-721 and ERC-1155 history, and approval revocations.
+- Runtime tests for Alchemy-to-GoldRush Robinhood failover and strict provider ownership of continuation cursors.
+- Robinhood live-validation selection for the two eligible indexed wallet-data providers.
+
+### Changed
+
+- GoldRush wallet-data routing is now enabled for Robinhood Chain after its chain-specific conformance fixture passed.
+- Provider capability summaries now advertise both Alchemy and GoldRush for Robinhood wallet analytics.
+
+### Known Limitations
+
+- GoldRush remains an indexed wallet-data source; Oracle41 does not use it for transaction JSON-RPC or market pricing.
+- Robinhood token pricing, protocol deployments, L2 fee separation, and bridge intelligence are not included in this slice.
+- Ankr and Moralis do not currently support Robinhood Chain.
+
+## [0.4.0a16] - 2026-09-11
 
 ### Added
 

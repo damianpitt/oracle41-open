@@ -38,7 +38,8 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
             chain
             for chain in Chain
             if chain is not Chain.ROBINHOOD
-            or descriptor.provider_id is WalletDataProviderId.ALCHEMY
+            or descriptor.provider_id
+            in {WalletDataProviderId.ALCHEMY, WalletDataProviderId.GOLDRUSH}
         )
         assert descriptor.supported_chains == expected_chains
         assert descriptor.supports(
@@ -52,17 +53,27 @@ def test_available_providers_report_current_chain_and_feature_coverage() -> None
         assert descriptor.validation_destination
 
 
-def test_robinhood_only_exposes_fixture_validated_alchemy_features() -> None:
+def test_robinhood_exposes_only_fixture_validated_provider_features() -> None:
     alchemy = provider_descriptor(WalletDataProviderId.ALCHEMY)
+    goldrush = provider_descriptor(WalletDataProviderId.GOLDRUSH)
     assert alchemy.features_for(Chain.ROBINHOOD)
+    assert goldrush.features_for(Chain.ROBINHOOD)
     assert alchemy.supports(
         WalletDataFeature.APPROVAL_HISTORY,
         Chain.ROBINHOOD,
     )
     assert alchemy.supports(WalletDataFeature.NFT_TRANSFERS, Chain.ROBINHOOD)
+    assert goldrush.supports(
+        WalletDataFeature.APPROVAL_HISTORY,
+        Chain.ROBINHOOD,
+    )
+    assert goldrush.supports(WalletDataFeature.NFT_TRANSFERS, Chain.ROBINHOOD)
 
     for descriptor in PROVIDER_DESCRIPTORS:
-        if descriptor.provider_id is WalletDataProviderId.ALCHEMY:
+        if descriptor.provider_id in {
+            WalletDataProviderId.ALCHEMY,
+            WalletDataProviderId.GOLDRUSH,
+        }:
             continue
         assert descriptor.features_for(Chain.ROBINHOOD) == frozenset()
         assert not descriptor.supports(

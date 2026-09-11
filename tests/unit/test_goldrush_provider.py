@@ -80,6 +80,7 @@ def _native_payload() -> dict[str, object]:
         (Chain.POLYGON, "matic-mainnet"),
         (Chain.BASE, "base-mainnet"),
         (Chain.ARBITRUM, "arbitrum-mainnet"),
+        (Chain.ROBINHOOD, "robinhood-mainnet"),
     ],
 )
 def test_goldrush_uses_documented_chains_and_bearer_authentication(

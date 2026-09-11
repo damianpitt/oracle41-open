@@ -1,0 +1,262 @@
+{
+  "format": "oracle41-data-provider-conformance",
+  "version": 1,
+  "provider_id": "goldrush",
+  "chain": "robinhood",
+  "operations": {
+    "native_balance": {
+      "responses": [
+        {
+          "method": "/v1/robinhood-mainnet/address/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/balances_native/",
+          "result": {
+            "data": {
+              "chain_id": 4663,
+              "chain_name": "robinhood-mainnet",
+              "items": [
+                {
+                  "native_token": true,
+                  "balance": "2000000000000000000",
+                  "contract_decimals": 18,
+                  "contract_ticker_symbol": "ETH"
+                }
+              ]
+            },
+            "error": false
+          }
+        }
+      ]
+    },
+    "token_balances": {
+      "responses": [
+        {
+          "method": "/v1/robinhood-mainnet/address/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/balances_v2/",
+          "result": {
+            "data": {
+              "chain_id": 4663,
+              "chain_name": "robinhood-mainnet",
+              "items": [
+                {
+                  "contract_address": "0x9999999999999999999999999999999999999999",
+                  "balance": "2500000",
+                  "contract_name": "Recorded Robinhood Asset",
+                  "contract_ticker_symbol": "RWA",
+                  "contract_decimals": 6,
+                  "is_spam": false
+                }
+              ]
+            },
+            "error": false
+          }
+        }
+      ]
+    },
+    "activity": {
+      "responses": [
+        {
+          "method": "/v1/robinhood-mainnet/address/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/transactions_v3/page/0/",
+          "result": {
+            "data": {
+              "chain_id": 4663,
+              "chain_name": "robinhood-mainnet",
+              "items": [
+                {
+                  "tx_hash": "0xrobinhoodgoldrushactivity",
+                  "block_height": 19001,
+                  "block_signed_at": "2026-09-10T12:00:00Z",
+                  "from_address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "to_address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "value": "0",
+                  "log_events": [
+                    {
+                      "tx_hash": "0xrobinhoodgoldrushactivity",
+                      "block_height": 19001,
+                      "block_signed_at": "2026-09-10T12:00:00Z",
+                      "log_offset": 1,
+                      "sender_address": "0x9999999999999999999999999999999999999999",
+                      "sender_contract_ticker_symbol": "RWA",
+                      "sender_contract_decimals": 6,
+                      "supports_erc": [
+                        "erc20"
+                      ],
+                      "decoded": {
+                        "name": "Transfer",
+                        "params": [
+                          {
+                            "name": "from",
+                            "value": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                          },
+                          {
+                            "name": "to",
+                            "value": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                          },
+                          {
+                            "name": "value",
+                            "value": "2500000"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": {
+                "next": "https://api.covalenthq.com/v1/robinhood-mainnet/address/recorded/transactions_v3/page/1/"
+              }
+            },
+            "error": false
+          }
+        }
+      ]
+    },
+    "token_history": {
+      "responses": [
+        {
+          "method": "/v1/robinhood-mainnet/address/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/transactions_v3/page/0/",
+          "result": {
+            "data": {
+              "chain_id": 4663,
+              "chain_name": "robinhood-mainnet",
+              "items": [
+                {
+                  "tx_hash": "0xrobinhoodgoldrushnfts",
+                  "block_height": 19002,
+                  "block_signed_at": "2026-09-10T12:01:00Z",
+                  "value": "0",
+                  "log_events": [
+                    {
+                      "log_offset": 2,
+                      "sender_address": "0x9999999999999999999999999999999999999999",
+                      "sender_contract_ticker_symbol": "RH-NFT",
+                      "supports_erc": [
+                        "erc721"
+                      ],
+                      "decoded": {
+                        "name": "Transfer",
+                        "params": [
+                          {
+                            "name": "from",
+                            "value": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                          },
+                          {
+                            "name": "to",
+                            "value": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                          },
+                          {
+                            "name": "tokenId",
+                            "value": "42"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "log_offset": 3,
+                      "sender_address": "0x9999999999999999999999999999999999999999",
+                      "sender_contract_ticker_symbol": "RH-MULTI",
+                      "supports_erc": [
+                        "erc1155"
+                      ],
+                      "decoded": {
+                        "name": "TransferSingle",
+                        "params": [
+                          {
+                            "name": "from",
+                            "value": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                          },
+                          {
+                            "name": "to",
+                            "value": "0xcccccccccccccccccccccccccccccccccccccccc"
+                          },
+                          {
+                            "name": "id",
+                            "value": "7"
+                          },
+                          {
+                            "name": "value",
+                            "value": "4"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": {
+                "next": null
+              }
+            },
+            "error": false
+          }
+        }
+      ]
+    },
+    "approval_history": {
+      "responses": [
+        {
+          "method": "/v1/robinhood-mainnet/address/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/transactions_v3/page/0/",
+          "result": {
+            "data": {
+              "chain_id": 4663,
+              "chain_name": "robinhood-mainnet",
+              "items": [
+                {
+                  "tx_hash": "0xrobinhoodgoldrushrevocation",
+                  "block_height": 19003,
+                  "block_signed_at": "2026-09-10T12:02:00Z",
+                  "value": "0",
+                  "log_events": [
+                    {
+                      "log_offset": 4,
+                      "sender_address": "0x9999999999999999999999999999999999999999",
+                      "sender_contract_ticker_symbol": "RH-NFT",
+                      "sender_contract_decimals": 0,
+                      "supports_erc": [
+                        "erc721",
+                        "erc1155"
+                      ],
+                      "decoded": {
+                        "name": "ApprovalForAll",
+                        "params": [
+                          {
+                            "name": "owner",
+                            "value": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                          },
+                          {
+                            "name": "operator",
+                            "value": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                          },
+                          {
+                            "name": "approved",
+                            "value": false
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "links": {
+                "next": null
+              }
+            },
+            "error": false
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "native_balance": "2",
+    "token_balance_symbol": "RWA",
+    "token_balance": "2.5",
+    "token_balance_has_next": false,
+    "activity_hash": "0xrobinhoodgoldrushactivity",
+    "activity_value": "2.5",
+    "token_history_categories": [
+      "erc721",
+      "erc1155"
+    ],
+    "approval_hash": "0xrobinhoodgoldrushrevocation",
+    "approval_value": "0",
+    "approval_query_range": false
+  }
+}

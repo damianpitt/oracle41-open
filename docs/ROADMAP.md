@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4B is complete in `0.4.0a16`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy wallet coverage, Alchemy and custom JSON-RPC transaction access, and Blockscout context. GoldRush wallet coverage remains scheduled for M6.4C.
+**Implementation status:** M6.4C is complete in `0.4.0a17`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, and Blockscout context.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -555,3 +555,13 @@ M6.4B enables Alchemy indexed wallet data for Robinhood Chain. A chain-aware con
 Recorded transaction fixtures also cover receipt status, gas fees, deterministic calldata and event decoding, normalized transfer actions, source details, chain identity, and Alchemy's debug call tracer. The implementation reuses the standard EVM transaction engine instead of adding a separate Robinhood parser.
 
 Alchemy token-by-address pricing remains disabled because that API is not listed in Alchemy's documented Robinhood support. GoldRush indexed wallet data remains scheduled for M6.4C. Protocol deployments, L2 fee separation, and bridge intelligence require later slices.
+
+### Completed Slice: M6.4C
+
+**Status:** Complete in `0.4.0a17`.
+
+M6.4C enables GoldRush indexed wallet data for Robinhood Chain. The chain-specific fixture covers native and token balances, paginated activity, ERC-20 transfers, ERC-721 and ERC-1155 history, and approval revocations from decoded event logs.
+
+Alchemy and GoldRush can now be ordered in Settings for Robinhood wallet analytics. Fresh requests can fail over after a structured provider error. Continuation cursors remain owned by the provider that created them, so a GoldRush page is never continued through Alchemy or the reverse.
+
+GoldRush remains a wallet-data provider in Oracle41. It is not used for transaction JSON-RPC or pricing. Robinhood protocol deployments, L2 fee separation, and bridge intelligence remain separate future work.

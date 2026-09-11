@@ -140,7 +140,7 @@ def test_live_command_reports_missing_variable_names_only(
     assert "secret" not in output
 
 
-def test_live_command_requires_only_alchemy_credentials_for_robinhood(
+def test_live_command_requires_alchemy_and_goldrush_credentials_for_robinhood(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     environment = {
@@ -153,12 +153,12 @@ def test_live_command_requires_only_alchemy_credentials_for_robinhood(
     assert result == 2
     output = capsys.readouterr().out
     assert "ORACLE41_ALCHEMY_API_KEY" in output
+    assert "ORACLE41_GOLDRUSH_API_KEY" in output
     assert "ORACLE41_ANKR_API_KEY" not in output
     assert "ORACLE41_MORALIS_API_KEY" not in output
-    assert "ORACLE41_GOLDRUSH_API_KEY" not in output
 
 
-def test_live_command_runs_robinhood_through_alchemy_only(
+def test_live_command_runs_robinhood_through_eligible_providers(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     environment = {
@@ -167,19 +167,23 @@ def test_live_command_runs_robinhood_through_alchemy_only(
         "ORACLE41_LIVE_TEST_WALLET": _WALLET,
         "ORACLE41_LIVE_TEST_TOKEN": _TOKEN,
         "ORACLE41_ALCHEMY_API_KEY": "alchemy-secret",
+        "ORACLE41_GOLDRUSH_API_KEY": "goldrush-secret",
     }
     alchemy = _RecordingProvider("alchemy")
+    goldrush = _RecordingProvider("goldrush")
 
     result = run_live_provider_validation(
         environment=environment,
-        providers={"alchemy": alchemy},
+        providers={"alchemy": alchemy, "goldrush": goldrush},
     )
 
     output = capsys.readouterr().out
     assert result == 0
-    assert output.count("PASS") == 1
+    assert output.count("PASS") == 2
     assert "alchemy: PASS" in output
+    assert "goldrush: PASS" in output
     assert alchemy.calls == ["native", "balances", "activity", "token_history"]
+    assert goldrush.calls == ["native", "balances", "activity", "token_history"]
 
 
 def test_live_command_runs_all_providers_without_printing_inputs(

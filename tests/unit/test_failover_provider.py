@@ -22,6 +22,7 @@ from oracle41_open.providers.capabilities import (
     WalletDataFeature,
     WalletDataProviderDescriptor,
     WalletDataProviderId,
+    provider_descriptor,
 )
 from oracle41_open.providers.failover import (
     FailoverDataProvider,
@@ -149,6 +150,67 @@ def test_ordered_pool_skips_provider_without_chain_capability() -> None:
     assert result == Decimal("2")
     assert unsupported.native_calls == 0
     assert supported.native_calls == 1
+
+
+def test_robinhood_fails_over_from_alchemy_to_goldrush() -> None:
+    alchemy = _Provider(native_result=ProviderRateLimitError("try later"))
+    goldrush = _Provider(native_result=Decimal("2"))
+    provider = OrderedDataProviderPool(
+        (
+            ProviderPoolEntry(
+                "alchemy",
+                alchemy,
+                provider_descriptor(WalletDataProviderId.ALCHEMY),
+            ),
+            ProviderPoolEntry(
+                "goldrush",
+                goldrush,
+                provider_descriptor(WalletDataProviderId.GOLDRUSH),
+            ),
+        )
+    )
+
+    result = provider.get_native_balance("0x" + "1" * 40, Chain.ROBINHOOD)
+
+    assert result == Decimal("2")
+    assert alchemy.native_calls == 1
+    assert goldrush.native_calls == 1
+
+
+def test_robinhood_goldrush_cursor_never_returns_to_alchemy() -> None:
+    alchemy = _Provider(activity_results={None: ProviderError("not available")})
+    goldrush = _Provider(
+        activity_results={
+            None: ActivityPage(items=[], next_cursor="goldrush-page-2"),
+            "goldrush-page-2": ActivityPage(items=[], next_cursor=None),
+        }
+    )
+    provider = OrderedDataProviderPool(
+        (
+            ProviderPoolEntry(
+                "alchemy",
+                alchemy,
+                provider_descriptor(WalletDataProviderId.ALCHEMY),
+            ),
+            ProviderPoolEntry(
+                "goldrush",
+                goldrush,
+                provider_descriptor(WalletDataProviderId.GOLDRUSH),
+            ),
+        )
+    )
+
+    first_page = provider.get_activity("0x" + "1" * 40, Chain.ROBINHOOD)
+    second_page = provider.get_activity(
+        "0x" + "1" * 40,
+        Chain.ROBINHOOD,
+        cursor=first_page.next_cursor,
+    )
+
+    assert first_page.source_provider == "goldrush"
+    assert second_page.source_provider == "goldrush"
+    assert alchemy.activity_cursors == [None]
+    assert goldrush.activity_cursors == [None, "goldrush-page-2"]
 
 
 def test_ordered_pool_reports_when_chain_has_no_eligible_provider() -> None:

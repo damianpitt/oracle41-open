@@ -212,6 +212,7 @@
       "erc1155"
     ],
     "approval_hash": "0xrobinhoodapproval",
-    "approval_value": "1"
+    "approval_value": "1",
+    "approval_query_range": true
   }
 }

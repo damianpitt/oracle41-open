@@ -112,6 +112,9 @@
         },
         "approval_value": {
           "type": "string"
+        },
+        "approval_query_range": {
+          "type": "boolean"
         }
       }
     }
