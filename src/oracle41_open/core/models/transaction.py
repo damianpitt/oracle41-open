@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
-from oracle41_open.core.models.chain import Chain
+from oracle41_open.core.models.chain import Chain, TransactionFeeModel
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,26 @@ class TraceStatus(str, Enum):
 class TraceDialect(str, Enum):
     DEBUG_CALL_TRACER = "debug_call_tracer"
     PARITY_TRACE = "parity_trace"
+
+
+class FeeBreakdownCompleteness(str, Enum):
+    COMPLETE = "complete"
+    TOTAL_ONLY = "total_only"
+
+
+@dataclass(frozen=True)
+class TransactionFeeBreakdown:
+    """Separate a paid transaction fee when the receipt exposes enough evidence."""
+
+    fee_model: TransactionFeeModel
+    completeness: FeeBreakdownCompleteness
+    total_fee_wei: int
+    execution_fee_wei: int | None
+    l1_data_fee_wei: int | None
+    total_gas_used: int
+    execution_gas_used: int | None
+    l1_data_gas_used: int | None
+    note: str | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +133,7 @@ class TransactionInspection:
     logs: tuple[RawTransactionLog, ...]
     source_provider: str
     fetched_at: datetime
+    l1_gas_used: int | None = None
 
     @property
     def fee_wei(self) -> int:
@@ -121,3 +142,43 @@ class TransactionInspection:
     @property
     def fee_native(self) -> Decimal:
         return Decimal(self.fee_wei) / Decimal(10**18)
+
+    @property
+    def fee_breakdown(self) -> TransactionFeeBreakdown:
+        """Return a chain-aware fee split without estimating missing receipt data."""
+
+        fee_model = self.chain.network.fee_model
+        if fee_model is not TransactionFeeModel.ARBITRUM_NITRO:
+            return TransactionFeeBreakdown(
+                fee_model=fee_model,
+                completeness=FeeBreakdownCompleteness.COMPLETE,
+                total_fee_wei=self.fee_wei,
+                execution_fee_wei=self.fee_wei,
+                l1_data_fee_wei=0,
+                total_gas_used=self.gas_used,
+                execution_gas_used=self.gas_used,
+                l1_data_gas_used=0,
+            )
+        if self.l1_gas_used is None:
+            return TransactionFeeBreakdown(
+                fee_model=fee_model,
+                completeness=FeeBreakdownCompleteness.TOTAL_ONLY,
+                total_fee_wei=self.fee_wei,
+                execution_fee_wei=None,
+                l1_data_fee_wei=None,
+                total_gas_used=self.gas_used,
+                execution_gas_used=None,
+                l1_data_gas_used=None,
+                note="The receipt does not expose gasUsedForL1, so the bundled fee cannot be separated.",
+            )
+        execution_gas_used = self.gas_used - self.l1_gas_used
+        return TransactionFeeBreakdown(
+            fee_model=fee_model,
+            completeness=FeeBreakdownCompleteness.COMPLETE,
+            total_fee_wei=self.fee_wei,
+            execution_fee_wei=execution_gas_used * self.effective_gas_price,
+            l1_data_fee_wei=self.l1_gas_used * self.effective_gas_price,
+            total_gas_used=self.gas_used,
+            execution_gas_used=execution_gas_used,
+            l1_data_gas_used=self.l1_gas_used,
+        )

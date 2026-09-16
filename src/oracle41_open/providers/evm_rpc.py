@@ -441,6 +441,12 @@ class EVMJSONRPCProvider:
         status = _optional_hex_int(receipt.get("status"), "status")
         if status not in {None, 0, 1}:
             raise ProviderResponseError("JSON-RPC receipt status is invalid.")
+        gas_used = _required_hex_int(receipt.get("gasUsed"), "gas used")
+        l1_gas_used = _optional_hex_int(receipt.get("gasUsedForL1"), "L1 data gas used")
+        if l1_gas_used is not None and l1_gas_used > gas_used:
+            raise ProviderResponseError(
+                "JSON-RPC receipt L1 data gas exceeds total gas used."
+            )
 
         return TransactionInspection(
             chain=chain,
@@ -465,7 +471,7 @@ class EVMJSONRPCProvider:
                 transaction.get("maxPriorityFeePerGas"), "maximum priority fee per gas"
             ),
             status=None if status is None else status == 1,
-            gas_used=_required_hex_int(receipt.get("gasUsed"), "gas used"),
+            gas_used=gas_used,
             cumulative_gas_used=_required_hex_int(
                 receipt.get("cumulativeGasUsed"), "cumulative gas used"
             ),
@@ -477,6 +483,7 @@ class EVMJSONRPCProvider:
             logs=logs,
             source_provider=self._source_name,
             fetched_at=datetime.now(tz=UTC),
+            l1_gas_used=l1_gas_used,
         )
 
     def _rpc_call(self, endpoint: str, method: str, params: list[Any]) -> Any:

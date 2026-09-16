@@ -17,6 +17,7 @@ class WalletActionKind(str, Enum):
     TRANSFER = "transfer"
     APPROVAL = "approval"
     SWAP = "swap"
+    BRIDGE = "bridge"
     DEPLOYMENT = "deployment"
     CONTRACT_CALL = "contract_call"
     UNKNOWN = "unknown"

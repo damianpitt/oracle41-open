@@ -631,9 +631,9 @@ class TransactionRepository:
                 chain, tx_hash, block_number, block_hash, transaction_index,
                 from_address, to_address, contract_address, status, gas_used,
                 cumulative_gas_used, effective_gas_price, transaction_type,
-                logs_bloom, source_provider, fetched_at
+                logs_bloom, source_provider, fetched_at, l1_gas_used
             )
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(chain, tx_hash) DO UPDATE SET
                 block_number = excluded.block_number,
                 block_hash = excluded.block_hash,
@@ -648,7 +648,8 @@ class TransactionRepository:
                 transaction_type = excluded.transaction_type,
                 logs_bloom = excluded.logs_bloom,
                 source_provider = excluded.source_provider,
-                fetched_at = excluded.fetched_at
+                fetched_at = excluded.fetched_at,
+                l1_gas_used = excluded.l1_gas_used
             """,
             (
                 inspection.chain.value,
@@ -667,6 +668,7 @@ class TransactionRepository:
                 inspection.logs_bloom,
                 inspection.source_provider,
                 inspection.fetched_at.astimezone(UTC).isoformat(),
+                inspection.l1_gas_used,
             ),
         )
 
@@ -704,6 +706,9 @@ class TransactionRepository:
             logs=tuple(_log_from_row(log_row) for log_row in log_rows),
             source_provider=str(row["source_provider"]),
             fetched_at=parse_datetime(row["fetched_at"]),
+            l1_gas_used=(
+                int(row["l1_gas_used"]) if row["l1_gas_used"] is not None else None
+            ),
         )
 
 

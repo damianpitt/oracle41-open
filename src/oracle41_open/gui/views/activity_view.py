@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 from oracle41_open.core.models import (
     ActivityCategory,
     ActivityItem,
+    BridgeObservation,
     Chain,
     DecodedArgument,
     DecodedCall,
@@ -618,6 +619,7 @@ class ActivityView(QWidget):
                 raw_result.result.action_set,
                 raw_result.result.enrichment,
                 raw_result.result.provider_capabilities,
+                raw_result.result.bridge_observations,
             )
         )
         _populate_trace_tree(self._trace_tree, raw_result.result.trace)
@@ -988,6 +990,7 @@ def _render_transaction_inspection(
     action_set: WalletActionSet | None = None,
     enrichment: TransactionEnrichment | None = None,
     provider_capabilities: ProviderCapabilities | None = None,
+    bridge_observations: tuple[BridgeObservation, ...] = (),
 ) -> str:
     if inspection.status is True:
         status = "success"
@@ -1015,6 +1018,9 @@ def _render_transaction_inspection(
         *_render_action_set_completeness(action_set),
         *_render_wallet_actions(actions),
         "",
+        "Bridge Intelligence",
+        *_render_bridge_observations(bridge_observations),
+        "",
         "Decoded Call",
         *_render_decoded_call(decoding.call),
         "",
@@ -1039,6 +1045,7 @@ def _render_transaction_inspection(
         f"- Gas Used: {inspection.gas_used}",
         f"- Effective Gas Price (wei): {inspection.effective_gas_price}",
         f"- Network Fee: {inspection.fee_native} {inspection.chain.native_symbol}",
+        *_render_fee_breakdown(inspection),
         f"- Transaction Type: {inspection.transaction_type if inspection.transaction_type is not None else 'n/a'}",
         f"- Raw Logs: {len(inspection.logs)}",
         f"- Source: {inspection.source_provider}",
@@ -1058,6 +1065,50 @@ def _render_transaction_inspection(
             )
         )
     return "\n".join(lines)
+
+
+def _render_fee_breakdown(inspection: TransactionInspection) -> tuple[str, ...]:
+    breakdown = inspection.fee_breakdown
+    lines = [
+        f"- Fee Model: {breakdown.fee_model.value}",
+        f"- Fee Breakdown: {breakdown.completeness.value}",
+    ]
+    if breakdown.execution_fee_wei is not None:
+        lines.append(f"- L2 Execution Fee (wei): {breakdown.execution_fee_wei}")
+    if breakdown.l1_data_fee_wei is not None:
+        lines.append(f"- L1 Data Fee (wei): {breakdown.l1_data_fee_wei}")
+    if breakdown.l1_data_gas_used is not None:
+        lines.append(f"- L1 Data Gas Used: {breakdown.l1_data_gas_used}")
+    if breakdown.note is not None:
+        lines.append(f"- Fee Note: {breakdown.note}")
+    return tuple(lines)
+
+
+def _render_bridge_observations(
+    observations: tuple[BridgeObservation, ...],
+) -> tuple[str, ...]:
+    if not observations:
+        return ("- No supported bridge evidence detected.",)
+    lines: list[str] = []
+    for observation in observations:
+        lines.extend(
+            (
+                f"- {observation.bridge_name}: {observation.stage.value}",
+                f"  - Route: {observation.source_chain.display_name} to "
+                f"{observation.destination_chain.display_name}",
+                f"  - Direction: {observation.direction.value}",
+                f"  - Transfer Kind: {observation.transfer_kind.value}",
+                f"  - Sender: {observation.sender_address or 'n/a'}",
+                f"  - Recipient: {observation.recipient_address or 'n/a'}",
+                f"  - L1 Token: {observation.token_address or 'native/message'}",
+                f"  - Raw Amount: {observation.raw_amount or 'n/a'}",
+                f"  - Message ID: {observation.message_id or 'n/a'}",
+                f"  - Evidence: {observation.evidence_reference} "
+                f"({observation.evidence_signature})",
+                "  - This records one observed stage; it does not prove completion on the other chain.",
+            )
+        )
+    return tuple(lines)
 
 
 def _render_provider_capabilities(

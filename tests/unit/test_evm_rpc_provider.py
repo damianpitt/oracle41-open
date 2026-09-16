@@ -88,6 +88,18 @@ def test_evm_rpc_provider_rejects_malformed_logs() -> None:
         provider.get_transaction_inspection(_TX_HASH, Chain.ETHEREUM)
 
 
+def test_evm_rpc_provider_rejects_l1_gas_above_total_gas() -> None:
+    receipt = _receipt_payload()
+    receipt["gasUsedForL1"] = "0x6000"
+    provider = EVMJSONRPCProvider(
+        {Chain.ROBINHOOD: "https://robinhood.example"},
+        rpc_client=_FakeRPCClient(_transaction_payload(), receipt),
+    )
+
+    with pytest.raises(ProviderResponseError, match="exceeds total"):
+        provider.get_transaction_inspection(_TX_HASH, Chain.ROBINHOOD)
+
+
 def test_evm_rpc_provider_maps_auth_errors_without_exposing_endpoint() -> None:
     rpc = _FakeRPCClient(_transaction_payload(), _receipt_payload())
     rpc.error = JSONRPCHTTPError(401, "secret endpoint failed")

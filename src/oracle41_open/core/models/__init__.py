@@ -5,10 +5,17 @@ Model implementations remain split into small files by subject.
 """
 
 from oracle41_open.core.models.activity import ActivityCategory, ActivityItem, ActivityPage
+from oracle41_open.core.models.bridge import (
+    BridgeDirection,
+    BridgeObservation,
+    BridgeStage,
+    BridgeTransferKind,
+)
 from oracle41_open.core.models.chain import (
     NETWORK_REGISTRY,
     Chain,
     NetworkDescriptor,
+    TransactionFeeModel,
     network_descriptor,
     network_descriptors,
 )
@@ -81,11 +88,13 @@ from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
 from oracle41_open.core.models.transaction import (
     ContractReadResult,
+    FeeBreakdownCompleteness,
     InternalCall,
     ProviderCapabilities,
     RawTransactionLog,
     TraceDialect,
     TraceStatus,
+    TransactionFeeBreakdown,
     TransactionInspection,
     TransactionTrace,
 )
@@ -120,6 +129,10 @@ __all__ = [
     "ApprovalRecord",
     "AssetMovement",
     "AssetRecord",
+    "BridgeDirection",
+    "BridgeObservation",
+    "BridgeStage",
+    "BridgeTransferKind",
     "Chain",
     "CompletenessState",
     "ContractABIRecord",
@@ -136,6 +149,7 @@ __all__ = [
     "ExplorerAddressContext",
     "ExplorerCapabilities",
     "ExplorerDecodedParameter",
+    "FeeBreakdownCompleteness",
     "FeeRecord",
     "FunctionSignatureDefinition",
     "InternalCall",
@@ -180,6 +194,8 @@ __all__ = [
     "TraceDialect",
     "TraceStatus",
     "TransactionRecord",
+    "TransactionFeeBreakdown",
+    "TransactionFeeModel",
     "TransactionTrace",
     "TransactionInspection",
     "TransactionDecoding",

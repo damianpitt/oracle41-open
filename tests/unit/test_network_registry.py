@@ -4,7 +4,12 @@ These checks keep every stored chain value mapped exactly once and prevent dupli
 Robinhood coverage stays explicit: its Alchemy, GoldRush, explorer, and public RPC names are known while unsupported provider names remain empty.
 """
 
-from oracle41_open.core.models import Chain, network_descriptor, network_descriptors
+from oracle41_open.core.models import (
+    Chain,
+    TransactionFeeModel,
+    network_descriptor,
+    network_descriptors,
+)
 
 
 def test_network_registry_covers_each_chain_once() -> None:
@@ -22,6 +27,8 @@ def test_robinhood_network_identifiers_are_explicit() -> None:
     assert descriptor.chain_id == 4663
     assert descriptor.display_name == "Robinhood Chain"
     assert descriptor.native_symbol == "ETH"
+    assert descriptor.fee_model is TransactionFeeModel.ARBITRUM_NITRO
+    assert descriptor.settlement_chain is Chain.ETHEREUM
     assert descriptor.alchemy_network_path == "robinhood-mainnet"
     assert descriptor.alchemy_pricing_network_path is None
     assert descriptor.goldrush_chain_name == "robinhood-mainnet"
@@ -36,3 +43,4 @@ def test_existing_chain_properties_remain_compatible() -> None:
     assert Chain.ARBITRUM.ankr_rpc_path == "arbitrum"
     assert Chain.POLYGON.native_symbol == "MATIC"
     assert Chain.ROBINHOOD.alchemy_network_path == "robinhood-mainnet"
+    assert Chain.ARBITRUM.network.fee_model is TransactionFeeModel.ARBITRUM_NITRO

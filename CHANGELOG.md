@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a17] - Unreleased
+## [0.4.0a18] - Unreleased
+
+### Added
+
+- Chain-aware transaction fee models with Ethereum settlement metadata for Arbitrum Nitro networks.
+- Optional `gasUsedForL1` receipt ingestion, SQLite persistence, and separate Robinhood L2 execution and L1 data fee reporting.
+- Deterministic decoding for canonical Arbitrum bridge calls and deposit/withdrawal lifecycle events.
+- Robinhood canonical bridge observations with direction, stage, source and destination chains, participants, token, amount, message ID, and exact evidence.
+- Normalized `bridge` wallet actions and a dedicated Bridge Intelligence section in Transaction Inspector.
+- Regression tests for complete and partial fee evidence, official gateway recognition, ArbSys messages, and unknown-contract rejection.
+
+### Changed
+
+- The ABI decoder is version 3 and the wallet-action normalizer is version 2. Stored derived results are rebuilt from preserved receipt evidence when inspected.
+- The SQLite schema is version 11. Existing databases add the optional L1 data gas field through a forward-only migration.
+- Robinhood bridge classification requires both a known signature and an official published canonical bridge contract.
+
+### Known Limitations
+
+- A receipt without `gasUsedForL1` still reports the correct bundled total fee, but the L2 and L1 components remain explicitly unavailable.
+- Bridge intelligence covers the Robinhood canonical Arbitrum route. It does not yet classify partner bridges such as LayerZero, CCIP, Relay, Across, LiFi, or 0x.
+- One observed bridge stage does not prove completion on the other chain. Cross-chain transaction correlation is future work.
+- Robinhood token pricing and protocol deployments remain unavailable.
+
+## [0.4.0a17] - 2026-09-14
 
 ### Added
 
@@ -18,7 +42,7 @@ All notable changes to Oracle41 Open will be documented here.
 ### Known Limitations
 
 - GoldRush remains an indexed wallet-data source; Oracle41 does not use it for transaction JSON-RPC or market pricing.
-- Robinhood token pricing, protocol deployments, L2 fee separation, and bridge intelligence are not included in this slice.
+- Robinhood token pricing, protocol deployments, L2 fee separation, and bridge intelligence were not included in this slice.
 - Ankr and Moralis do not currently support Robinhood Chain.
 
 ## [0.4.0a16] - 2026-09-11

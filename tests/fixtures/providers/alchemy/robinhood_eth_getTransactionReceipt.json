@@ -11,6 +11,7 @@
     "contractAddress": null,
     "status": "0x1",
     "gasUsed": "0xc350",
+    "gasUsedForL1": "0x2710",
     "cumulativeGasUsed": "0x249f0",
     "effectiveGasPrice": "0x3b9aca00",
     "type": "0x2",

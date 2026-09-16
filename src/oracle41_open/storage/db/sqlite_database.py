@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 10
+_SCHEMA_VERSION = 11
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -501,6 +501,10 @@ CREATE INDEX idx_protocol_sync_checkpoints_updated
     ON protocol_sync_checkpoints(updated_at);
 """
 
+_SCHEMA_V11_SQL = """
+ALTER TABLE ledger_transaction_receipts ADD COLUMN l1_gas_used INTEGER;
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -512,6 +516,7 @@ _MIGRATIONS = {
     8: _SCHEMA_V8_SQL,
     9: _SCHEMA_V9_SQL,
     10: _SCHEMA_V10_SQL,
+    11: _SCHEMA_V11_SQL,
 }
 
 

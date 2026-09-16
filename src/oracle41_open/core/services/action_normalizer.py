@@ -16,6 +16,7 @@ from oracle41_open.core.models import (
     ActionEvidence,
     ActionEvidenceKind,
     ActionParticipant,
+    BridgeObservation,
     DecodedArgument,
     DecodedEvent,
     DecodeStatus,
@@ -27,10 +28,14 @@ from oracle41_open.core.models import (
     WalletActionKind,
     WalletActionStatus,
 )
+from oracle41_open.core.services.bridge_intelligence import RobinhoodBridgeIntelligence
 
 
 class WalletActionNormalizer:
-    version = "1"
+    version = "2"
+
+    def __init__(self) -> None:
+        self._bridge_intelligence = RobinhoodBridgeIntelligence()
 
     def normalize(
         self,
@@ -46,11 +51,16 @@ class WalletActionNormalizer:
         if inspection.value_wei > 0:
             actions.append(self._native_value_action(inspection, status))
 
+        bridge_observations = self._bridge_intelligence.analyze(inspection, decoding)
+        actions.extend(
+            _bridge_action(inspection, observation, status, self.version)
+            for observation in bridge_observations
+        )
         event_actions = self._event_actions(inspection, decoding, status)
         actions.extend(event_actions)
         actions = _collapse_simple_swap(inspection, decoding, actions, status, self.version)
 
-        if not event_actions:
+        if not event_actions and not bridge_observations:
             call_action = self._call_action(inspection, decoding, status)
             if call_action is not None:
                 actions.append(call_action)
@@ -379,6 +389,62 @@ def _transfer_event_action(
         protocol_hint=None,
         confidence=ActionConfidence.HIGH,
         evidence=(_event_evidence(event, contract_address),),
+        normalizer_version=version,
+    )
+
+
+def _bridge_action(
+    inspection: TransactionInspection,
+    observation: BridgeObservation,
+    status: WalletActionStatus,
+    version: str,
+) -> WalletAction:
+    asset: tuple[ActionAsset, ...] = ()
+    if observation.raw_amount is not None:
+        asset = (
+            ActionAsset(
+                ActionAssetDirection.NEUTRAL,
+                "canonical-bridge-token"
+                if observation.token_address is not None
+                else "native",
+                observation.token_address,
+                inspection.chain.native_symbol
+                if observation.token_address is None
+                else None,
+                None,
+                observation.raw_amount,
+            ),
+        )
+    return WalletAction(
+        chain=inspection.chain,
+        tx_hash=inspection.tx_hash,
+        action_index=0,
+        kind=WalletActionKind.BRIDGE,
+        status=status,
+        summary=(
+            f"Bridge {observation.stage.value}: "
+            f"{observation.source_chain.display_name} to "
+            f"{observation.destination_chain.display_name}"
+        ),
+        participants=_participants(
+            ("sender", observation.sender_address),
+            ("recipient", observation.recipient_address),
+            ("bridge", observation.contract_address),
+        ),
+        assets=asset,
+        protocol_hint=observation.bridge_id,
+        confidence=ActionConfidence.HIGH,
+        evidence=(
+            ActionEvidence(
+                ActionEvidenceKind.EVENT
+                if observation.evidence_reference.startswith("log:")
+                else ActionEvidenceKind.CALL,
+                observation.evidence_reference,
+                contract_address=observation.contract_address,
+                signature=observation.evidence_signature,
+                source_id="robinhood.official.canonical-bridge",
+            ),
+        ),
         normalizer_version=version,
     )
 

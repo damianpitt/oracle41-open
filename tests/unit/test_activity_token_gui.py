@@ -150,6 +150,10 @@ def test_activity_gui_inspects_selected_transaction(
     assert "Transaction Inspector" in detail
     assert "Status: success" in detail
     assert "Network Fee: 0.000042 ETH" in detail
+    assert "Fee Model: standard_evm" in detail
+    assert "Fee Breakdown: complete" in detail
+    assert "Bridge Intelligence" in detail
+    assert "No supported bridge evidence detected" in detail
     assert "Method Selector: 0xa9059cbb" in detail
     assert "Decoded Call" in detail
     assert "Decode Status: malformed" in detail

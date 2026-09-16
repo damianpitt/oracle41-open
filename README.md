@@ -4,14 +4,14 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a17` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush now provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide Robinhood transaction inspection.
+Version `0.4.0a18` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide Robinhood transaction inspection, fee details, and canonical bridge evidence.
 
 ## Features
 
 - Wallet overview with native and ERC-20 balances
 - Portfolio pricing enrichment with cached last-known values
 - Full wallet analytics on Ethereum, Optimism, Polygon, Base, and Arbitrum
-- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) wallet analytics through Alchemy or GoldRush, with chain ID 4663, ETH gas, JSON-RPC transaction inspection, and Blockscout links
+- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) analytics through Alchemy or GoldRush, with chain ID 4663, ETH gas, JSON-RPC inspection, Nitro fee separation, canonical bridge intelligence, and Blockscout links
 - Activity feed with durable history, resumable pagination, lookback, and filters
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
 - Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
@@ -27,7 +27,9 @@ Version `0.4.0a17` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Cache telemetry, diagnostics, refresh, and clear-cache controls
 - Versioned CSV and JSON exports with completeness and provider provenance
 - Backup and restore for local settings and SQLite state
-- Transaction inspection with receipt status, gas, fees, raw logs, and provenance
+- Transaction inspection with receipt status, chain-aware fees, raw logs, and provenance
+- Robinhood L2 execution and Ethereum data-fee separation when the receipt provides `gasUsedForL1`
+- Robinhood canonical bridge direction and lifecycle-stage detection from official contracts and local call/event evidence
 - Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
 - Local user ABI management and optional verified ABI retrieval from Blockscout
 - EIP-1967 implementation, EIP-1967 beacon, and EIP-1167 proxy resolution with block-specific caching
@@ -35,7 +37,7 @@ Version `0.4.0a17` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Expandable internal call trees from Geth-compatible and Parity-compatible trace endpoints
 - Per-chain trace capability discovery with explicit completeness states
 - Learned historical-state capability reporting for block-specific proxy and revert queries
-- Normalized transfers, approvals, simple swaps, deployments, contract calls, and unknown actions
+- Normalized transfers, approvals, simple swaps, bridges, deployments, contract calls, and unknown actions
 - Versioned action CSV/JSON exports with participants, assets, confidence, and source evidence
 - Action-set completeness and missing-evidence reasons based on trace availability
 - Optional Blockscout transaction context with contract names, creation details, verification state, and source links
@@ -82,6 +84,8 @@ The desktop interface asks the core services for data. The core services decide 
 Network work runs in the background. The interface stays responsive while Oracle41 Open loads wallet activity, prices, transaction details, or verified contract information.
 
 Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, internal calls, decoded calls, wallet actions, event logs, revert reasons, proxy details, and optional explorer context while keeping the original raw data available.
+
+On Robinhood Chain, the inspector separates the L2 execution fee from the Ethereum data fee when the receipt contains the required Nitro field. It also recognizes canonical deposits and withdrawals only when known Arbitrum signatures come from Robinhood's published bridge contracts. Details and limits are in [docs/ROBINHOOD_CHAIN.md](docs/ROBINHOOD_CHAIN.md).
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -216,7 +220,9 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
 - Robinhood Chain wallet data is available through Alchemy and GoldRush. Ankr and Moralis do not currently support this network.
-- Robinhood token-by-address pricing, L2 fee separation, and bridge intelligence are not included yet.
+- Robinhood token-by-address pricing is not included yet.
+- Robinhood fee separation depends on the RPC receipt providing `gasUsedForL1`; otherwise the correct bundled total remains visible.
+- Robinhood bridge intelligence covers the canonical Arbitrum route and one observed stage at a time. Partner bridges and cross-chain transaction matching are not included yet.
 - No Aave V3, Compound V3, or Uniswap V3 deployment is assumed on Robinhood Chain.
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.

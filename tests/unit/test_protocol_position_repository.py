@@ -44,6 +44,11 @@ def test_database_migrates_v9_to_protocol_schema(tmp_path: Path) -> None:
             """
             CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             INSERT INTO schema_meta(key, value) VALUES('schema_version', '9');
+            CREATE TABLE ledger_transaction_receipts (
+                chain TEXT NOT NULL,
+                tx_hash TEXT NOT NULL,
+                PRIMARY KEY(chain, tx_hash)
+            );
             """
         )
 
@@ -60,7 +65,7 @@ def test_database_migrates_v9_to_protocol_schema(tmp_path: Path) -> None:
             ).fetchall()
         }
 
-    assert version == ("10",)
+    assert version == ("11",)
     assert {"protocol_snapshots", "protocol_sync_checkpoints"}.issubset(tables)
 
 

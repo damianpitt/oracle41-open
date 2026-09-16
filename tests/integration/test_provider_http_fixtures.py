@@ -324,6 +324,9 @@ def test_robinhood_alchemy_receipt_preserves_chain_and_decoded_action() -> None:
     assert inspection.source_provider == "alchemy"
     assert inspection.status is True
     assert inspection.fee_wei == 50_000_000_000_000
+    assert inspection.l1_gas_used == 10_000
+    assert inspection.fee_breakdown.execution_fee_wei == 40_000_000_000_000
+    assert inspection.fee_breakdown.l1_data_fee_wei == 10_000_000_000_000
     assert decoding.call is not None
     assert decoding.call.canonical_signature == "transfer(address,uint256)"
     assert len(actions) == 1

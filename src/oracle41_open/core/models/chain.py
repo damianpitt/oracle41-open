@@ -12,6 +12,13 @@ from enum import Enum
 from types import MappingProxyType
 
 
+class TransactionFeeModel(str, Enum):
+    """Describe how a network charges a transaction sender."""
+
+    STANDARD_EVM = "standard_evm"
+    ARBITRUM_NITRO = "arbitrum_nitro"
+
+
 class Chain(str, Enum):
     """Stable chain values stored in settings, SQLite records, and exports."""
 
@@ -77,6 +84,8 @@ class NetworkDescriptor:
     display_name: str
     native_symbol: str
     native_pricing_symbol: str
+    fee_model: TransactionFeeModel
+    settlement_chain: Chain | None
     explorer_url: str
     public_rpc_url: str | None
     alchemy_network_path: str | None
@@ -97,6 +106,8 @@ def _network(
     ankr_path: str,
     moralis_code: str,
     goldrush_name: str,
+    fee_model: TransactionFeeModel = TransactionFeeModel.STANDARD_EVM,
+    settlement_chain: Chain | None = None,
 ) -> NetworkDescriptor:
     """Build a descriptor for the five established provider-compatible chains."""
 
@@ -106,6 +117,8 @@ def _network(
         display_name=display_name,
         native_symbol=native_symbol,
         native_pricing_symbol=native_symbol,
+        fee_model=fee_model,
+        settlement_chain=settlement_chain,
         explorer_url=explorer_url,
         public_rpc_url=None,
         alchemy_network_path=alchemy_network_path,
@@ -137,6 +150,7 @@ NETWORK_REGISTRY: Mapping[Chain, NetworkDescriptor] = MappingProxyType({
     Chain.ARBITRUM: _network(
         Chain.ARBITRUM, 42161, "Arbitrum", "ETH", "https://arbitrum.blockscout.com",
         "arb-mainnet", "arbitrum", "arbitrum", "arbitrum-mainnet",
+        TransactionFeeModel.ARBITRUM_NITRO, Chain.ETHEREUM,
     ),
     Chain.ROBINHOOD: NetworkDescriptor(
         chain=Chain.ROBINHOOD,
@@ -144,6 +158,8 @@ NETWORK_REGISTRY: Mapping[Chain, NetworkDescriptor] = MappingProxyType({
         display_name="Robinhood Chain",
         native_symbol="ETH",
         native_pricing_symbol="ETH",
+        fee_model=TransactionFeeModel.ARBITRUM_NITRO,
+        settlement_chain=Chain.ETHEREUM,
         explorer_url="https://robinhoodchain.blockscout.com",
         public_rpc_url="https://rpc.mainnet.chain.robinhood.com",
         alchemy_network_path="robinhood-mainnet",

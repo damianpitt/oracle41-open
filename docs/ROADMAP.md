@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4C is complete in `0.4.0a17`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, and Blockscout context.
+**Implementation status:** M6.4D is complete in `0.4.0a18`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -565,3 +565,13 @@ M6.4C enables GoldRush indexed wallet data for Robinhood Chain. The chain-specif
 Alchemy and GoldRush can now be ordered in Settings for Robinhood wallet analytics. Fresh requests can fail over after a structured provider error. Continuation cursors remain owned by the provider that created them, so a GoldRush page is never continued through Alchemy or the reverse.
 
 GoldRush remains a wallet-data provider in Oracle41. It is not used for transaction JSON-RPC or pricing. Robinhood protocol deployments, L2 fee separation, and bridge intelligence remain separate future work.
+
+### Completed Slice: M6.4D
+
+**Status:** Complete in `0.4.0a18`.
+
+M6.4D records Robinhood as an Arbitrum Nitro network that settles to Ethereum. Transaction receipts keep the optional `gasUsedForL1` value. When it is present, Transaction Inspector separates the paid fee into L2 execution and L1 data components. When it is absent, the correct bundled total stays visible and the missing split is reported plainly.
+
+The bundled ABI registry now decodes canonical Arbitrum gateway calls and deposit/withdrawal events. Bridge classification requires a known signature from one of Robinhood's officially published L1 or L2 gateway addresses, or a `sendTxToL1` call to the ArbSys precompile. Each observation records direction, initiation or finalization, source and destination chains, participants, token, amount, message ID, and exact evidence. It also creates a normalized bridge action.
+
+This slice does not correlate the L1 and L2 transactions into one completed journey. It also does not classify partner bridges. Those features need route-specific identifiers and fixtures in a later slice.

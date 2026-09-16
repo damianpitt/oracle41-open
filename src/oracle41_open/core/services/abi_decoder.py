@@ -32,7 +32,7 @@ from oracle41_open.core.models.decoding import (
     TransactionDecoding,
 )
 
-DECODER_VERSION = "2"
+DECODER_VERSION = "3"
 
 _Definition = TypeVar("_Definition")
 
@@ -52,6 +52,15 @@ _SOLIDITY_SOURCE = SignatureProvenance(
     version="1",
     is_verified=True,
     reference="https://docs.soliditylang.org/en/latest/control-structures.html#error-handling-assert-require-revert-and-exceptions",
+)
+
+_ARBITRUM_BRIDGE_SOURCE = SignatureProvenance(
+    source_id="arbitrum.canonical-token-bridge",
+    source_name="Arbitrum canonical token bridge",
+    source_kind=SignatureSourceKind.BUNDLED_STANDARD,
+    version="1",
+    is_verified=True,
+    reference="https://github.com/OffchainLabs/token-bridge-contracts",
 )
 
 
@@ -96,6 +105,18 @@ class SignatureRegistry:
                     provenance=_BUNDLED_SOURCE,
                 )
             )
+        for name, inputs in _ARBITRUM_BRIDGE_FUNCTIONS:
+            signature = _canonical_signature(name, inputs)
+            selector = "0x" + keccak(text=signature)[:4].hex()
+            functions[selector].append(
+                FunctionSignatureDefinition(
+                    selector=selector,
+                    name=name,
+                    canonical_signature=signature,
+                    inputs=inputs,
+                    provenance=_ARBITRUM_BRIDGE_SOURCE,
+                )
+            )
 
         events: defaultdict[str, list[EventSignatureDefinition]] = defaultdict(list)
         for standard, name, inputs in _BUNDLED_EVENTS:
@@ -108,6 +129,19 @@ class SignatureRegistry:
                     canonical_signature=signature,
                     inputs=inputs,
                     provenance=_BUNDLED_SOURCE,
+                    standard=standard,
+                )
+            )
+        for standard, name, inputs in _ARBITRUM_BRIDGE_EVENTS:
+            signature = _canonical_signature(name, inputs)
+            topic0 = "0x" + keccak(text=signature).hex()
+            events[topic0].append(
+                EventSignatureDefinition(
+                    topic0=topic0,
+                    name=name,
+                    canonical_signature=signature,
+                    inputs=inputs,
+                    provenance=_ARBITRUM_BRIDGE_SOURCE,
                     standard=standard,
                 )
             )
@@ -598,6 +632,45 @@ _BUNDLED_FUNCTIONS: tuple[tuple[str, tuple[ABIArgumentDefinition, ...]], ...] = 
     ),
 )
 
+_ARBITRUM_BRIDGE_FUNCTIONS: tuple[
+    tuple[str, tuple[ABIArgumentDefinition, ...]], ...
+] = (
+    (
+        "sendTxToL1",
+        (_argument("destination", "address"), _argument("data", "bytes")),
+    ),
+    (
+        "outboundTransfer",
+        (
+            _argument("l1Token", "address"),
+            _argument("to", "address"),
+            _argument("amount", "uint256"),
+            _argument("data", "bytes"),
+        ),
+    ),
+    (
+        "outboundTransfer",
+        (
+            _argument("l1Token", "address"),
+            _argument("to", "address"),
+            _argument("amount", "uint256"),
+            _argument("maxGas", "uint256"),
+            _argument("gasPriceBid", "uint256"),
+            _argument("data", "bytes"),
+        ),
+    ),
+    (
+        "finalizeInboundTransfer",
+        (
+            _argument("l1Token", "address"),
+            _argument("from", "address"),
+            _argument("to", "address"),
+            _argument("amount", "uint256"),
+            _argument("data", "bytes"),
+        ),
+    ),
+)
+
 _BUILTIN_ERRORS: tuple[tuple[str, tuple[ABIArgumentDefinition, ...]], ...] = (
     ("Error", (_argument("reason", "string"),)),
     ("Panic", (_argument("code", "uint256"),)),
@@ -680,6 +753,56 @@ _BUNDLED_EVENTS: tuple[
         (
             _argument("value", "string"),
             _argument("id", "uint256", indexed=True),
+        ),
+    ),
+)
+
+_ARBITRUM_BRIDGE_EVENTS: tuple[
+    tuple[str, str, tuple[ABIArgumentDefinition, ...]],
+    ...,
+] = (
+    (
+        "Arbitrum Token Bridge",
+        "DepositInitiated",
+        (
+            _argument("l1Token", "address"),
+            _argument("from", "address", indexed=True),
+            _argument("to", "address", indexed=True),
+            _argument("sequenceNumber", "uint256", indexed=True),
+            _argument("amount", "uint256"),
+        ),
+    ),
+    (
+        "Arbitrum Token Bridge",
+        "WithdrawalFinalized",
+        (
+            _argument("l1Token", "address"),
+            _argument("from", "address", indexed=True),
+            _argument("to", "address", indexed=True),
+            _argument("exitNum", "uint256", indexed=True),
+            _argument("amount", "uint256"),
+        ),
+    ),
+    (
+        "Arbitrum Token Bridge",
+        "DepositFinalized",
+        (
+            _argument("l1Token", "address", indexed=True),
+            _argument("from", "address", indexed=True),
+            _argument("to", "address", indexed=True),
+            _argument("amount", "uint256"),
+        ),
+    ),
+    (
+        "Arbitrum Token Bridge",
+        "WithdrawalInitiated",
+        (
+            _argument("l1Token", "address"),
+            _argument("from", "address", indexed=True),
+            _argument("to", "address", indexed=True),
+            _argument("l2ToL1Id", "uint256", indexed=True),
+            _argument("exitNum", "uint256"),
+            _argument("amount", "uint256"),
         ),
     ),
 )

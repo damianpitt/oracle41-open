@@ -99,14 +99,18 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_table = conn.execute(
             "SELECT name FROM sqlite_master WHERE name = 'ledger_transaction_receipts'"
         ).fetchone()
-    assert version == ("10",)
+        receipt_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(ledger_transaction_receipts)")
+        }
+    assert version == ("11",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
+    assert "l1_gas_used" in receipt_columns
 
 
 def test_transaction_repository_roundtrip_and_fee_derivation(tmp_path: Path) -> None:
     database, repository = _repository_with_transaction(tmp_path)
-    inspection = _inspection()
+    inspection = replace(_inspection(), l1_gas_used=4_000)
 
     repository.save_inspection(inspection)
     restored = repository.get_inspection(Chain.ETHEREUM, _TX_HASH)

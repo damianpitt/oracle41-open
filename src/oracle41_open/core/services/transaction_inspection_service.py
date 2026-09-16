@@ -13,6 +13,7 @@ from typing import Protocol
 
 from oracle41_open.core.models import (
     ActionSetCompleteness,
+    BridgeObservation,
     Chain,
     EnrichmentStatus,
     ExplorerCapabilities,
@@ -31,6 +32,7 @@ from oracle41_open.core.models import (
 )
 from oracle41_open.core.services.abi_decoder import SignatureRegistry, StandardABIDecoder
 from oracle41_open.core.services.action_normalizer import WalletActionNormalizer
+from oracle41_open.core.services.bridge_intelligence import RobinhoodBridgeIntelligence
 from oracle41_open.providers.transaction_provider import TransactionDataProvider
 
 
@@ -166,6 +168,7 @@ class TransactionInspectionResult:
     action_set: WalletActionSet | None = None
     enrichment: TransactionEnrichment | None = None
     provider_capabilities: ProviderCapabilities | None = None
+    bridge_observations: tuple[BridgeObservation, ...] = ()
 
 
 class TransactionInspectionService:
@@ -186,6 +189,7 @@ class TransactionInspectionService:
         self._abi_registry_provider = abi_registry_provider
         self._proxy_repository = proxy_repository
         self._action_normalizer = action_normalizer or WalletActionNormalizer()
+        self._bridge_intelligence = RobinhoodBridgeIntelligence()
         self._enrichment_provider = enrichment_provider
         self._enrichment_repository = enrichment_repository
 
@@ -218,6 +222,9 @@ class TransactionInspectionService:
             actions = self._load_actions(inspection, stored_decoding, trace)
             action_set = self._build_action_set(inspection, actions, trace)
             enrichment = self._load_enrichment(inspection, force_refresh)
+            bridge_observations = self._bridge_intelligence.analyze(
+                inspection, stored_decoding
+            )
             return TransactionInspectionResult(
                 inspection=inspection,
                 decoding=stored_decoding,
@@ -228,6 +235,7 @@ class TransactionInspectionService:
                 action_set=action_set,
                 enrichment=enrichment,
                 provider_capabilities=self._provider.capabilities(chain),
+                bridge_observations=bridge_observations,
             )
 
         revert_data = None
@@ -254,6 +262,7 @@ class TransactionInspectionService:
         actions = self._load_actions(inspection, decoding, trace)
         action_set = self._build_action_set(inspection, actions, trace)
         enrichment = self._load_enrichment(inspection, force_refresh)
+        bridge_observations = self._bridge_intelligence.analyze(inspection, decoding)
         return TransactionInspectionResult(
             inspection=inspection,
             decoding=decoding,
@@ -264,6 +273,7 @@ class TransactionInspectionService:
             action_set=action_set,
             enrichment=enrichment,
             provider_capabilities=self._provider.capabilities(chain),
+            bridge_observations=bridge_observations,
         )
 
     def _build_action_set(
