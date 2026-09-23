@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4D is complete in `0.4.0a18`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context.
+**Implementation status:** M6.4E is complete in `0.4.0a19`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -575,3 +575,13 @@ M6.4D records Robinhood as an Arbitrum Nitro network that settles to Ethereum. T
 The bundled ABI registry now decodes canonical Arbitrum gateway calls and deposit/withdrawal events. Bridge classification requires a known signature from one of Robinhood's officially published L1 or L2 gateway addresses, or a `sendTxToL1` call to the ArbSys precompile. Each observation records direction, initiation or finalization, source and destination chains, participants, token, amount, message ID, and exact evidence. It also creates a normalized bridge action.
 
 This slice does not correlate the L1 and L2 transactions into one completed journey. It also does not classify partner bridges. Those features need route-specific identifiers and fixtures in a later slice.
+
+### Completed Slice: M6.4E
+
+**Status:** Complete in `0.4.0a19`.
+
+M6.4E adds official Robinhood Stock Token identity and current USD pricing through Robinhood's public read-only REST API. Catalog entries are matched by chain ID and exact contract address. Quote responses must repeat the same deployment before Oracle41 accepts a price.
+
+The API's bid and ask values describe the underlying equity and do not include the Stock Token's corporate-action multiplier. Oracle41 applies the published current shares-per-token multiplier to both values and uses the adjusted midpoint for wallet, activity, Token Detail, and portfolio analytics. Pending multipliers are displayed but never applied before their effective change.
+
+Token Detail shows identity, active state, current and pending multipliers, raw underlier bid and ask, adjusted midpoint, quote time, and trading-halt state. Separate one-hour catalog and 15-second quote caches follow the published endpoint cadence. WETH, USDG, unknown contracts, NFTs, corporate-action history, and Robinhood protocol positions remain outside this slice.

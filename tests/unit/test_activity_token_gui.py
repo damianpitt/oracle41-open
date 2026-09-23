@@ -24,6 +24,9 @@ from oracle41_open.core.models import (
     InternalCall,
     ProviderCapabilities,
     RawTransactionLog,
+    StockTokenMetadata,
+    StockTokenQuote,
+    StockTokenStatus,
     TraceDialect,
     TraceStatus,
     TransactionInspection,
@@ -36,12 +39,49 @@ from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.gui.views.activity_view import ActivityView
 from oracle41_open.gui.views.settings_view import SettingsView
-from oracle41_open.gui.views.token_detail_view import TokenDetailView
+from oracle41_open.gui.views.token_detail_view import TokenDetailView, _render_stock_token_context
 from oracle41_open.storage.secrets import SecretStore
 from oracle41_open.storage.settings import WalletDataProviderId
 
 _ADDRESS = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 _TOKEN = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+
+
+def test_stock_token_context_explains_multiplier_adjusted_quote() -> None:
+    metadata = StockTokenMetadata(
+        asset_id="0x" + "01" * 32,
+        symbol="TEST",
+        name="Test Company - Robinhood Token",
+        contract_address=_TOKEN,
+        chain_id=4663,
+        current_multiplier=Decimal("1.5"),
+        pending_multiplier=Decimal("2"),
+        pending_multiplier_effective_at=datetime(2026, 10, 1, tzinfo=UTC),
+        logo_url=None,
+        status=StockTokenStatus.ACTIVE,
+        fractional_tradability="tradable",
+        all_day_tradability="tradable",
+        extended_hours_fractional_tradability=True,
+    )
+    quote = StockTokenQuote(
+        metadata=metadata,
+        underlying_bid_usd=Decimal("200"),
+        underlying_ask_usd=Decimal("202"),
+        token_bid_usd=Decimal("300"),
+        token_ask_usd=Decimal("303"),
+        token_midpoint_usd=Decimal("301.5"),
+        daily_trading_volume=Decimal("1000"),
+        is_trading_halt=False,
+        generated_at=datetime(2026, 9, 24, tzinfo=UTC),
+        source_provider="robinhood-stock-token-api",
+    )
+
+    rendered = _render_stock_token_context(Chain.ROBINHOOD, metadata, quote, None)
+
+    assert "Current shares per token: 1.5" in rendered
+    assert "Pending shares per token: 2" in rendered
+    assert "Multiplier-adjusted token midpoint: $301.5" in rendered
+    assert "Trading halt: no" in rendered
 
 
 def test_activity_gui_loads_ens_paginates_and_filters(

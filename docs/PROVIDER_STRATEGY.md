@@ -28,11 +28,12 @@ Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data covera
 
 Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
 
-| Provider or source | Robinhood status in `0.4.0a18` |
+| Provider or source | Robinhood status in `0.4.0a19` |
 | --- | --- |
 | Alchemy wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Alchemy JSON-RPC | Available for transaction inspection |
-| Alchemy token pricing | Not confirmed; token prices remain missing |
+| Alchemy token pricing | Generic token-by-address prices are not confirmed |
+| Robinhood public Stock Token API | Official contract identity and multiplier-aware Stock Token pricing |
 | Ankr | Not supported |
 | Moralis | Not supported |
 | GoldRush wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
@@ -48,15 +49,15 @@ The provider pool checks the selected chain and operation before making a reques
 | Alchemy only | Yes | Yes | Yes | One account supplies every current role. |
 | Ankr only | Yes | Yes | No | Portfolio market values need another pricing source. |
 | Moralis only | Yes | No | No | Indexed analytics work, but advanced inspection and pricing are limited. |
-| GoldRush only | Yes | No | No | Indexed analytics work, but advanced inspection and pricing are limited. |
-| Moralis or GoldRush plus custom JSON-RPC | Yes | Yes | No | Good provider independence, without a dedicated pricing feed. |
+| GoldRush only | Yes | No | Robinhood Stock Tokens only | Indexed analytics work, but advanced inspection and general pricing are limited. |
+| Moralis or GoldRush plus custom JSON-RPC | Yes | Yes | Robinhood Stock Tokens only | Good provider independence, without a general pricing feed. |
 | Alchemy plus any other wallet provider | Yes, with failover | Yes | Yes | Broader resilience, with more than one account to configure. |
 
 Alchemy currently gives the broadest single-provider experience. It is not required: users can combine a specialized wallet-data provider with a custom JSON-RPC endpoint. Oracle41 keeps these roles separate so a provider is used only for capabilities its public API supports.
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a18` keeps that path enabled after chain-specific fixture validation.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a19` keeps that path enabled after chain-specific fixture validation.
 
 The provider pool follows these rules:
 
@@ -71,7 +72,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a18` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
+Version `0.4.0a19` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -122,7 +123,11 @@ Trace and historical-state methods are not universal JSON-RPC features. Some end
 
 ## Pricing Scope
 
-The current dedicated pricing adapter uses Alchemy. Wallet providers may return vendor-specific quote fields, but Oracle41 does not treat those values as a shared pricing source. This avoids silently mixing prices with different timestamps, currencies, or methodologies.
+The general pricing adapter uses Alchemy. Robinhood Stock Tokens use Robinhood's public read-only API because the asset catalog provides exact chain deployments and the multiplier required to interpret raw underlier prices. Generic Robinhood ERC-20 contracts do not inherit Stock Token pricing.
+
+For an official Stock Token, Oracle41 validates the contract in both the asset catalog and quote response, multiplies the raw underlier bid and ask by `currentMultiplier`, and uses the adjusted midpoint for analytics. Pending multipliers are not applied early. Quote timestamps and trading-halt state remain available to Token Detail.
+
+Wallet providers may return other vendor-specific quote fields, but Oracle41 does not treat those values as a shared pricing source. This avoids silently mixing prices with different timestamps, currencies, or methodologies.
 
 When no pricing provider is configured, balances and token quantities remain available. USD portfolio values may be missing or may use a previously cached value when the configured cache policy allows it.
 

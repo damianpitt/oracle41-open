@@ -84,6 +84,11 @@ from oracle41_open.core.models.protocol_position import (
     ProtocolRiskState,
     StoredProtocolSnapshot,
 )
+from oracle41_open.core.models.stock_token import (
+    StockTokenMetadata,
+    StockTokenQuote,
+    StockTokenStatus,
+)
 from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
 from oracle41_open.core.models.transaction import (
@@ -182,6 +187,9 @@ __all__ = [
     "ProtocolRiskSnapshot",
     "ProtocolRiskState",
     "StoredProtocolSnapshot",
+    "StockTokenMetadata",
+    "StockTokenQuote",
+    "StockTokenStatus",
     "ProxyKind",
     "ProxyResolution",
     "ProxyResolutionStatus",

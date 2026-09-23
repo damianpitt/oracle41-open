@@ -2,7 +2,28 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a18] - Unreleased
+## [0.4.0a19] - Unreleased
+
+### Added
+
+- Official Robinhood Stock Token catalog and quote models with deployment identity, asset status, current and pending multipliers, trading state, and source timestamp.
+- Multiplier-aware Robinhood Stock Token valuation from Robinhood's public read-only REST API.
+- Token Detail context for official Stock Token identity, multiplier changes, raw underlier bid and ask, adjusted midpoint, quote time, and trading-halt state.
+- Deterministic fixtures and tests for multiplier arithmetic, inactive assets, exact deployment matching, caching, provider fallback, and rate-limit retries.
+
+### Changed
+
+- Robinhood Stock Token prices now participate in wallet, activity, token-detail, and portfolio USD enrichment when live wallet providers are enabled.
+- The public asset catalog is cached for one hour and symbol quotes for the documented 15-second window, reducing unnecessary requests.
+- Generic Alchemy token-by-address pricing remains disabled on Robinhood Chain; only contracts confirmed by the official Robinhood catalog receive Stock Token prices.
+
+### Known Limitations
+
+- Pricing covers official Robinhood Stock Tokens only. WETH, USDG, unknown ERC-20 contracts, NFT floor prices, and Robinhood protocol positions still need separate sources.
+- Portfolio valuation uses the multiplier-adjusted bid/ask midpoint. It is an analytics estimate, not an executable trade quote.
+- Corporate-action history is not persisted yet. The current and pending multipliers remain visible through the live catalog response.
+
+## [0.4.0a18] - 2026-09-17
 
 ### Added
 

@@ -4,14 +4,14 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a18` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide Robinhood transaction inspection, fee details, and canonical bridge evidence.
+Version `0.4.0a19` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide transaction inspection. Robinhood's public read-only API provides verified Stock Token identity and multiplier-aware pricing.
 
 ## Features
 
 - Wallet overview with native and ERC-20 balances
 - Portfolio pricing enrichment with cached last-known values
 - Full wallet analytics on Ethereum, Optimism, Polygon, Base, and Arbitrum
-- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) analytics through Alchemy or GoldRush, with chain ID 4663, ETH gas, JSON-RPC inspection, Nitro fee separation, canonical bridge intelligence, and Blockscout links
+- [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) analytics through Alchemy or GoldRush, with chain ID 4663, ETH gas, Stock Token pricing, JSON-RPC inspection, Nitro fee separation, canonical bridge intelligence, and Blockscout links
 - Activity feed with durable history, resumable pagination, lookback, and filters
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
 - Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
@@ -30,6 +30,7 @@ Version `0.4.0a18` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Transaction inspection with receipt status, chain-aware fees, raw logs, and provenance
 - Robinhood L2 execution and Ethereum data-fee separation when the receipt provides `gasUsedForL1`
 - Robinhood canonical bridge direction and lifecycle-stage detection from official contracts and local call/event evidence
+- Official Robinhood Stock Token identification and multiplier-adjusted USD pricing from the public read-only API
 - Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
 - Local user ABI management and optional verified ABI retrieval from Blockscout
 - EIP-1967 implementation, EIP-1967 beacon, and EIP-1167 proxy resolution with block-specific caching
@@ -67,7 +68,7 @@ The complete M5 transaction-understanding test matrix and optional-provider fall
 - Settings, SQLite state, and cache data are stored locally.
 - Backups intentionally exclude provider API keys.
 - Custom JSON-RPC endpoint URLs are stored in the keyring and excluded from backups.
-- Network requests are made only to configured data/pricing providers, the ENS resolver, and Blockscout when a user requests a verified ABI or inspects a transaction.
+- Network requests are made only to configured data/pricing providers, Robinhood's public Stock Token API when live Robinhood analytics are requested, the ENS resolver, and Blockscout when a user requests a verified ABI or inspects a transaction.
 
 ## Architecture
 
@@ -85,7 +86,7 @@ Network work runs in the background. The interface stays responsive while Oracle
 
 Wallet history is saved in SQLite. If a sync stops early, it can continue later without adding the same event twice. Transaction Inspector adds receipts, fees, internal calls, decoded calls, wallet actions, event logs, revert reasons, proxy details, and optional explorer context while keeping the original raw data available.
 
-On Robinhood Chain, the inspector separates the L2 execution fee from the Ethereum data fee when the receipt contains the required Nitro field. It also recognizes canonical deposits and withdrawals only when known Arbitrum signatures come from Robinhood's published bridge contracts. Details and limits are in [docs/ROBINHOOD_CHAIN.md](docs/ROBINHOOD_CHAIN.md).
+On Robinhood Chain, the inspector separates the L2 execution fee from the Ethereum data fee when the receipt contains the required Nitro field. It also recognizes canonical deposits and withdrawals only when known Arbitrum signatures come from Robinhood's published bridge contracts. Token Detail identifies official Stock Tokens by contract address and shows the current multiplier, adjusted midpoint, quote time, and halt state. Details and limits are in [docs/ROBINHOOD_CHAIN.md](docs/ROBINHOOD_CHAIN.md).
 
 More detail is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -95,18 +96,19 @@ Oracle41 Open uses separate provider roles. A wallet-data provider supplies inde
 
 | Provider | Established five networks | Robinhood indexed wallet data | Robinhood transaction inspection | Market pricing |
 | --- | --- | --- | --- | --- |
-| Alchemy | Wallet data and transactions | Available | Available through JSON-RPC | ETH price only; Robinhood token pricing is not confirmed |
+| Alchemy | Wallet data and transactions | Available | Available through JSON-RPC | Native assets and established networks |
 | Ankr | Wallet data and transactions | Not supported | Not supported | Not used |
 | Moralis | Wallet data | Not supported | Not used | Not used |
 | GoldRush | Wallet data | Available | Not used | Not used |
 | Custom JSON-RPC endpoint | Transactions only | No wallet index | Available | Not used |
 | Blockscout | Explorer context | No wallet index | Contract and explorer context | Not used |
+| Robinhood public Stock Token API | Not applicable | No wallet index | Not used | Official Stock Tokens on Robinhood Chain |
 
 Alchemy currently offers the broadest coverage from one account, including indexed wallet data and transaction inspection on Robinhood Chain. GoldRush provides an independent indexed wallet-data route for Robinhood and can act as a fallback. Ankr can supply wallet data and transaction inspection on the five established networks but does not currently support Robinhood. Moralis also does not currently list Robinhood.
 
 Common setups:
 
-- **Alchemy only:** covers the current wallet and transaction feature set on all six registered networks. Robinhood token pricing and protocol positions remain unavailable.
+- **Alchemy only:** covers the current wallet and transaction feature set on all six registered networks. Official Robinhood Stock Tokens are priced through Robinhood's public API; Robinhood protocol positions remain unavailable.
 - **Alchemy plus GoldRush:** adds Robinhood wallet-data failover while Alchemy continues to provide transaction inspection.
 - **Ankr plus Alchemy:** provides full current coverage and indexed wallet-data failover.
 - **Moralis or GoldRush plus custom JSON-RPC:** provides wallet analytics and transaction inspection, but dedicated market pricing remains unavailable.
@@ -220,7 +222,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
 - Robinhood Chain wallet data is available through Alchemy and GoldRush. Ankr and Moralis do not currently support this network.
-- Robinhood token-by-address pricing is not included yet.
+- Official Robinhood Stock Tokens receive multiplier-adjusted USD prices after exact catalog contract matching. Other Robinhood ERC-20 contracts remain unpriced unless another validated source is added.
 - Robinhood fee separation depends on the RPC receipt providing `gasUsedForL1`; otherwise the correct bundled total remains visible.
 - Robinhood bridge intelligence covers the canonical Arbitrum route and one observed stage at a time. Partner bridges and cross-chain transaction matching are not included yet.
 - No Aave V3, Compound V3, or Uniswap V3 deployment is assumed on Robinhood Chain.

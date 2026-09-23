@@ -41,6 +41,9 @@ from oracle41_open.providers.failover import OrderedDataProviderPool, ProviderPo
 from oracle41_open.providers.goldrush import GoldRushProvider
 from oracle41_open.providers.moralis import MoralisProvider
 from oracle41_open.providers.pricing_provider import PricingProvider
+from oracle41_open.providers.robinhood_stock_tokens import (
+    RobinhoodStockTokenPricingProvider,
+)
 from oracle41_open.providers.stub import (
     StubDataProvider,
     StubPricingProvider,
@@ -83,6 +86,7 @@ class AppContainer:
     watchlist_service: WatchlistService
     data_provider: DataProvider
     pricing_provider: PricingProvider
+    stock_token_pricing_provider: RobinhoodStockTokenPricingProvider
     wallet_service: WalletService
     activity_service: ActivityService
     token_detail_service: TokenDetailService
@@ -194,6 +198,13 @@ def build_container() -> AppContainer:
     else:
         pricing_provider = StubPricingProvider()
 
+    stock_token_pricing_provider = RobinhoodStockTokenPricingProvider(
+        fallback_provider=pricing_provider,
+        cache_store=cache_store,
+    )
+    if uses_live_providers:
+        pricing_provider = stock_token_pricing_provider
+
     pricing_service = PricingService(
         pricing_provider=pricing_provider,
         cache_store=cache_store,
@@ -302,6 +313,7 @@ def build_container() -> AppContainer:
         watchlist_service=watchlist_service,
         data_provider=data_provider,
         pricing_provider=pricing_service,
+        stock_token_pricing_provider=stock_token_pricing_provider,
         wallet_service=wallet_service,
         activity_service=activity_service,
         token_detail_service=token_detail_service,

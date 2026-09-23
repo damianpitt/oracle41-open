@@ -163,7 +163,7 @@ NETWORK_REGISTRY: Mapping[Chain, NetworkDescriptor] = MappingProxyType({
         explorer_url="https://robinhoodchain.blockscout.com",
         public_rpc_url="https://rpc.mainnet.chain.robinhood.com",
         alchemy_network_path="robinhood-mainnet",
-        # Token-by-address price support has not been confirmed for this network.
+        # Generic Alchemy address pricing is unavailable; Stock Tokens use Robinhood's public API.
         alchemy_pricing_network_path=None,
         ankr_rpc_path=None,
         ankr_blockchain_code=None,

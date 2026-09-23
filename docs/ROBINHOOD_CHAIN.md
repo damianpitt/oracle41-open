@@ -7,8 +7,23 @@ Oracle41 Open supports read-only wallet and transaction analytics for Robinhood 
 - Alchemy and GoldRush provide indexed wallet balances and history.
 - Alchemy and custom JSON-RPC endpoints provide transaction receipts and contract reads.
 - Blockscout provides optional explorer and verified-contract context.
+- Robinhood's public read-only API provides official Stock Token metadata and current USD quotes.
 - Ankr and Moralis are not used because their supported-chain lists do not currently include Robinhood Chain.
-- Token-by-address market pricing and protocol positions are not enabled yet.
+- Generic token-by-address pricing and protocol positions are not enabled yet.
+
+## Stock Token Identity and Pricing
+
+Oracle41 accepts a contract as an official Robinhood Stock Token only when the `/assets` catalog lists that exact address for chain ID `4663`. A matching symbol alone is not enough.
+
+The `/prices/{symbol}` endpoint publishes the underlying equity's raw USD bid and ask. These values are not adjusted for corporate actions. Oracle41 reads `currentMultiplier` from the matched asset and calculates:
+
+`token price = underlying price x current shares per token`
+
+Portfolio valuation uses the midpoint of the adjusted token bid and ask. Token Detail keeps the raw bid and ask, adjusted midpoint, quote time, active or inactive state, trading-halt state, and current multiplier visible. A pending multiplier is shown with its effective time but is not applied before it becomes current.
+
+The asset catalog is cached for one hour. Quotes are cached for 15 seconds. A newly fetched quote more than five minutes old, or more than one minute in the future, is rejected before valuation. Recent previously accepted values can still follow the application's configured stale-price policy when the API is temporarily unavailable.
+
+This is an analytics estimate, not an executable trade quote. WETH, USDG, unknown ERC-20 contracts, NFTs, and protocol positions require other pricing sources.
 
 ## Transaction Fees
 
@@ -55,3 +70,5 @@ Partner bridges such as LayerZero, Chainlink CCIP, Relay, Across, LiFi, and 0x u
 - [Robinhood Chain bridging](https://docs.robinhood.com/chain/bridging/)
 - [Robinhood Chain protocol contracts](https://docs.robinhood.com/chain/protocol-contracts/)
 - [Robinhood Chain cross-chain messaging](https://docs.robinhood.com/chain/cross-chain-messaging/)
+- [Robinhood Stock Token APIs](https://docs.robinhood.com/chain/stock-token-apis/)
+- [Robinhood Stock Token overview](https://docs.robinhood.com/chain/stock-tokens/)

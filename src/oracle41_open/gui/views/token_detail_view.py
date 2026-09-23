@@ -29,7 +29,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from oracle41_open.core.models import ActivityCategory, ActivityItem, Chain, ValidationError
+from oracle41_open.core.models import (
+    ActivityCategory,
+    ActivityItem,
+    Chain,
+    ProviderError,
+    StockTokenMetadata,
+    StockTokenQuote,
+    ValidationError,
+)
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.core.services.token_detail_service import TokenDetailPageResult
 from oracle41_open.exports import (
@@ -50,6 +58,9 @@ class _TokenDetailLoadPayload:
     labels_by_address: dict[str, str]
     resolved_address: str
     input_name: str | None
+    stock_token_metadata: StockTokenMetadata | None
+    stock_token_quote: StockTokenQuote | None
+    stock_token_error: str | None
 
 
 class TokenDetailView(QWidget):
@@ -136,6 +147,12 @@ class TokenDetailView(QWidget):
 
         self._status_label = QLabel("Token detail ready.", self)
         self._status_label.setWordWrap(True)
+        self._stock_token_context = QTextEdit(self)
+        self._stock_token_context.setReadOnly(True)
+        self._stock_token_context.setMaximumHeight(150)
+        self._stock_token_context.setPlainText(
+            "Stock Token context is available when Robinhood Chain is selected."
+        )
         self._labels_by_address: dict[str, str] = {}
         self._items_list = QListWidget(self)
         self._items_list.itemSelectionChanged.connect(self._on_item_selection_changed)
@@ -186,6 +203,7 @@ class TokenDetailView(QWidget):
         root = QVBoxLayout()
         root.addWidget(controls_box)
         root.addWidget(self._status_label)
+        root.addWidget(self._stock_token_context)
         root.addWidget(self._items_list, stretch=1)
         root.addWidget(self._detail_drawer, stretch=1)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -285,6 +303,7 @@ class TokenDetailView(QWidget):
         self._labels_by_address = {}
         self._items_list.clear()
         self._detail_drawer.clear()
+        self._stock_token_context.clear()
         self._load_page(cursor=None, append=False, force_refresh=False)
 
     def _on_refresh_clicked(self) -> None:
@@ -299,6 +318,7 @@ class TokenDetailView(QWidget):
         self._labels_by_address = {}
         self._items_list.clear()
         self._detail_drawer.clear()
+        self._stock_token_context.clear()
         self._load_page(cursor=None, append=False, force_refresh=True)
 
     def _on_next_clicked(self) -> None:
@@ -432,11 +452,35 @@ class TokenDetailView(QWidget):
             labels = self._resolve_labels_for_items(existing_items + result.page.items)
             if resolution.input_name is not None:
                 labels[resolution.address] = resolution.input_name
+            stock_metadata: StockTokenMetadata | None = None
+            stock_quote: StockTokenQuote | None = None
+            stock_error: str | None = None
+            if chain is Chain.ROBINHOOD and self._container.uses_live_providers:
+                try:
+                    stock_metadata = (
+                        self._container.stock_token_pricing_provider.get_stock_token_metadata(
+                            normalized_token
+                        )
+                    )
+                    if stock_metadata is not None:
+                        stock_quote = (
+                            self._container.stock_token_pricing_provider.get_stock_token_quote(
+                                normalized_token
+                            )
+                        )
+                except ProviderError as error:
+                    # Stock Token context is optional and must not hide normal token history.
+                    stock_error = str(error)
+            elif chain is Chain.ROBINHOOD:
+                stock_error = "Live Stock Token context is disabled in demonstration mode."
             return _TokenDetailLoadPayload(
                 result=result,
                 labels_by_address=labels,
                 resolved_address=resolution.address,
                 input_name=resolution.input_name,
+                stock_token_metadata=stock_metadata,
+                stock_token_quote=stock_quote,
+                stock_token_error=stock_error,
             )
 
         self._task_runner.start(load_payload)
@@ -449,6 +493,14 @@ class TokenDetailView(QWidget):
             return
 
         result = raw_result.result
+        self._stock_token_context.setPlainText(
+            _render_stock_token_context(
+                self._selected_chain(),
+                raw_result.stock_token_metadata,
+                raw_result.stock_token_quote,
+                raw_result.stock_token_error,
+            )
+        )
         self._labels_by_address = raw_result.labels_by_address
         self._active_wallet_address = raw_result.resolved_address
         self._active_wallet_input = (
@@ -760,6 +812,51 @@ def _render_token_activity_detail(
         f"- From: {from_display}",
         f"- To: {to_display}",
     ]
+    return "\n".join(lines)
+
+
+def _render_stock_token_context(
+    chain: Chain,
+    metadata: StockTokenMetadata | None,
+    quote: StockTokenQuote | None,
+    error: str | None,
+) -> str:
+    if chain is not Chain.ROBINHOOD:
+        return "Stock Token context is available when Robinhood Chain is selected."
+    if error is not None:
+        return f"Stock Token context is temporarily unavailable: {error}"
+    if metadata is None:
+        return "This contract is not listed as an official Robinhood Stock Token deployment."
+
+    lines = [
+        "Robinhood Stock Token",
+        f"- Symbol: {metadata.symbol}",
+        f"- Name: {metadata.name}",
+        f"- Status: {metadata.status.value}",
+        f"- Current shares per token: {metadata.current_multiplier}",
+    ]
+    if metadata.pending_multiplier is not None:
+        effective_at = (
+            metadata.pending_multiplier_effective_at.isoformat()
+            if metadata.pending_multiplier_effective_at is not None
+            else "time not published"
+        )
+        lines.append(
+            f"- Pending shares per token: {metadata.pending_multiplier} (effective {effective_at})"
+        )
+    if quote is None:
+        lines.append("- Current USD quote: unavailable")
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            f"- Raw underlier bid / ask: ${quote.underlying_bid_usd} / ${quote.underlying_ask_usd}",
+            f"- Multiplier-adjusted token midpoint: ${quote.token_midpoint_usd}",
+            f"- Quote generated: {quote.generated_at.isoformat()}",
+            f"- Trading halt: {'yes' if quote.is_trading_halt else 'no'}",
+            f"- Source: {quote.source_provider}",
+        ]
+    )
     return "\n".join(lines)
 
 

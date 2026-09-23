@@ -1,0 +1,19 @@
+{
+  "quotes": [
+    {
+      "tokenSymbol": "TEST",
+      "deployments": [
+        {
+          "contractAddress": "0x1111111111111111111111111111111111111111",
+          "chainId": 4663
+        }
+      ],
+      "bid": "200.00",
+      "ask": "202.00",
+      "currency": "USD",
+      "dailyTradingVolume": "123456.75",
+      "isTradingHalt": false,
+      "generatedAt": "2026-09-24T01:02:03Z"
+    }
+  ]
+}

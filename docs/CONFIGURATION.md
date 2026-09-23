@@ -56,8 +56,9 @@ The Wallet Data Providers order applies only to indexed wallet operations. It do
 | Moralis | Yes | No | No |
 | GoldRush | Yes | No | No |
 | Custom JSON-RPC endpoint | No complete wallet index | Yes | No |
+| Robinhood public Stock Token API | No | No | Official Robinhood Stock Tokens only |
 
-For the simplest complete setup, configure Alchemy. For more wallet-data resilience, enable another wallet provider after it. Users who prefer Moralis or GoldRush can add a custom JSON-RPC endpoint for Transaction Inspector. Dedicated USD pricing still requires Alchemy in the current release.
+For the simplest complete setup, configure Alchemy. For more wallet-data resilience, enable another wallet provider after it. Users who prefer Moralis or GoldRush can add a custom JSON-RPC endpoint for Transaction Inspector. General USD pricing still requires Alchemy. Official Robinhood Stock Token pricing uses Robinhood's public read-only API and requires no additional credential when live Robinhood analytics are enabled.
 
 An endpoint may support basic transaction receipts but not internal-call traces or old contract state. These capabilities depend on the endpoint and provider plan. Transaction Inspector shows missing evidence when a method is unavailable.
 
@@ -90,7 +91,7 @@ export ORACLE41_RPC_ROBINHOOD_URL="https://..."
 
 A keyring endpoint takes precedence over its environment variable. Treat endpoint URLs as secrets when they contain embedded API keys.
 
-Robinhood Chain uses chain ID `4663`. Alchemy and GoldRush keys provide indexed balances, activity, token and NFT history, and approvals. Alchemy also provides transaction inspection. A custom Robinhood JSON-RPC endpoint can provide transaction inspection but cannot provide a complete wallet index. Ankr and Moralis are not presented as Robinhood providers.
+Robinhood Chain uses chain ID `4663`. Alchemy and GoldRush keys provide indexed balances, activity, token and NFT history, and approvals. Alchemy also provides transaction inspection. A custom Robinhood JSON-RPC endpoint can provide transaction inspection but cannot provide a complete wallet index. Official Stock Token metadata and multiplier-aware prices come from Robinhood's public read-only API without another key. Ankr and Moralis are not presented as Robinhood providers.
 
 Without a live key, the application uses local stub providers so the interface can be explored without network access.
 

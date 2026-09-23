@@ -1,0 +1,40 @@
+{
+  "assets": [
+    {
+      "id": "0x00000000000000000000000000000000000000000000000000000000000000a1",
+      "tokenSymbol": "TEST",
+      "tokenName": "Test Company - Robinhood Token",
+      "deployments": [
+        {
+          "contractAddress": "0x1111111111111111111111111111111111111111",
+          "chainId": 4663
+        }
+      ],
+      "currentMultiplier": "1.500000000000000000",
+      "pendingMultiplier": "2.000000000000000000",
+      "pendingMultiplierEffectiveTime": "2026-10-01T00:00:00Z",
+      "logoUrl": "https://cdn.robinhood.com/ncw_assets/logos/0x1111111111111111111111111111111111111111.png",
+      "tradingCapabilities": {
+        "fractionalTradability": "tradable",
+        "allDayTradability": "tradable",
+        "extendedHoursFractionalTradability": true
+      },
+      "status": "ASSET_STATUS_ACTIVE"
+    },
+    {
+      "id": "0x00000000000000000000000000000000000000000000000000000000000000b2",
+      "tokenSymbol": "OLD",
+      "tokenName": "Inactive Company - Robinhood Token",
+      "deployments": [
+        {
+          "contractAddress": "0x2222222222222222222222222222222222222222",
+          "chainId": 4663
+        }
+      ],
+      "currentMultiplier": "1.000000000000000000",
+      "pendingMultiplier": "",
+      "logoUrl": null,
+      "status": "ASSET_STATUS_INACTIVE"
+    }
+  ]
+}
