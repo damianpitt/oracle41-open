@@ -74,6 +74,8 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE stock_token_multiplier_observations")
+        conn.execute("DROP TABLE stock_token_corporate_actions")
         conn.execute("DROP TABLE protocol_sync_checkpoints")
         conn.execute("DROP TABLE protocol_snapshots")
         conn.execute("DROP TABLE transaction_enrichments")
@@ -102,7 +104,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_columns = {
             row[1] for row in conn.execute("PRAGMA table_info(ledger_transaction_receipts)")
         }
-    assert version == ("11",)
+    assert version == ("12",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
     assert "l1_gas_used" in receipt_columns

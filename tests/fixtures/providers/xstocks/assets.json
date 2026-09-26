@@ -1,0 +1,58 @@
+{
+  "nodes": [
+    {
+      "id": "asset-aapl",
+      "name": "Apple xStock",
+      "symbol": "AAPLx",
+      "isin": "CH0000000001",
+      "underlying": {
+        "symbol": "AAPL",
+        "isin": "US0378331005",
+        "type": "Equity",
+        "currency": "USD",
+        "listingCountry": "US"
+      },
+      "deployments": [
+        {
+          "address": "0x1111111111111111111111111111111111111111",
+          "network": "Arbitrum",
+          "wrapperAddress": "0x2222222222222222222222222222222222222222",
+          "wrapperAddressV2": "",
+          "supportsAtomicSwaps": true,
+          "stablecoins": []
+        },
+        {
+          "address": "So11111111111111111111111111111111111111112",
+          "network": "Solana"
+        }
+      ]
+    },
+    {
+      "id": "asset-spy",
+      "name": "SPY xStock",
+      "symbol": "SPYx",
+      "isin": "CH0000000002",
+      "underlying": {
+        "symbol": "SPY",
+        "isin": "US78462F1030",
+        "type": "ETF",
+        "currency": "USD",
+        "listingCountry": "US"
+      },
+      "deployments": [
+        {
+          "address": "0x3333333333333333333333333333333333333333",
+          "network": "Base"
+        }
+      ]
+    }
+  ],
+  "page": {
+    "currentPage": 0,
+    "pageSize": 100,
+    "totalPages": 1,
+    "totalNodes": 2,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}

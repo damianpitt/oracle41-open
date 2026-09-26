@@ -84,10 +84,22 @@ from oracle41_open.core.models.protocol_position import (
     ProtocolRiskState,
     StoredProtocolSnapshot,
 )
+from oracle41_open.core.models.real_world_asset import (
+    RealWorldAssetCategory,
+    RealWorldAssetIdentity,
+)
 from oracle41_open.core.models.stock_token import (
     StockTokenMetadata,
     StockTokenQuote,
     StockTokenStatus,
+)
+from oracle41_open.core.models.stock_token_audit import (
+    CorporateActionStatus,
+    CorporateActionType,
+    StockTokenAuditContext,
+    StockTokenCorporateAction,
+    StockTokenMultiplierObservation,
+    StoredStockTokenCorporateAction,
 )
 from oracle41_open.core.models.token import Token
 from oracle41_open.core.models.token_balance import TokenBalance, TokenBalancePage
@@ -142,6 +154,8 @@ __all__ = [
     "CompletenessState",
     "ContractABIRecord",
     "ContractReadResult",
+    "CorporateActionStatus",
+    "CorporateActionType",
     "DataProvenance",
     "DecodeStatus",
     "DecodedArgument",
@@ -186,10 +200,16 @@ __all__ = [
     "ProtocolRawEvidence",
     "ProtocolRiskSnapshot",
     "ProtocolRiskState",
+    "RealWorldAssetCategory",
+    "RealWorldAssetIdentity",
     "StoredProtocolSnapshot",
+    "StockTokenAuditContext",
+    "StockTokenCorporateAction",
     "StockTokenMetadata",
+    "StockTokenMultiplierObservation",
     "StockTokenQuote",
     "StockTokenStatus",
+    "StoredStockTokenCorporateAction",
     "ProxyKind",
     "ProxyResolution",
     "ProxyResolutionStatus",

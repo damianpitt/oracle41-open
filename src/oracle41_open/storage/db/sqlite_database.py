@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 11
+_SCHEMA_VERSION = 12
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -505,6 +505,42 @@ _SCHEMA_V11_SQL = """
 ALTER TABLE ledger_transaction_receipts ADD COLUMN l1_gas_used INTEGER;
 """
 
+_SCHEMA_V12_SQL = """
+CREATE TABLE stock_token_corporate_actions (
+    action_id TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    token_symbol TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    process_date TEXT,
+    detail_kind TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    PRIMARY KEY(action_id, chain, contract_address)
+);
+CREATE INDEX idx_stock_token_actions_contract_date
+    ON stock_token_corporate_actions(chain, contract_address, process_date DESC);
+
+CREATE TABLE stock_token_multiplier_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    token_symbol TEXT NOT NULL,
+    status TEXT NOT NULL,
+    current_multiplier TEXT NOT NULL,
+    pending_multiplier TEXT,
+    pending_multiplier_effective_at TEXT,
+    source_provider TEXT NOT NULL,
+    observed_at TEXT NOT NULL
+);
+CREATE INDEX idx_stock_token_multipliers_contract_time
+    ON stock_token_multiplier_observations(chain, contract_address, observed_at DESC);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -517,6 +553,7 @@ _MIGRATIONS = {
     9: _SCHEMA_V9_SQL,
     10: _SCHEMA_V10_SQL,
     11: _SCHEMA_V11_SQL,
+    12: _SCHEMA_V12_SQL,
 }
 
 

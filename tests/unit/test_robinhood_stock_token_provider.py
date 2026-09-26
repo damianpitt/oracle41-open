@@ -12,7 +12,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from oracle41_open.core.models import Chain, StockTokenStatus
+from oracle41_open.core.models import (
+    Chain,
+    CorporateActionStatus,
+    CorporateActionType,
+    StockTokenStatus,
+)
 from oracle41_open.providers.http_client import HTTPRequest, HTTPResponse
 from oracle41_open.providers.pricing_provider import PricingProvider
 from oracle41_open.providers.robinhood_stock_tokens import (
@@ -153,6 +158,27 @@ def test_stale_source_quote_is_not_used_for_portfolio_value() -> None:
     prices = provider.get_token_prices(Chain.ROBINHOOD, [_ACTIVE_CONTRACT])
 
     assert prices == {}
+
+
+def test_corporate_actions_are_filtered_by_exact_deployment() -> None:
+    client = _HTTPClient([_fixture("corporate_actions.json")])
+    provider = RobinhoodStockTokenPricingProvider(
+        fallback_provider=_FallbackPricingProvider(),
+        http_client=client,  # type: ignore[arg-type]
+    )
+
+    actions = provider.get_corporate_actions(_ACTIVE_CONTRACT)
+
+    assert len(actions) == 1
+    assert actions[0].action_type is CorporateActionType.FORWARD_SPLIT
+    assert actions[0].status is CorporateActionStatus.COMPLETED
+    assert actions[0].process_date is not None
+    assert dict(actions[0].details) == {
+        "newRate": "2",
+        "oldRate": "1",
+        "underlyingSymbol": "TEST",
+    }
+    assert client.requests[0].url.endswith("/corporate-actions")
 
 
 class _FallbackPricingProvider(PricingProvider):

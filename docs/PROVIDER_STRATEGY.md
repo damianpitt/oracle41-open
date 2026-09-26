@@ -28,12 +28,12 @@ Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data covera
 
 Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
 
-| Provider or source | Robinhood status in `0.4.0a19` |
+| Provider or source | Robinhood status in `0.4.0a20` |
 | --- | --- |
 | Alchemy wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Alchemy JSON-RPC | Available for transaction inspection |
 | Alchemy token pricing | Generic token-by-address prices are not confirmed |
-| Robinhood public Stock Token API | Official contract identity and multiplier-aware Stock Token pricing |
+| Robinhood public Stock Token API | Official contract identity, multiplier-aware pricing, and corporate-action history |
 | Ankr | Not supported |
 | Moralis | Not supported |
 | GoldRush wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
@@ -57,7 +57,7 @@ Alchemy currently gives the broadest single-provider experience. It is not requi
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a19` keeps that path enabled after chain-specific fixture validation.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a20` keeps that path enabled after chain-specific fixture validation.
 
 The provider pool follows these rules:
 
@@ -72,7 +72,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a19` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
+Version `0.4.0a20` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -126,6 +126,18 @@ Trace and historical-state methods are not universal JSON-RPC features. Some end
 The general pricing adapter uses Alchemy. Robinhood Stock Tokens use Robinhood's public read-only API because the asset catalog provides exact chain deployments and the multiplier required to interpret raw underlier prices. Generic Robinhood ERC-20 contracts do not inherit Stock Token pricing.
 
 For an official Stock Token, Oracle41 validates the contract in both the asset catalog and quote response, multiplies the raw underlier bid and ask by `currentMultiplier`, and uses the adjusted midpoint for analytics. Pending multipliers are not applied early. Quote timestamps and trading-halt state remain available to Token Detail.
+
+## Public RWA Identity Sources
+
+Oracle41 uses public issuer or protocol sources only for identity. These sources do not join the wallet-data failover pool and require no user credential.
+
+| Source | Current use | Networks in Oracle41 |
+| --- | --- | --- |
+| Robinhood Stock Token API | Exact identity, quote, multiplier, corporate actions | Robinhood Chain |
+| xStocks public API v2 | Exact token and wrapper identity | Ethereum, Optimism, Polygon, Base, Arbitrum |
+| Centrifuge deployment registry | Reviewed share-token identity | Ethereum, Optimism, Base, Arbitrum |
+
+Names and symbols are never enough to verify an RWA. xStocks addresses are loaded from its public catalog and cached for one hour. Centrifuge addresses are reviewed from its official deployment page and shipped with the application, so a new deployment needs a source update before Oracle41 recognizes it. This release does not use xStocks or Centrifuge as general price feeds.
 
 Wallet providers may return other vendor-specific quote fields, but Oracle41 does not treat those values as a shared pricing source. This avoids silently mixing prices with different timestamps, currencies, or methodologies.
 

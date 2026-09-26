@@ -60,7 +60,7 @@ def test_transaction_enrichment_repository_roundtrip(tmp_path: Path) -> None:
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
     assert schema_version is not None
-    assert schema_version["value"] == "11"
+    assert schema_version["value"] == "12"
 
 
 def test_inspection_caches_enrichment_without_changing_actions(tmp_path: Path) -> None:

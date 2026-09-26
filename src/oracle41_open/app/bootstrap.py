@@ -23,7 +23,9 @@ from oracle41_open.core.services.provider_credential_diagnostics_service import 
     ProviderCredentialDiagnosticsService,
 )
 from oracle41_open.core.services.provider_key_validation_service import ProviderKeyValidationService
+from oracle41_open.core.services.rwa_recognition_service import RWARecognitionService
 from oracle41_open.core.services.snapshot_compare_service import SnapshotCompareService
+from oracle41_open.core.services.stock_token_audit_service import StockTokenAuditService
 from oracle41_open.core.services.token_detail_service import TokenDetailService
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionService
 from oracle41_open.core.services.wallet_service import WalletService
@@ -49,6 +51,7 @@ from oracle41_open.providers.stub import (
     StubPricingProvider,
     UnavailablePricingProvider,
 )
+from oracle41_open.providers.xstocks import XStocksAssetProvider
 from oracle41_open.storage.backup_restore import BackupRestoreService
 from oracle41_open.storage.cache_store import DiskCacheStore
 from oracle41_open.storage.db import (
@@ -58,6 +61,7 @@ from oracle41_open.storage.db import (
     SavedViewsRepository,
     SnapshotsRepository,
     SQLiteDatabase,
+    StockTokenAuditRepository,
     TransactionEnrichmentRepository,
     TransactionRepository,
     WalletNotesRepository,
@@ -83,10 +87,13 @@ class AppContainer:
     transaction_repository: TransactionRepository
     transaction_enrichment_repository: TransactionEnrichmentRepository
     contract_abi_repository: ContractABIRepository
+    stock_token_audit_repository: StockTokenAuditRepository
     watchlist_service: WatchlistService
     data_provider: DataProvider
     pricing_provider: PricingProvider
     stock_token_pricing_provider: RobinhoodStockTokenPricingProvider
+    stock_token_audit_service: StockTokenAuditService
+    rwa_recognition_service: RWARecognitionService
     wallet_service: WalletService
     activity_service: ActivityService
     token_detail_service: TokenDetailService
@@ -120,6 +127,7 @@ def build_container() -> AppContainer:
     transaction_repository = TransactionRepository(sqlite_database)
     transaction_enrichment_repository = TransactionEnrichmentRepository(sqlite_database)
     contract_abi_repository = ContractABIRepository(sqlite_database)
+    stock_token_audit_repository = StockTokenAuditRepository(sqlite_database)
     blockscout_provider = BlockscoutABIProvider()
     contract_abi_service = ContractABIService(
         contract_abi_repository,
@@ -204,6 +212,15 @@ def build_container() -> AppContainer:
     )
     if uses_live_providers:
         pricing_provider = stock_token_pricing_provider
+    stock_token_audit_service = StockTokenAuditService(
+        stock_token_pricing_provider,
+        stock_token_audit_repository,
+    )
+    rwa_recognition_service = RWARecognitionService(
+        stock_token_pricing_provider,
+        XStocksAssetProvider(cache_store=cache_store),
+        allow_live_catalogs=uses_live_providers,
+    )
 
     pricing_service = PricingService(
         pricing_provider=pricing_provider,
@@ -310,10 +327,13 @@ def build_container() -> AppContainer:
         transaction_repository=transaction_repository,
         transaction_enrichment_repository=transaction_enrichment_repository,
         contract_abi_repository=contract_abi_repository,
+        stock_token_audit_repository=stock_token_audit_repository,
         watchlist_service=watchlist_service,
         data_provider=data_provider,
         pricing_provider=pricing_service,
         stock_token_pricing_provider=stock_token_pricing_provider,
+        stock_token_audit_service=stock_token_audit_service,
+        rwa_recognition_service=rwa_recognition_service,
         wallet_service=wallet_service,
         activity_service=activity_service,
         token_detail_service=token_detail_service,

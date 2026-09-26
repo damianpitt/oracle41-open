@@ -2,7 +2,30 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a19] - Unreleased
+## [0.4.0a20] - Unreleased
+
+### Added
+
+- Robinhood corporate-action ingestion for splits, dividends, mergers, redemptions, name changes, rights distributions, and other documented action types.
+- SQLite schema version 12 with durable corporate-action records and append-only material multiplier observations.
+- Token Detail history for recent corporate actions and locally observed multiplier changes.
+- Exact-contract xStocks recognition for supported deployments on Ethereum, Optimism, Polygon, Base, and Arbitrum through the public issuer catalog.
+- Reviewed Centrifuge share-token recognition on supported Ethereum and L2 deployments.
+- Tests for action status changes, multiplier deduplication, schema migration, xStocks wrappers, ETF classification, caching, and unknown-contract rejection.
+
+### Changed
+
+- Token Detail now identifies supported tokenized real-world assets by chain and contract address instead of relying on names or ticker symbols.
+- Robinhood catalog refreshes record a new multiplier audit row only when current multiplier, pending multiplier, effective time, asset status, or source changes.
+- Corporate-action refreshes preserve the first observation time while updating lifecycle state and the latest observation time.
+
+### Known Limitations
+
+- Corporate-action persistence currently covers Robinhood Stock Tokens. xStocks corporate-action and multiplier-history endpoints are not ingested yet.
+- xStocks and Centrifuge integration in this slice provides identity classification, not general market pricing or position valuation.
+- The reviewed Centrifuge deployment list must be updated when the official registry changes. Unknown or newly deployed contracts remain unclassified until verified.
+
+## [0.4.0a19] - 2026-09-24
 
 ### Added
 
@@ -21,7 +44,7 @@ All notable changes to Oracle41 Open will be documented here.
 
 - Pricing covers official Robinhood Stock Tokens only. WETH, USDG, unknown ERC-20 contracts, NFT floor prices, and Robinhood protocol positions still need separate sources.
 - Portfolio valuation uses the multiplier-adjusted bid/ask midpoint. It is an analytics estimate, not an executable trade quote.
-- Corporate-action history is not persisted yet. The current and pending multipliers remain visible through the live catalog response.
+- Corporate-action history is added in `0.4.0a20`. This release shows only the current and pending multipliers.
 
 ## [0.4.0a18] - 2026-09-17
 

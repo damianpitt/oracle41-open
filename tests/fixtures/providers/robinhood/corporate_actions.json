@@ -1,0 +1,43 @@
+{
+  "corpActions": [
+    {
+      "id": "0x00000000000000000000000000000000000000000000000000000000000000c3",
+      "type": "CORPORATE_ACTION_TYPE_FORWARD_SPLIT",
+      "status": "CORPORATE_ACTION_STATUS_COMPLETED",
+      "processDate": {"year": 2026, "month": 9, "day": 20},
+      "tokenSymbol": "TEST",
+      "deployments": [
+        {
+          "contractAddress": "0x1111111111111111111111111111111111111111",
+          "chainId": 4663
+        }
+      ],
+      "details": {
+        "forwardSplit": {
+          "underlyingSymbol": "TEST",
+          "oldRate": "1",
+          "newRate": "2"
+        }
+      }
+    },
+    {
+      "id": "0x00000000000000000000000000000000000000000000000000000000000000d4",
+      "type": "CORPORATE_ACTION_TYPE_CASH_DIVIDEND",
+      "status": "CORPORATE_ACTION_STATUS_IN_PROGRESS",
+      "processDate": null,
+      "tokenSymbol": "OTHER",
+      "deployments": [
+        {
+          "contractAddress": "0x3333333333333333333333333333333333333333",
+          "chainId": 4663
+        }
+      ],
+      "details": {
+        "cashDividend": {
+          "underlyingSymbol": "OTHER",
+          "rate": "0.25"
+        }
+      }
+    }
+  ]
+}

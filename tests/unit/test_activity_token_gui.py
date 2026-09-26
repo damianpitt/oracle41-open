@@ -24,6 +24,8 @@ from oracle41_open.core.models import (
     InternalCall,
     ProviderCapabilities,
     RawTransactionLog,
+    RealWorldAssetCategory,
+    RealWorldAssetIdentity,
     StockTokenMetadata,
     StockTokenQuote,
     StockTokenStatus,
@@ -39,7 +41,11 @@ from oracle41_open.core.services.activity_service import ActivityPageResult
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionResult
 from oracle41_open.gui.views.activity_view import ActivityView
 from oracle41_open.gui.views.settings_view import SettingsView
-from oracle41_open.gui.views.token_detail_view import TokenDetailView, _render_stock_token_context
+from oracle41_open.gui.views.token_detail_view import (
+    TokenDetailView,
+    _render_rwa_context,
+    _render_stock_token_context,
+)
 from oracle41_open.storage.secrets import SecretStore
 from oracle41_open.storage.settings import WalletDataProviderId
 
@@ -82,6 +88,36 @@ def test_stock_token_context_explains_multiplier_adjusted_quote() -> None:
     assert "Pending shares per token: 2" in rendered
     assert "Multiplier-adjusted token midpoint: $301.5" in rendered
     assert "Trading halt: no" in rendered
+
+
+def test_rwa_context_shows_exact_source_identity() -> None:
+    identity = RealWorldAssetIdentity(
+        asset_id="asset-aapl",
+        symbol="AAPLX",
+        name="Apple xStock",
+        chain=Chain.ARBITRUM,
+        contract_address=_TOKEN,
+        category=RealWorldAssetCategory.TOKENIZED_EQUITY,
+        issuer="Backed Assets",
+        source_name="xstocks-public-api",
+        source_reference="https://docs.xstocks.fi/apis/openapi/assets",
+        underlying_symbol="AAPL",
+        underlying_isin="US0378331005",
+    )
+
+    rendered = _render_rwa_context(
+        Chain.ARBITRUM,
+        identity,
+        metadata=None,
+        quote=None,
+        audit=None,
+        error=None,
+    )
+
+    assert "Verified tokenized real-world asset" in rendered
+    assert "tokenized equity" in rendered
+    assert f"Arbitrum / {_TOKEN}" in rendered
+    assert "Identity source: xstocks-public-api" in rendered
 
 
 def test_activity_gui_loads_ens_paginates_and_filters(

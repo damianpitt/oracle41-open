@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 from urllib.parse import quote
@@ -17,11 +17,14 @@ from urllib.parse import quote
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import (
     Chain,
+    CorporateActionStatus,
+    CorporateActionType,
     ProviderError,
     ProviderNetworkError,
     ProviderRateLimitError,
     ProviderResponseError,
     ProviderTimeoutError,
+    StockTokenCorporateAction,
     StockTokenMetadata,
     StockTokenQuote,
     StockTokenStatus,
@@ -38,6 +41,7 @@ from oracle41_open.providers.retry import retry_with_backoff
 _BASE_URL = "https://api.robinhood.com/rhj"
 _SOURCE_NAME = "robinhood-stock-token-api"
 _ASSET_CACHE_KEY = "robinhood.stock.assets.v1"
+_CORPORATE_ACTION_CACHE_KEY = "robinhood.stock.corporate-actions.v1"
 _ROBINHOOD_CHAIN_ID = 4663
 
 
@@ -148,6 +152,52 @@ class RobinhoodStockTokenPricingProvider(PricingProvider):
         if normalized is None:
             return None
         return self._metadata_by_address().get(normalized)
+
+    def get_stock_token_catalog(self) -> tuple[StockTokenMetadata, ...]:
+        """Return every exact Robinhood Chain deployment from the official catalog."""
+
+        return tuple(
+            sorted(
+                self._metadata_by_address().values(),
+                key=lambda item: (item.symbol, item.contract_address),
+            )
+        )
+
+    def get_corporate_actions(
+        self,
+        contract_address: str | None = None,
+    ) -> tuple[StockTokenCorporateAction, ...]:
+        """Return processed actions, optionally limited to one exact deployment."""
+
+        normalized = None
+        if contract_address is not None:
+            normalized = _normalized_address(contract_address)
+            if normalized is None:
+                return ()
+        payload = self._cached_payload(
+            _CORPORATE_ACTION_CACHE_KEY,
+            f"{self._base_url}/corporate-actions",
+            3_600,
+        )
+        raw_actions = payload.get("corpActions")
+        if not isinstance(raw_actions, list):
+            raise ProviderResponseError(
+                "Robinhood Stock Token corporate-action response has no corpActions list."
+            )
+        actions = tuple(
+            action
+            for raw_action in raw_actions
+            if isinstance(raw_action, dict)
+            for action in _parse_corporate_action(raw_action)
+            if normalized is None or action.contract_address == normalized
+        )
+        return tuple(
+            sorted(
+                actions,
+                key=lambda item: (item.process_date or date.min, item.action_id),
+                reverse=True,
+            )
+        )
 
     def get_stock_token_quote(self, contract_address: str) -> StockTokenQuote | None:
         """Return the complete current quote for an active Stock Token deployment."""
@@ -366,6 +416,54 @@ def _parse_quote(raw: Any, metadata: StockTokenMetadata) -> StockTokenQuote | No
     )
 
 
+def _parse_corporate_action(
+    raw: dict[str, Any],
+) -> tuple[StockTokenCorporateAction, ...]:
+    action_id = raw.get("id")
+    symbol = raw.get("tokenSymbol")
+    if (
+        not isinstance(action_id, str)
+        or not action_id.startswith("0x")
+        or len(action_id) != 66
+        or not isinstance(symbol, str)
+        or not symbol.strip()
+    ):
+        return ()
+    action_type = _corporate_action_type(raw.get("type"))
+    status = _corporate_action_status(raw.get("status"))
+    detail = _corporate_action_details(raw.get("details"))
+    if detail is None:
+        return ()
+    process_date = _process_date(raw.get("processDate"))
+    deployments = raw.get("deployments")
+    if not isinstance(deployments, list):
+        return ()
+
+    detail_kind, detail_values = detail
+    result: list[StockTokenCorporateAction] = []
+    for deployment in deployments:
+        if not isinstance(deployment, dict) or deployment.get("chainId") != _ROBINHOOD_CHAIN_ID:
+            continue
+        address = _normalized_address(deployment.get("contractAddress"))
+        if address is None:
+            continue
+        result.append(
+            StockTokenCorporateAction(
+                action_id=action_id.lower(),
+                action_type=action_type,
+                status=status,
+                process_date=process_date,
+                token_symbol=symbol.strip().upper(),
+                chain=Chain.ROBINHOOD,
+                contract_address=address,
+                detail_kind=detail_kind,
+                details=detail_values,
+                source_provider=_SOURCE_NAME,
+            )
+        )
+    return tuple(result)
+
+
 def _has_deployment(raw: Any, contract_address: str) -> bool:
     if not isinstance(raw, list):
         return False
@@ -447,6 +545,67 @@ def _status(raw: Any) -> StockTokenStatus:
     if raw == "ASSET_STATUS_INACTIVE":
         return StockTokenStatus.INACTIVE
     return StockTokenStatus.UNSPECIFIED
+
+
+def _corporate_action_type(raw: Any) -> CorporateActionType:
+    prefix = "CORPORATE_ACTION_TYPE_"
+    if not isinstance(raw, str) or not raw.startswith(prefix):
+        return CorporateActionType.UNSPECIFIED
+    try:
+        return CorporateActionType(raw.removeprefix(prefix).lower())
+    except ValueError:
+        return CorporateActionType.UNSPECIFIED
+
+
+def _corporate_action_status(raw: Any) -> CorporateActionStatus:
+    prefix = "CORPORATE_ACTION_STATUS_"
+    if not isinstance(raw, str) or not raw.startswith(prefix):
+        return CorporateActionStatus.UNSPECIFIED
+    try:
+        return CorporateActionStatus(raw.removeprefix(prefix).lower())
+    except ValueError:
+        return CorporateActionStatus.UNSPECIFIED
+
+
+def _corporate_action_details(
+    raw: Any,
+) -> tuple[str, tuple[tuple[str, str], ...]] | None:
+    if not isinstance(raw, dict) or len(raw) != 1:
+        return None
+    detail_kind, detail_payload = next(iter(raw.items()))
+    if not isinstance(detail_kind, str) or not isinstance(detail_payload, dict):
+        return None
+    values = tuple(
+        sorted(
+            (key, str(value))
+            for key, value in detail_payload.items()
+            if isinstance(key, str) and isinstance(value, (str, int, float))
+        )
+    )
+    return detail_kind, values
+
+
+def _process_date(raw: Any) -> date | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    year = raw.get("year")
+    month = raw.get("month")
+    day = raw.get("day")
+    if (
+        not isinstance(year, int)
+        or isinstance(year, bool)
+        or not isinstance(month, int)
+        or isinstance(month, bool)
+        or not isinstance(day, int)
+        or isinstance(day, bool)
+    ):
+        return None
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
 
 
 def _optional_string(raw: Any) -> str | None:

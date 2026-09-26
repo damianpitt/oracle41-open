@@ -7,7 +7,7 @@ Oracle41 Open supports read-only wallet and transaction analytics for Robinhood 
 - Alchemy and GoldRush provide indexed wallet balances and history.
 - Alchemy and custom JSON-RPC endpoints provide transaction receipts and contract reads.
 - Blockscout provides optional explorer and verified-contract context.
-- Robinhood's public read-only API provides official Stock Token metadata and current USD quotes.
+- Robinhood's public read-only API provides official Stock Token metadata, current USD quotes, and corporate actions.
 - Ankr and Moralis are not used because their supported-chain lists do not currently include Robinhood Chain.
 - Generic token-by-address pricing and protocol positions are not enabled yet.
 
@@ -24,6 +24,22 @@ Portfolio valuation uses the midpoint of the adjusted token bid and ask. Token D
 The asset catalog is cached for one hour. Quotes are cached for 15 seconds. A newly fetched quote more than five minutes old, or more than one minute in the future, is rejected before valuation. Recent previously accepted values can still follow the application's configured stale-price policy when the API is temporarily unavailable.
 
 This is an analytics estimate, not an executable trade quote. WETH, USDG, unknown ERC-20 contracts, NFTs, and protocol positions require other pricing sources.
+
+## Corporate Actions and Multiplier History
+
+Oracle41 loads Robinhood's processed corporate actions and keeps the records in SQLite. Supported records include splits, dividends, mergers, redemptions, name changes, rights distributions, and the other action types documented by the API.
+
+Each action is stored by its stable issuer ID, chain, and exact contract address. If an action moves from in progress to completed, Oracle41 updates the state but keeps when it was first and last observed.
+
+The asset catalog is also sampled when Token Detail refreshes. Oracle41 adds a multiplier audit record only when one of these values changes:
+
+- Current multiplier
+- Pending multiplier
+- Pending effective time
+- Asset status
+- Source
+
+Repeated reads of the same state do not create duplicate history. The audit starts when this version first observes a token. It does not reconstruct multiplier states from before installation.
 
 ## Transaction Fees
 

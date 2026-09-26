@@ -13,6 +13,7 @@ from oracle41_open.storage.db.protocol_position_repository import ProtocolPositi
 from oracle41_open.storage.db.saved_views_repository import SavedViewsRepository
 from oracle41_open.storage.db.snapshots_repository import SnapshotsRepository
 from oracle41_open.storage.db.sqlite_database import SQLiteDatabase
+from oracle41_open.storage.db.stock_token_audit_repository import StockTokenAuditRepository
 from oracle41_open.storage.db.transaction_enrichment_repository import (
     TransactionEnrichmentRepository,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "SavedView",
     "SavedViewsRepository",
     "SQLiteDatabase",
+    "StockTokenAuditRepository",
     "SnapshotsRepository",
     "TransactionRepository",
     "TransactionEnrichmentRepository",

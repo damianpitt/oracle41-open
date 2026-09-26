@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4E is complete in `0.4.0a19`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context.
+**Implementation status:** M6.4F is complete in `0.4.0a20`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing and corporate-action history, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Exact-contract xStocks and reviewed Centrifuge RWA recognition now cover supported L2 deployments.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -585,3 +585,15 @@ M6.4E adds official Robinhood Stock Token identity and current USD pricing throu
 The API's bid and ask values describe the underlying equity and do not include the Stock Token's corporate-action multiplier. Oracle41 applies the published current shares-per-token multiplier to both values and uses the adjusted midpoint for wallet, activity, Token Detail, and portfolio analytics. Pending multipliers are displayed but never applied before their effective change.
 
 Token Detail shows identity, active state, current and pending multipliers, raw underlier bid and ask, adjusted midpoint, quote time, and trading-halt state. Separate one-hour catalog and 15-second quote caches follow the published endpoint cadence. WETH, USDG, unknown contracts, NFTs, corporate-action history, and Robinhood protocol positions remain outside this slice.
+
+### Completed Slice: M6.4F
+
+**Status:** Complete in `0.4.0a20`.
+
+M6.4F loads Robinhood's processed corporate-action feed and stores each action by its stable issuer ID, chain, and exact deployment. Lifecycle updates keep first-seen and last-seen times. The SQLite schema is version 12.
+
+Multiplier observations are append-only and record current multiplier, pending multiplier, pending effective time, asset status, source, and observation time. A repeated catalog read does not create a new row unless that material state changed. Token Detail shows recent actions and the number of saved multiplier changes.
+
+RWA recognition now has one conservative contract. Robinhood Stock Tokens and xStocks come from public issuer catalogs. Centrifuge share tokens use reviewed addresses from its official deployment registry. Ethereum, Optimism, Polygon, Base, and Arbitrum xStocks deployments are supported when returned by the public catalog. Names and symbols cannot verify identity.
+
+This slice does not ingest xStocks corporate-action history, use xStocks or Centrifuge as general pricing sources, or infer newly deployed RWAs before their exact contracts appear in an accepted source.

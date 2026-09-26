@@ -34,6 +34,8 @@ from oracle41_open.core.models import (
     ActivityItem,
     Chain,
     ProviderError,
+    RealWorldAssetIdentity,
+    StockTokenAuditContext,
     StockTokenMetadata,
     StockTokenQuote,
     ValidationError,
@@ -60,6 +62,8 @@ class _TokenDetailLoadPayload:
     input_name: str | None
     stock_token_metadata: StockTokenMetadata | None
     stock_token_quote: StockTokenQuote | None
+    stock_token_audit: StockTokenAuditContext | None
+    rwa_identity: RealWorldAssetIdentity | None
     stock_token_error: str | None
 
 
@@ -149,7 +153,7 @@ class TokenDetailView(QWidget):
         self._status_label.setWordWrap(True)
         self._stock_token_context = QTextEdit(self)
         self._stock_token_context.setReadOnly(True)
-        self._stock_token_context.setMaximumHeight(150)
+        self._stock_token_context.setMaximumHeight(280)
         self._stock_token_context.setPlainText(
             "Stock Token context is available when Robinhood Chain is selected."
         )
@@ -454,6 +458,8 @@ class TokenDetailView(QWidget):
                 labels[resolution.address] = resolution.input_name
             stock_metadata: StockTokenMetadata | None = None
             stock_quote: StockTokenQuote | None = None
+            stock_audit: StockTokenAuditContext | None = None
+            rwa_identity: RealWorldAssetIdentity | None = None
             stock_error: str | None = None
             if chain is Chain.ROBINHOOD and self._container.uses_live_providers:
                 try:
@@ -468,11 +474,23 @@ class TokenDetailView(QWidget):
                                 normalized_token
                             )
                         )
+                        stock_audit = self._container.stock_token_audit_service.refresh(
+                            stock_metadata
+                        )
                 except ProviderError as error:
                     # Stock Token context is optional and must not hide normal token history.
                     stock_error = str(error)
             elif chain is Chain.ROBINHOOD:
                 stock_error = "Live Stock Token context is disabled in demonstration mode."
+            try:
+                rwa_identity = self._container.rwa_recognition_service.recognize(
+                    chain,
+                    normalized_token,
+                )
+            except ProviderError as error:
+                # RWA labels are optional; provider activity remains useful without them.
+                if stock_error is None:
+                    stock_error = str(error)
             return _TokenDetailLoadPayload(
                 result=result,
                 labels_by_address=labels,
@@ -480,6 +498,8 @@ class TokenDetailView(QWidget):
                 input_name=resolution.input_name,
                 stock_token_metadata=stock_metadata,
                 stock_token_quote=stock_quote,
+                stock_token_audit=stock_audit,
+                rwa_identity=rwa_identity,
                 stock_token_error=stock_error,
             )
 
@@ -494,10 +514,12 @@ class TokenDetailView(QWidget):
 
         result = raw_result.result
         self._stock_token_context.setPlainText(
-            _render_stock_token_context(
+            _render_rwa_context(
                 self._selected_chain(),
+                raw_result.rwa_identity,
                 raw_result.stock_token_metadata,
                 raw_result.stock_token_quote,
+                raw_result.stock_token_audit,
                 raw_result.stock_token_error,
             )
         )
@@ -857,6 +879,59 @@ def _render_stock_token_context(
             f"- Source: {quote.source_provider}",
         ]
     )
+    return "\n".join(lines)
+
+
+def _render_rwa_context(
+    chain: Chain,
+    identity: RealWorldAssetIdentity | None,
+    metadata: StockTokenMetadata | None,
+    quote: StockTokenQuote | None,
+    audit: StockTokenAuditContext | None,
+    error: str | None,
+) -> str:
+    """Render issuer identity and Robinhood-specific audit evidence in one panel."""
+
+    if identity is None and chain is Chain.ROBINHOOD:
+        return _render_stock_token_context(chain, metadata, quote, error)
+    if identity is None:
+        if error is not None:
+            return f"RWA identity is temporarily unavailable: {error}"
+        return "This contract is not recognized by a configured official RWA source."
+
+    lines = [
+        "Verified tokenized real-world asset",
+        f"- Product: {identity.name} ({identity.symbol})",
+        f"- Category: {identity.category.value.replace('_', ' ')}",
+        f"- Issuer or registry: {identity.issuer}",
+        f"- Exact deployment: {identity.chain.display_name} / {identity.contract_address}",
+        f"- Identity source: {identity.source_name}",
+    ]
+    if identity.underlying_symbol is not None:
+        lines.append(f"- Underlying symbol: {identity.underlying_symbol}")
+    if identity.underlying_isin is not None:
+        lines.append(f"- Underlying ISIN: {identity.underlying_isin}")
+
+    if chain is not Chain.ROBINHOOD or metadata is None:
+        if error is not None:
+            lines.append(f"- Live catalog note: {error}")
+        return "\n".join(lines)
+
+    # Keep already loaded identity and quote evidence visible if the optional audit refresh fails.
+    stock_lines = _render_stock_token_context(chain, metadata, quote, None).splitlines()[1:]
+    lines.extend(stock_lines)
+    if error is not None:
+        lines.append(f"- Live audit note: {error}")
+    if audit is not None:
+        lines.append(f"- Saved multiplier changes: {len(audit.multiplier_history)}")
+        lines.append(f"- Saved corporate actions: {len(audit.corporate_actions)}")
+        for stored in audit.corporate_actions[:3]:
+            action = stored.action
+            process_date = action.process_date.isoformat() if action.process_date else "not scheduled"
+            lines.append(
+                f"  {process_date}: {action.action_type.value.replace('_', ' ')} "
+                f"({action.status.value})"
+            )
     return "\n".join(lines)
 
 
