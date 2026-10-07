@@ -31,6 +31,19 @@ These labels describe the source catalog. They are not legal, tax, risk, or inve
 - Leave unknown contracts unclassified.
 - Treat wrapper contracts as separate exact deployments when the issuer catalog publishes them.
 
+## Browse and Export Saved History
+
+In Token Detail, choose Robinhood Chain, enter a token contract address, and select **Open RWA Audit History**. The history window works without entering a wallet address.
+
+1. Select **Load Saved History** to read all records saved on this computer. This works offline.
+2. Browse the **Corporate Actions** or **Multiplier Observations** tab. Select a row for its full details and source.
+3. Select **Refresh Audit History** to request the current official catalog and corporate actions. Refresh is available when live providers are configured and respects public catalog cache windows. Saved records remain visible if the request fails.
+4. Select **Export Audit CSV** or **Export Audit JSON** to export all loaded local records.
+
+Reports use `oracle41-rwa-audit` format version 1. They include the chain, exact contract, issuer IDs, source references, action details, multiplier values, and observation times. Decimal values are written as text to preserve precision. CSV action details are JSON objects within a cell.
+
+The report scope is `all_locally_saved_records`. Multiplier history starts when Oracle41 first observes a contract. Corporate-action rows retain their latest state and first/last observation times. A report does not establish that every historical issuer action has been collected.
+
 ## Current Limits
 
 This release uses xStocks and Centrifuge for identity only. It does not use them as general market-price providers. Robinhood corporate actions and multiplier changes are stored locally; xStocks corporate-action and multiplier-history ingestion is planned separately.

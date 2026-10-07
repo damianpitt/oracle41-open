@@ -2,7 +2,29 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a20] - Unreleased
+## [0.4.0a21] - Unreleased
+
+### Added
+
+- RWA audit browser in Token Detail with separate corporate-action and multiplier-observation tabs, selectable rows, and full source details.
+- Load Saved History and Refresh Audit History controls that work independently of wallet activity loading.
+- Version 1 CSV and JSON audit exports containing all locally saved records, precise decimal text, contract identity, issuer IDs, source references, and observation times.
+- Tests for concurrent refreshes, history beyond 20 records, restart persistence, export validation, offline browsing, and network-failure fallback.
+
+### Changed
+
+- Multiplier checks and inserts now share a SQLite write lock, preventing duplicate observations during concurrent refreshes.
+- Older corporate-action observations cannot overwrite a newer lifecycle state. Changed multiplier observations require newer timestamps and a consistent issuer identity.
+- Conflicting Robinhood and xStocks catalog identities are rejected. Corporate-action type/detail mismatches, invalid dates, and invalid decimal rates raise structured errors.
+- Switching contracts clears the audit browser and discards late background results.
+
+### Known Limitations
+
+- Audit history currently covers Robinhood Stock Tokens. xStocks and Centrifuge recognition remains available, while their corporate-action history is future work.
+- Refresh respects public catalog cache windows. Local multiplier observations begin when the application first sees a contract and do not reconstruct earlier states.
+- This release keeps the latest state of each corporate action with first/last observation times; it does not preserve every intermediate action revision.
+
+## [0.4.0a20] - 2026-09-26
 
 ### Added
 

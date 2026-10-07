@@ -44,7 +44,7 @@ class StockTokenAuditService:
     def refresh(
         self,
         metadata: StockTokenMetadata,
-        limit: int = 20,
+        limit: int | None = 20,
     ) -> StockTokenAuditContext:
         """Persist the latest official state and return local history."""
 
@@ -55,10 +55,16 @@ class StockTokenAuditService:
             source_provider="robinhood-stock-token-api",
         )
         actions = self._provider.get_corporate_actions(metadata.contract_address)
+        if any(
+            action.chain is not Chain.ROBINHOOD
+            or action.contract_address.lower() != metadata.contract_address.lower()
+            for action in actions
+        ):
+            raise ValueError("Corporate-action response contains another deployment.")
         self._repository.save_corporate_actions(actions, observed_at)
         return self.load(metadata.contract_address, limit=limit)
 
-    def load(self, contract_address: str, limit: int = 20) -> StockTokenAuditContext:
+    def load(self, contract_address: str, limit: int | None = 20) -> StockTokenAuditContext:
         """Read stored audit history without contacting the provider."""
 
         return StockTokenAuditContext(
@@ -73,4 +79,3 @@ class StockTokenAuditService:
                 limit=limit,
             ),
         )
-

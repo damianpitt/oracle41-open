@@ -32,6 +32,14 @@ from oracle41_open.exports.json_export import (
     write_snapshot_json,
     write_watchlist_json,
 )
+from oracle41_open.exports.rwa_audit_export import (
+    RWA_AUDIT_FORMAT,
+    RWA_AUDIT_VERSION,
+    RWAAuditReport,
+    rwa_audit_csv_text,
+    rwa_audit_json_bytes,
+    write_rwa_audit,
+)
 from oracle41_open.exports.templates import (
     ACTIVITY_EXPORT_FORMAT,
     ACTIVITY_EXPORT_FORMAT_VERSION,
@@ -44,6 +52,12 @@ from oracle41_open.exports.templates import (
 )
 
 __all__ = [
+    "RWA_AUDIT_FORMAT",
+    "RWA_AUDIT_VERSION",
+    "RWAAuditReport",
+    "rwa_audit_csv_text",
+    "rwa_audit_json_bytes",
+    "write_rwa_audit",
     "ACTION_EXPORT_FORMAT",
     "ACTION_EXPORT_FORMAT_VERSION",
     "ACTIVITY_EXPORT_FORMAT",

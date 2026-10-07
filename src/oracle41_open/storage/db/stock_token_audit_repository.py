@@ -8,7 +8,7 @@ asset-status state changes, which keeps a compact but complete local audit trail
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open._json import loads as json_loads
@@ -42,6 +42,7 @@ class StockTokenAuditRepository:
         actions: tuple[StockTokenCorporateAction, ...],
         observed_at: datetime,
     ) -> None:
+        observed_at = _utc_timestamp(observed_at)
         with self._database.connection() as conn:
             for action in actions:
                 address = normalize_address_or_raise(action.contract_address)
@@ -61,6 +62,7 @@ class StockTokenAuditRepository:
                         details_json = excluded.details_json,
                         source_provider = excluded.source_provider,
                         last_seen_at = excluded.last_seen_at
+                    WHERE excluded.last_seen_at >= stock_token_corporate_actions.last_seen_at
                     """,
                     (
                         action.action_id,
@@ -85,6 +87,12 @@ class StockTokenAuditRepository:
         source_provider: str,
     ) -> StockTokenMultiplierObservation:
         address = normalize_address_or_raise(metadata.contract_address)
+        observed_at = _utc_timestamp(observed_at)
+        if metadata.chain_id != Chain.ROBINHOOD.network.chain_id:
+            raise ValueError("Multiplier observations require a Robinhood Chain deployment.")
+        for multiplier in (metadata.current_multiplier, metadata.pending_multiplier):
+            if multiplier is not None and (not multiplier.is_finite() or multiplier <= 0):
+                raise ValueError("Stock Token multipliers must be finite positive decimals.")
         candidate = StockTokenMultiplierObservation(
             asset_id=metadata.asset_id,
             token_symbol=metadata.symbol,
@@ -97,10 +105,23 @@ class StockTokenAuditRepository:
             source_provider=source_provider,
             observed_at=observed_at,
         )
-        latest = self._latest_multiplier(Chain.ROBINHOOD, address)
-        if latest is not None and _same_multiplier_state(latest, candidate):
-            return latest
         with self._database.connection() as conn:
+            # Reserve the write lock before reading so concurrent refreshes see each other's rows.
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """SELECT * FROM stock_token_multiplier_observations
+                WHERE chain = ? AND contract_address = ?
+                ORDER BY observed_at DESC, id DESC LIMIT 1""",
+                (candidate.chain.value, address),
+            ).fetchone()
+            latest = _multiplier_from_row(row) if row is not None else None
+            if latest is not None:
+                if _same_multiplier_state(latest, candidate):
+                    return latest
+                if candidate.observed_at <= latest.observed_at:
+                    raise ValueError("A changed multiplier needs a newer observation time.")
+                if latest.asset_id != candidate.asset_id:
+                    raise ValueError("Stock Token issuer identity changed for this contract.")
             conn.execute(
                 """
                 INSERT INTO stock_token_multiplier_observations(
@@ -132,7 +153,7 @@ class StockTokenAuditRepository:
         self,
         chain: Chain,
         contract_address: str,
-        limit: int = 20,
+        limit: int | None = 20,
     ) -> tuple[StoredStockTokenCorporateAction, ...]:
         address = normalize_address_or_raise(contract_address)
         with self._database.connection() as conn:
@@ -143,7 +164,7 @@ class StockTokenAuditRepository:
                 ORDER BY process_date DESC, action_id DESC
                 LIMIT ?
                 """,
-                (chain.value, address, max(1, limit)),
+                (chain.value, address, -1 if limit is None else max(1, limit)),
             ).fetchall()
         return tuple(_action_from_row(row) for row in rows)
 
@@ -151,7 +172,7 @@ class StockTokenAuditRepository:
         self,
         chain: Chain,
         contract_address: str,
-        limit: int = 20,
+        limit: int | None = 20,
     ) -> tuple[StockTokenMultiplierObservation, ...]:
         address = normalize_address_or_raise(contract_address)
         with self._database.connection() as conn:
@@ -162,17 +183,14 @@ class StockTokenAuditRepository:
                 ORDER BY observed_at DESC, id DESC
                 LIMIT ?
                 """,
-                (chain.value, address, max(1, limit)),
+                (chain.value, address, -1 if limit is None else max(1, limit)),
             ).fetchall()
         return tuple(_multiplier_from_row(row) for row in rows)
 
-    def _latest_multiplier(
-        self,
-        chain: Chain,
-        contract_address: str,
-    ) -> StockTokenMultiplierObservation | None:
-        history = self.list_multiplier_history(chain, contract_address, limit=1)
-        return history[0] if history else None
+def _utc_timestamp(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        raise ValueError("Audit observation time must include a timezone.")
+    return value.astimezone(UTC)
 
 
 def _same_multiplier_state(

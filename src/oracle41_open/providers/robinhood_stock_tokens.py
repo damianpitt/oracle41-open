@@ -191,9 +191,15 @@ class RobinhoodStockTokenPricingProvider(PricingProvider):
             for action in _parse_corporate_action(raw_action)
             if normalized is None or action.contract_address == normalized
         )
+        seen: dict[tuple[str, str], StockTokenCorporateAction] = {}
+        for action in actions:
+            key = (action.action_id, action.contract_address)
+            if key in seen and seen[key] != action:
+                raise ProviderResponseError("Conflicting corporate-action records.")
+            seen[key] = action
         return tuple(
             sorted(
-                actions,
+                seen.values(),
                 key=lambda item: (item.process_date or date.min, item.action_id),
                 reverse=True,
             )
@@ -223,6 +229,9 @@ class RobinhoodStockTokenPricingProvider(PricingProvider):
                 continue
             parsed_assets = _parse_asset(raw_asset)
             for metadata in parsed_assets:
+                existing = result.get(metadata.contract_address)
+                if existing is not None and existing != metadata:
+                    raise ProviderResponseError("Conflicting Robinhood asset deployments.")
                 result[metadata.contract_address] = metadata
         return result
 
@@ -440,6 +449,17 @@ def _parse_corporate_action(
         return ()
 
     detail_kind, detail_values = detail
+    if action_type is not CorporateActionType.UNSPECIFIED:
+        expected_kind = action_type.value.split("_")
+        expected_key = expected_kind[0] + "".join(word.title() for word in expected_kind[1:])
+        if detail_kind != expected_key:
+            raise ProviderResponseError("Corporate-action type and details disagree.")
+    for key, value in detail_values:
+        if key == "rate" or key.endswith("Rate"):
+            if _nonnegative_decimal(value) is None:
+                raise ProviderResponseError("Corporate-action rate is invalid.")
+    if raw.get("processDate") is not None and process_date is None:
+        raise ProviderResponseError("Corporate-action process date is invalid.")
     result: list[StockTokenCorporateAction] = []
     for deployment in deployments:
         if not isinstance(deployment, dict) or deployment.get("chainId") != _ROBINHOOD_CHAIN_ID:
@@ -506,7 +526,7 @@ def _positive_decimal(raw: Any) -> Decimal | None:
 
 
 def _optional_positive_decimal(raw: Any) -> Decimal | None:
-    if raw in {None, ""}:
+    if raw is None or raw == "":
         return None
     return _positive_decimal(raw)
 
@@ -575,6 +595,9 @@ def _corporate_action_details(
     detail_kind, detail_payload = next(iter(raw.items()))
     if not isinstance(detail_kind, str) or not isinstance(detail_payload, dict):
         return None
+    if any(not isinstance(key, str) or not isinstance(value, str)
+           for key, value in detail_payload.items()):
+        raise ProviderResponseError("Corporate-action details must contain text fields.")
     values = tuple(
         sorted(
             (key, str(value))

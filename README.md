@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a20` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide transaction inspection. Public issuer catalogs provide exact-contract Stock Token, xStocks, and selected Centrifuge RWA identity.
+Version `0.4.0a21` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide transaction inspection. Public issuer catalogs provide exact-contract Stock Token, xStocks, and selected Centrifuge RWA identity.
 
 ## Features
 
@@ -32,6 +32,7 @@ Version `0.4.0a20` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can
 - Robinhood canonical bridge direction and lifecycle-stage detection from official contracts and local call/event evidence
 - Official Robinhood Stock Token identification and multiplier-adjusted USD pricing from the public read-only API
 - Durable Robinhood corporate-action history and material multiplier-change audit records
+- RWA audit history browser with offline loading, explicit refresh, source details, and CSV/JSON exports
 - Exact-contract xStocks and reviewed Centrifuge RWA recognition across supported L2 networks
 - Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
 - Local user ABI management and optional verified ABI retrieval from Blockscout

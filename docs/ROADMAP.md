@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4F is complete in `0.4.0a20`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing and corporate-action history, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Exact-contract xStocks and reviewed Centrifuge RWA recognition now cover supported L2 deployments.
+**Implementation status:** M6.4G is complete in `0.4.0a21`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Exact-contract xStocks and reviewed Centrifuge RWA recognition cover supported L2 deployments.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -597,3 +597,15 @@ Multiplier observations are append-only and record current multiplier, pending m
 RWA recognition now has one conservative contract. Robinhood Stock Tokens and xStocks come from public issuer catalogs. Centrifuge share tokens use reviewed addresses from its official deployment registry. Ethereum, Optimism, Polygon, Base, and Arbitrum xStocks deployments are supported when returned by the public catalog. Names and symbols cannot verify identity.
 
 This slice does not ingest xStocks corporate-action history, use xStocks or Centrifuge as general pricing sources, or infer newly deployed RWAs before their exact contracts appear in an accepted source.
+
+### Completed Slice: M6.4G
+
+**Status:** Complete in `0.4.0a21`.
+
+M6.4G adds a Token Detail audit browser that loads all saved corporate actions and multiplier observations for a Robinhood Chain contract. Users can browse both record types, select a row for its source details, refresh independently of wallet activity, and export CSV or JSON. Saved records remain available when a refresh fails.
+
+Audit export format `oracle41-rwa-audit` version 1 includes exact deployment identity, issuer IDs, decimal text, source references, action details, and observation times. Its scope is all locally saved records. It does not claim complete issuer history or recreate earlier multiplier states.
+
+Multiplier deduplication now uses one SQLite write transaction. Older action observations cannot overwrite newer states. Conflicting catalog identities, invalid rates or dates, and mismatched action details are rejected. Tests cover concurrent refreshes, restart persistence, more than 20 records, export integrity, offline access, and network-failure fallback.
+
+xStocks corporate-action and historical multiplier ingestion is the next proposed RWA expansion. General RWA pricing and M7 historical valuation remain separate work.

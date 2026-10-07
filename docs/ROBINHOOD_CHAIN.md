@@ -41,6 +41,10 @@ The asset catalog is also sampled when Token Detail refreshes. Oracle41 adds a m
 
 Repeated reads of the same state do not create duplicate history. The audit starts when this version first observes a token. It does not reconstruct multiplier states from before installation.
 
+In Token Detail, enter a Robinhood Chain contract and select **Open RWA Audit History**. The history window loads all saved corporate actions and multiplier observations without loading a wallet. Selecting a row shows its issuer ID, source, observation times, and full details.
+
+**Refresh Audit History** requests current official data when live providers are configured. Public cache windows still apply. If the request fails, the panel keeps locally saved records available. CSV and JSON exports include all loaded local history and label that scope explicitly.
+
 ## Transaction Fees
 
 Robinhood Chain uses ETH for gas and settles data to Ethereum. A paid transaction fee contains:

@@ -6,21 +6,38 @@ service round trips using deterministic provider data.
 
 from __future__ import annotations
 
+import csv
+import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from oracle41_open.core.models import (
     Chain,
     CorporateActionStatus,
     CorporateActionType,
+    ProviderNetworkError,
     StockTokenCorporateAction,
     StockTokenMetadata,
     StockTokenStatus,
 )
 from oracle41_open.core.services.stock_token_audit_service import StockTokenAuditService
+from oracle41_open.exports.rwa_audit_export import (
+    RWAAuditReport,
+    rwa_audit_csv_text,
+    rwa_audit_json_bytes,
+    write_rwa_audit,
+)
+from oracle41_open.gui.views.rwa_audit_browser import RWAAuditBrowser
 from oracle41_open.storage.db import SQLiteDatabase, StockTokenAuditRepository
 
 _CONTRACT = "0x1111111111111111111111111111111111111111"
@@ -117,6 +134,133 @@ def test_existing_v11_database_migrates_forward(tmp_path: Path) -> None:
     assert version is not None and version["value"] == "12"
 
 
+def test_concurrent_multiplier_refreshes_write_one_observation(tmp_path: Path) -> None:
+    repository = StockTokenAuditRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(
+            pool.map(
+                lambda _: repository.record_multiplier(_metadata(), _FIRST, "issuer"),
+                range(24),
+            )
+        )
+    assert len(repository.list_multiplier_history(Chain.ROBINHOOD, _CONTRACT)) == 1
+
+
+def test_export_reads_all_records_and_preserves_decimals_after_restart(tmp_path: Path) -> None:
+    path = tmp_path / "state.sqlite3"
+    repository = StockTokenAuditRepository(SQLiteDatabase(path))
+    for index in range(25):
+        repository.record_multiplier(
+            replace(_metadata(), current_multiplier=Decimal("1.000000000000000001") + index),
+            _FIRST + timedelta(minutes=index),
+            "issuer",
+        )
+    repository.save_corporate_actions((_action(CorporateActionStatus.COMPLETED),), _SECOND)
+    service = StockTokenAuditService(
+        _AuditProvider(()), StockTokenAuditRepository(SQLiteDatabase(path))
+    )
+    history = service.load(_CONTRACT, limit=None)
+    report = RWAAuditReport(Chain.ROBINHOOD, _CONTRACT, history, _SECOND)
+    payload = json.loads(rwa_audit_json_bytes(report))
+    rows = list(csv.DictReader(StringIO(rwa_audit_csv_text(report))))
+    assert len(payload["items"]) == len(rows) == 26
+    assert payload["history_scope"] == "all_locally_saved_records"
+    assert payload["items"][-1]["current_multiplier"] == "1.000000000000000001"
+    assert json.loads(rows[0]["details"]) == {"newRate": "2", "oldRate": "1"}
+    destination = tmp_path / "audit.json"
+    write_rwa_audit(report, destination, as_json=True)
+    assert json.loads(destination.read_bytes()) == payload
+
+
+def test_export_rejects_cross_contract_evidence(tmp_path: Path) -> None:
+    service = StockTokenAuditService(
+        _AuditProvider((_action(CorporateActionStatus.COMPLETED),)),
+        StockTokenAuditRepository(SQLiteDatabase(tmp_path / "state.sqlite3")),
+        now_func=lambda: _FIRST,
+    )
+    history = service.refresh(_metadata())
+    report = RWAAuditReport(Chain.ROBINHOOD, "0x" + "22" * 20, history, _SECOND)
+    with pytest.raises(ValueError, match="deployment"):
+        rwa_audit_json_bytes(report)
+
+
+def test_older_actions_cannot_regress_completed_state(tmp_path: Path) -> None:
+    repository = StockTokenAuditRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    repository.save_corporate_actions((_action(CorporateActionStatus.COMPLETED),), _SECOND)
+    repository.save_corporate_actions((_action(CorporateActionStatus.IN_PROGRESS),), _FIRST)
+    stored = repository.list_corporate_actions(Chain.ROBINHOOD, _CONTRACT)[0]
+    assert stored.action.status is CorporateActionStatus.COMPLETED
+    assert stored.last_seen_at == _SECOND
+
+
+@pytest.mark.parametrize("value", [Decimal("NaN"), Decimal("Infinity"), Decimal("0")])
+def test_invalid_multiplier_is_rejected(tmp_path: Path, value: Decimal) -> None:
+    repository = StockTokenAuditRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    with pytest.raises(ValueError, match="finite positive"):
+        repository.record_multiplier(
+            replace(_metadata(), current_multiplier=value), _FIRST, "issuer"
+        )
+
+
+def test_browser_loads_offline_exports_and_keeps_history_on_refresh_failure(
+    tmp_path: Path,
+    qt_application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = StockTokenAuditRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
+    repository.record_multiplier(_metadata(), _FIRST, "issuer")
+    repository.save_corporate_actions((_action(CorporateActionStatus.COMPLETED),), _FIRST)
+    container = SimpleNamespace(
+        uses_live_providers=False,
+        stock_token_audit_service=StockTokenAuditService(_AuditProvider(()), repository),
+        stock_token_pricing_provider=_OfflineCatalog(),
+    )
+    browser = RWAAuditBrowser(container)  # type: ignore[arg-type]
+    browser.set_scope(Chain.ROBINHOOD, _CONTRACT)
+    assert not browser._refresh_button.isEnabled()
+    browser.load_saved()
+    _wait_browser(browser)
+    assert browser._actions.count() == browser._multipliers.count() == 1
+    browser._actions.setCurrentRow(0)
+    assert "newRate: 2" in browser._details.toPlainText()
+    destination = tmp_path / "gui-audit.json"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(destination), ""))
+    browser._json_button.click()
+    assert len(json.loads(destination.read_bytes())["items"]) == 2
+    container.uses_live_providers = True
+    browser._start(refresh=True)
+    _wait_browser(browser)
+    assert "Refresh unavailable" in browser._status.text()
+    assert browser._actions.count() == 1
+    browser.set_scope(Chain.ROBINHOOD, "0x" + "22" * 20)
+    assert browser._actions.count() == 0
+    assert not browser._json_button.isEnabled()
+    browser.close()
+
+
+class _OfflineCatalog:
+    def get_stock_token_metadata(self, address: str) -> None:
+        raise ProviderNetworkError("Test network unavailable")
+
+
+def _wait_browser(browser: RWAAuditBrowser) -> None:
+    loop = QEventLoop()
+    timer = QTimer()
+    timer.setSingleShot(True)
+    timer.timeout.connect(loop.quit)
+
+    def poll() -> None:
+        if browser._busy:
+            QTimer.singleShot(10, poll)
+        else:
+            loop.quit()
+
+    QTimer.singleShot(0, poll)
+    timer.start(3000)
+    loop.exec()
+    assert not browser._busy
+
+
 class _AuditProvider:
     def __init__(self, actions: tuple[StockTokenCorporateAction, ...]) -> None:
         self.actions = actions
@@ -161,4 +305,3 @@ def _action(status: CorporateActionStatus) -> StockTokenCorporateAction:
         details=(("newRate", "2"), ("oldRate", "1")),
         source_provider="robinhood-stock-token-api",
     )
-

@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -49,6 +50,7 @@ from oracle41_open.exports import (
     write_activity_json,
 )
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
+from oracle41_open.gui.views.rwa_audit_browser import RWAAuditBrowser
 
 if TYPE_CHECKING:
     from oracle41_open.app.bootstrap import AppContainer
@@ -166,6 +168,18 @@ class TokenDetailView(QWidget):
             "Transaction detail drawer. Select a token activity row to inspect details."
         )
 
+        self._audit_browser = RWAAuditBrowser(container)
+        self._audit_dialog = QDialog(self)
+        self._audit_dialog.setWindowTitle("RWA Audit History")
+        self._audit_dialog.resize(950, 430)
+        audit_layout = QVBoxLayout(self._audit_dialog)
+        audit_layout.addWidget(self._audit_browser)
+        self._audit_history_button = QPushButton("Open RWA Audit History", self)
+        self._audit_history_button.setEnabled(False)
+        self._audit_history_button.clicked.connect(self._open_audit_history)
+        self._token_address_input.textChanged.connect(self._update_audit_scope)
+        self._chain_combo.currentIndexChanged.connect(self._update_audit_scope)
+
         self._init_layout()
         self._apply_default_chain()
 
@@ -208,6 +222,7 @@ class TokenDetailView(QWidget):
         root.addWidget(controls_box)
         root.addWidget(self._status_label)
         root.addWidget(self._stock_token_context)
+        root.addWidget(self._audit_history_button)
         root.addWidget(self._items_list, stretch=1)
         root.addWidget(self._detail_drawer, stretch=1)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -218,6 +233,20 @@ class TokenDetailView(QWidget):
         chain_index = self._chain_combo.findData(settings.selected_chain.value)
         if chain_index >= 0:
             self._chain_combo.setCurrentIndex(chain_index)
+
+    def _update_audit_scope(self) -> None:
+        self._audit_browser.set_scope(self._selected_chain(), self._token_address_input.text())
+        valid = self._selected_chain() is Chain.ROBINHOOD and (
+            AddressValidator.validation_error(self._token_address_input.text()) is None
+        )
+        self._audit_history_button.setEnabled(valid)
+        if not valid:
+            self._audit_dialog.hide()
+
+    def _open_audit_history(self) -> None:
+        self._audit_dialog.show()
+        self._audit_dialog.raise_()
+        self._audit_browser.load_saved()
 
     def _selected_chain(self) -> Chain:
         raw = self._chain_combo.currentData()
@@ -477,11 +506,13 @@ class TokenDetailView(QWidget):
                         stock_audit = self._container.stock_token_audit_service.refresh(
                             stock_metadata
                         )
-                except ProviderError as error:
+                except (ProviderError, ValueError) as error:
                     # Stock Token context is optional and must not hide normal token history.
                     stock_error = str(error)
             elif chain is Chain.ROBINHOOD:
                 stock_error = "Live Stock Token context is disabled in demonstration mode."
+            if chain is Chain.ROBINHOOD and stock_audit is None:
+                stock_audit = self._container.stock_token_audit_service.load(normalized_token)
             try:
                 rwa_identity = self._container.rwa_recognition_service.recognize(
                     chain,
@@ -513,6 +544,10 @@ class TokenDetailView(QWidget):
             return
 
         result = raw_result.result
+        self._audit_browser.set_scope(
+            self._selected_chain(), self._token_address_input.text(), raw_result.rwa_identity,
+        )
+        self._audit_browser.load_saved()
         self._stock_token_context.setPlainText(
             _render_rwa_context(
                 self._selected_chain(),

@@ -12,10 +12,13 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from oracle41_open.core.models import (
     Chain,
     CorporateActionStatus,
     CorporateActionType,
+    ProviderResponseError,
     StockTokenStatus,
 )
 from oracle41_open.providers.http_client import HTTPRequest, HTTPResponse
@@ -179,6 +182,27 @@ def test_corporate_actions_are_filtered_by_exact_deployment() -> None:
         "underlyingSymbol": "TEST",
     }
     assert client.requests[0].url.endswith("/corporate-actions")
+
+
+@pytest.mark.parametrize("case", ["type", "rate", "date", "conflict"])
+def test_invalid_corporate_action_evidence_is_rejected(case: str) -> None:
+    payload = json.loads(_fixture("corporate_actions.json").data)
+    action = payload["corpActions"][0]
+    if case == "type":
+        action["type"] = "CORPORATE_ACTION_TYPE_CASH_DIVIDEND"
+    elif case == "rate":
+        action["details"]["forwardSplit"]["newRate"] = "NaN"
+    elif case == "date":
+        action["processDate"]["month"] = 13
+    else:
+        conflicting = json.loads(json.dumps(action))
+        conflicting["details"]["forwardSplit"]["newRate"] = "99"
+        payload["corpActions"].append(conflicting)
+    provider = RobinhoodStockTokenPricingProvider(
+        _FallbackPricingProvider(), http_client=_HTTPClient([_response(payload)]),  # type: ignore[arg-type]
+    )
+    with pytest.raises(ProviderResponseError):
+        provider.get_corporate_actions(_ACTIVE_CONTRACT)
 
 
 class _FallbackPricingProvider(PricingProvider):

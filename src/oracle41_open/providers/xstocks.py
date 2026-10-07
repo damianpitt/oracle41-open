@@ -194,7 +194,7 @@ def _parse_assets(raw_assets: Sequence[object]) -> dict[tuple[Chain, str], RealW
                 address = _normalized_address(deployment.get(field_name))
                 if address is None:
                     continue
-                result[(chain, address)] = RealWorldAssetIdentity(
+                identity = RealWorldAssetIdentity(
                     asset_id=asset_id.strip(),
                     symbol=symbol.strip().upper(),
                     name=name.strip(),
@@ -207,6 +207,10 @@ def _parse_assets(raw_assets: Sequence[object]) -> dict[tuple[Chain, str], RealW
                     underlying_symbol=_optional_text(underlying.get("symbol")),
                     underlying_isin=_optional_text(underlying.get("isin")),
                 )
+                existing = result.get((chain, address))
+                if existing is not None and existing != identity:
+                    raise ProviderResponseError("Conflicting xStocks deployment identities.")
+                result[(chain, address)] = identity
     return result
 
 
