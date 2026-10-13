@@ -30,6 +30,7 @@ from oracle41_open.core.models import (
     RealWorldAssetIdentity,
     StockTokenAuditContext,
 )
+from oracle41_open.core.models.xstocks_audit import XStocksAuditContext
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.exports.rwa_audit_export import RWAAuditReport, write_rwa_audit
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class _HistoryResult:
-    history: StockTokenAuditContext
+    history: StockTokenAuditContext | XStocksAuditContext
     note: str
 
 
@@ -56,7 +57,7 @@ class RWAAuditBrowser(QGroupBox):
         self._chain = Chain.ETHEREUM
         self._address = ""
         self._identity: RealWorldAssetIdentity | None = None
-        self._history = StockTokenAuditContext((), ())
+        self._history: StockTokenAuditContext | XStocksAuditContext = StockTokenAuditContext((), ())
         self._busy = False
         self._load_button = QPushButton("Load Saved History")
         self._refresh_button = QPushButton("Refresh Audit History")
@@ -74,7 +75,7 @@ class RWAAuditBrowser(QGroupBox):
             self._json_button,
         ):
             buttons.addWidget(button)
-        self._status = QLabel("Select a Robinhood Chain contract to browse saved audit history.")
+        self._status = QLabel("Select a token contract to browse saved issuer audit history.")
         self._status.setWordWrap(True)
         self._actions = QListWidget()
         self._multipliers = QListWidget()
@@ -113,7 +114,7 @@ class RWAAuditBrowser(QGroupBox):
             self._details.clear()
             self._status.setText("Load saved history or refresh the selected contract.")
         self._chain, self._address, self._identity = chain, address, identity
-        self.setVisible(chain is Chain.ROBINHOOD)
+        self.setVisible(True)
         self._update_buttons()
 
     def load_saved(self) -> None:
@@ -121,11 +122,12 @@ class RWAAuditBrowser(QGroupBox):
         self._start(refresh=False)
 
     def _start(self, *, refresh: bool) -> None:
-        if self._busy or self._chain is not Chain.ROBINHOOD:
+        if self._busy:
             return
         if AddressValidator.validation_error(self._address) is not None:
             return
         address = self._address
+        chain = self._chain
         self._busy = True
         self._update_buttons()
         self._status.setText(
@@ -133,6 +135,21 @@ class RWAAuditBrowser(QGroupBox):
         )
 
         def operation() -> _HistoryResult:
+            if chain is not Chain.ROBINHOOD:
+                xstocks_service = self._container.xstocks_audit_service
+                note = "Showing locally saved xStocks issuer history."
+                if refresh:
+                    try:
+                        history = xstocks_service.refresh(chain, address)
+                        note = (
+                            "xStocks history refreshed from the issuer."
+                            if history is not None
+                            else "Contract is not in the xStocks catalog."
+                        )
+                    except (ProviderError, ValueError) as error:
+                        note = f"Refresh unavailable: {error}. Showing saved records."
+                history = xstocks_service.load(chain, address)
+                return _HistoryResult(history or StockTokenAuditContext((), ()), note)
             service = self._container.stock_token_audit_service
             note = "Showing all locally saved records."
             if refresh:
@@ -158,6 +175,32 @@ class RWAAuditBrowser(QGroupBox):
             self._failed(ValueError("Invalid audit history result."))
             return
         self._history = result.history
+        self._details.clear()
+        if isinstance(self._history, XStocksAuditContext):
+            self._tabs.setTabText(0, "Action Revisions")
+            self._tabs.setTabText(1, "Issuer Multiplier History")
+            self._identity = self._history.identity
+            self._actions.clear()
+            self._multipliers.clear()
+            for revision in self._history.corporate_actions:
+                self._actions.addItem(
+                    f"{revision.effective_at or 'Time not published'} | {revision.action_type} | "
+                    f"{revision.status} | revision {revision.version}"
+                )
+            for change in self._history.multiplier_history:
+                self._multipliers.addItem(
+                    f"{change.effective_at.isoformat()} | {change.previous_multiplier} "
+                    f"to {change.multiplier} | {change.reason}"
+                )
+            self._status.setText(
+                f"{result.note} Last saved fetch: {self._history.fetched_at.isoformat()}. "
+                "Issuer multiplier history is shown for inspection; EVM balances already include rebasing."
+            )
+            self._busy = False
+            self._update_buttons()
+            return
+        self._tabs.setTabText(0, "Corporate Actions")
+        self._tabs.setTabText(1, "Multiplier Observations")
         self._actions.clear()
         self._multipliers.clear()
         for stored in self._history.corporate_actions:
@@ -184,9 +227,7 @@ class RWAAuditBrowser(QGroupBox):
         self._update_buttons()
 
     def _update_buttons(self) -> None:
-        valid = self._chain is Chain.ROBINHOOD and (
-            AddressValidator.validation_error(self._address) is None
-        )
+        valid = AddressValidator.validation_error(self._address) is None
         self._load_button.setEnabled(valid and not self._busy)
         self._refresh_button.setEnabled(
             valid and not self._busy and self._container.uses_live_providers
@@ -197,6 +238,19 @@ class RWAAuditBrowser(QGroupBox):
 
     def _show_action(self, row: int) -> None:
         if row < 0 or row >= len(self._history.corporate_actions):
+            return
+        if isinstance(self._history, XStocksAuditContext):
+            revision = self._history.corporate_actions[row]
+            self._details.setPlainText(
+                "\n".join(
+                    [
+                        f"Issuer event ID: {revision.event_id}; revision: {revision.version}",
+                        f"Created: {revision.created_at.isoformat()}",
+                        f"Source: {self._history.identity.source_name}",
+                        *(f"{key}: {value}" for key, value in revision.details),
+                    ]
+                )
+            )
             return
         stored = self._history.corporate_actions[row]
         action = stored.action
@@ -223,6 +277,21 @@ class RWAAuditBrowser(QGroupBox):
 
     def _show_multiplier(self, row: int) -> None:
         if row < 0 or row >= len(self._history.multiplier_history):
+            return
+        if isinstance(self._history, XStocksAuditContext):
+            change = self._history.multiplier_history[row]
+            self._details.setPlainText(
+                "\n".join(
+                    [
+                        f"Issuer change ID: {change.change_id}",
+                        f"Previous multiplier: {change.previous_multiplier}",
+                        f"Multiplier: {change.multiplier}",
+                        f"Reason: {change.reason}",
+                        f"Issuer activation time: {change.effective_at.isoformat()}",
+                        f"Source: {self._history.identity.source_name}",
+                    ]
+                )
+            )
             return
         item = self._history.multiplier_history[row]
         self._details.setPlainText(

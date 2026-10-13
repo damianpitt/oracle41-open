@@ -59,7 +59,7 @@ def test_schema_v12_adds_stock_token_audit_tables(tmp_path: Path) -> None:
             ).fetchall()
         }
 
-    assert version is not None and version["value"] == "12"
+    assert version is not None and version["value"] == "13"
     assert {
         "stock_token_corporate_actions",
         "stock_token_multiplier_observations",
@@ -131,7 +131,7 @@ def test_existing_v11_database_migrates_forward(tmp_path: Path) -> None:
         version = conn.execute(
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
-    assert version is not None and version["value"] == "12"
+    assert version is not None and version["value"] == "13"
 
 
 def test_concurrent_multiplier_refreshes_write_one_observation(tmp_path: Path) -> None:

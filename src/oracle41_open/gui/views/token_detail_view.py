@@ -236,9 +236,7 @@ class TokenDetailView(QWidget):
 
     def _update_audit_scope(self) -> None:
         self._audit_browser.set_scope(self._selected_chain(), self._token_address_input.text())
-        valid = self._selected_chain() is Chain.ROBINHOOD and (
-            AddressValidator.validation_error(self._token_address_input.text()) is None
-        )
+        valid = AddressValidator.validation_error(self._token_address_input.text()) is None
         self._audit_history_button.setEnabled(valid)
         if not valid:
             self._audit_dialog.hide()

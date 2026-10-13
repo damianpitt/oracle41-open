@@ -30,6 +30,7 @@ from oracle41_open.core.services.token_detail_service import TokenDetailService
 from oracle41_open.core.services.transaction_inspection_service import TransactionInspectionService
 from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
+from oracle41_open.core.services.xstocks_audit_service import XStocksAuditService
 from oracle41_open.providers.alchemy import AlchemyPricingProvider, AlchemyProvider
 from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.blockscout import BlockscoutABIProvider
@@ -67,6 +68,7 @@ from oracle41_open.storage.db import (
     WalletNotesRepository,
     WatchlistRepository,
 )
+from oracle41_open.storage.db.xstocks_audit_repository import XStocksAuditRepository
 from oracle41_open.storage.secrets import SecretStore
 from oracle41_open.storage.settings import SettingsStore
 
@@ -93,6 +95,7 @@ class AppContainer:
     pricing_provider: PricingProvider
     stock_token_pricing_provider: RobinhoodStockTokenPricingProvider
     stock_token_audit_service: StockTokenAuditService
+    xstocks_audit_service: XStocksAuditService
     rwa_recognition_service: RWARecognitionService
     wallet_service: WalletService
     activity_service: ActivityService
@@ -216,9 +219,13 @@ def build_container() -> AppContainer:
         stock_token_pricing_provider,
         stock_token_audit_repository,
     )
+    xstocks_provider = XStocksAssetProvider(cache_store=cache_store)
+    xstocks_audit_service = XStocksAuditService(
+        xstocks_provider, XStocksAuditRepository(sqlite_database),
+    )
     rwa_recognition_service = RWARecognitionService(
         stock_token_pricing_provider,
-        XStocksAssetProvider(cache_store=cache_store),
+        xstocks_provider,
         allow_live_catalogs=uses_live_providers,
     )
 
@@ -333,6 +340,7 @@ def build_container() -> AppContainer:
         pricing_provider=pricing_service,
         stock_token_pricing_provider=stock_token_pricing_provider,
         stock_token_audit_service=stock_token_audit_service,
+        xstocks_audit_service=xstocks_audit_service,
         rwa_recognition_service=rwa_recognition_service,
         wallet_service=wallet_service,
         activity_service=activity_service,

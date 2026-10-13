@@ -29,7 +29,7 @@ def test_catalog_recognizes_token_and_wrapper_by_exact_chain_address() -> None:
     etf = provider.get_asset_identity(Chain.BASE, _BASE_ETF)
 
     assert token is not None
-    assert token.symbol == "AAPLX"
+    assert token.symbol == "AAPLx"
     assert token.underlying_symbol == "AAPL"
     assert token.category is RealWorldAssetCategory.TOKENIZED_EQUITY
     assert wrapper is not None and wrapper.asset_id == token.asset_id

@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a21] - Unreleased
+## [0.4.0a22] - Unreleased
+
+### Added
+
+- xStocks corporate-action and multiplier-history ingestion from the public API after exact deployment verification.
+- Corporate-action revision retention with original Initial, Corrected, Cancelled, and Scheduled states, issuer event IDs, cashflow details, and effective dates.
+- SQLite schema version 13 with separate xStocks deployment identity, action revision, and historical multiplier tables.
+- xStocks history in the existing RWA audit browser, including offline identity, source details, and refresh-failure fallback.
+- RWA audit export format version 2 with issuer revisions, previous multipliers, reasons, activation times, and last successful fetch times.
+- Recorded tests for pagination conventions, numeric precision, cancellation, revision retention, failed-refresh rollback, migration, exports, and offline browsing.
+
+### Changed
+
+- History refreshes validate both feeds before one atomic storage commit. Conflicting issuer evidence leaves prior history untouched.
+- Numeric multipliers are parsed directly into Decimal values, preserving the published precision.
+- xStocks catalog symbols retain issuer casing for public endpoint requests.
+- README feature and limitation lists are grouped and spaced for easier reading, with every original topic retained.
+
+### Known Limitations
+
+- xStocks history is an audit view. EVM balances already reflect rebasing, and Oracle41 does not apply historical multipliers to those balances.
+- The history collector reads at most 20 pages of 100 records per feed. It reports oversized histories and keeps saved data; resumable large-history sync remains future work.
+- xStocks and Centrifuge general market pricing and Centrifuge fund history remain outside this release.
+
+## [0.4.0a21] - 2026-10-07
 
 ### Added
 

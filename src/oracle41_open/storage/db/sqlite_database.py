@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 12
+_SCHEMA_VERSION = 13
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -541,6 +541,37 @@ CREATE INDEX idx_stock_token_multipliers_contract_time
     ON stock_token_multiplier_observations(chain, contract_address, observed_at DESC);
 """
 
+_SCHEMA_V13_SQL = """
+CREATE TABLE xstocks_audit_deployments (
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    identity_json TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY(chain, contract_address)
+);
+CREATE TABLE xstocks_corporate_actions (
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    PRIMARY KEY(chain, contract_address, event_id, version),
+    FOREIGN KEY(chain, contract_address)
+        REFERENCES xstocks_audit_deployments(chain, contract_address)
+);
+CREATE TABLE xstocks_multiplier_history (
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    change_id TEXT NOT NULL,
+    effective_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    PRIMARY KEY(chain, contract_address, change_id),
+    FOREIGN KEY(chain, contract_address)
+        REFERENCES xstocks_audit_deployments(chain, contract_address)
+);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -554,6 +585,7 @@ _MIGRATIONS = {
     10: _SCHEMA_V10_SQL,
     11: _SCHEMA_V11_SQL,
     12: _SCHEMA_V12_SQL,
+    13: _SCHEMA_V13_SQL,
 }
 
 

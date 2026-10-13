@@ -4,60 +4,138 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a21` is an alpha release. Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated. Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide transaction inspection. Public issuer catalogs provide exact-contract Stock Token, xStocks, and selected Centrifuge RWA identity.
+Version `0.4.0a22` is an alpha release.
+
+Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated.
+
+Alchemy and GoldRush provide indexed Robinhood Chain wallet data. Alchemy and custom JSON-RPC endpoints provide transaction inspection. Public issuer catalogs provide exact-contract Stock Token, xStocks, and selected Centrifuge RWA identity.
+
+Browse this README: [Features](#features) | [Privacy](#privacy-and-scope) | [Architecture](#architecture) | [Providers](#data-sources-and-providers) | [Requirements](#requirements) | [Source installation](#install-from-source) | [Debian installation](#install-the-debian-package) | [Development](#development) | [Limitations](#known-alpha-limitations)
 
 ## Features
 
+### Wallets, Networks, and Pricing
+
 - Wallet overview with native and ERC-20 balances
+
 - Portfolio pricing enrichment with cached last-known values
+
 - Full wallet analytics on Ethereum, Optimism, Polygon, Base, and Arbitrum
+
 - [Robinhood Chain](https://docs.robinhood.com/chain/connecting/) analytics through Alchemy or GoldRush, with chain ID 4663, ETH gas, Stock Token pricing, JSON-RPC inspection, Nitro fee separation, canonical bridge intelligence, and Blockscout links
+
+### Activity and Token History
+
 - Activity feed with durable history, resumable pagination, lookback, and filters
+
 - ERC-20, ERC-721, and ERC-1155 token detail flows with paginated approval history
+
+### Provider Choice and Reliability
+
 - Alchemy, Ankr, Moralis, and GoldRush wallet-data providers with user-controlled enablement, priority, and ordered failover
+
 - Provider-owned pagination cursors that prevent mixed-vendor continuation pages
+
 - Per-chain provider capability summaries with supported wallet features and validation destinations
+
 - Non-secret credential source and last-validation diagnostics
+
 - Shared recorded-fixture conformance tests for available wallet-data adapters
+
 - Retry/backoff and structured rate-limit, timeout, and authentication errors
+
+### Local Workspace and Reports
+
 - ENS wallet input and address-label resolution with caching
+
 - Token filtering for unverified, low-signal, and dust assets
+
 - Watchlists and multi-wallet portfolio aggregation
+
 - Notes, tags, saved views, and snapshot comparison
+
 - Cache telemetry, diagnostics, refresh, and clear-cache controls
+
 - Versioned CSV and JSON exports with completeness and provider provenance
+
 - Backup and restore for local settings and SQLite state
-- Transaction inspection with receipt status, chain-aware fees, raw logs, and provenance
+
+### Robinhood Chain and Real-World Assets
+
 - Robinhood L2 execution and Ethereum data-fee separation when the receipt provides `gasUsedForL1`
+
 - Robinhood canonical bridge direction and lifecycle-stage detection from official contracts and local call/event evidence
+
 - Official Robinhood Stock Token identification and multiplier-adjusted USD pricing from the public read-only API
+
 - Durable Robinhood corporate-action history and material multiplier-change audit records
+
 - RWA audit history browser with offline loading, explicit refresh, source details, and CSV/JSON exports
+
 - Exact-contract xStocks and reviewed Centrifuge RWA recognition across supported L2 networks
+
+- xStocks corporate-action revisions and issuer multiplier history with durable storage, offline browsing, and audit exports
+
+### Transaction Understanding
+
+- Transaction inspection with receipt status, chain-aware fees, raw logs, and provenance
+
 - Deterministic ERC-20, ERC-721, and ERC-1155 call/event decoding from a local registry
+
 - Local user ABI management and optional verified ABI retrieval from Blockscout
+
 - EIP-1967 implementation, EIP-1967 beacon, and EIP-1167 proxy resolution with block-specific caching
+
 - Custom and Solidity built-in revert decoding with raw-byte preservation
+
 - Expandable internal call trees from Geth-compatible and Parity-compatible trace endpoints
+
 - Per-chain trace capability discovery with explicit completeness states
+
 - Learned historical-state capability reporting for block-specific proxy and revert queries
+
 - Normalized transfers, approvals, simple swaps, bridges, deployments, contract calls, and unknown actions
+
 - Versioned action CSV/JSON exports with participants, assets, confidence, and source evidence
+
 - Action-set completeness and missing-evidence reasons based on trace availability
+
 - Optional Blockscout transaction context with contract names, creation details, verification state, and source links
+
+### Lending Protocols
+
 - Versioned protocol-position models, capability registry, fixture schema, reference adapter, and evidence-preserving unknown fallback
+
 - Aave V3 supplied, collateral, and debt normalization with raw account-health metrics on the five established networks
+
 - Exact-block Aave V3 snapshot collection through configured JSON-RPC transaction providers
+
 - Durable Aave V3 snapshots with per-reserve resume checkpoints and provider provenance
+
 - Compound V3 base supply, debt, and collateral across 20 official Comet markets on the five established networks
+
 - Exact-block Compound V3 collection with per-collateral resume checkpoints and native safety checks
+
+### Liquidity Positions
+
 - Uniswap V3 position-manager NFT discovery with concentrated-liquidity principal and fee estimates
+
 - Pool, fee-tier, tick-range, current-range-state, and liquidity details for Uniswap V3 positions
+
+### Protocol Portfolios and Health
+
 - Protocol-aware portfolio totals with supplied assets, collateral, debt, missing-price states, and receipt-token double-count protection
+
 - Protocol-position CSV and JSON exports with exact-block, range, completeness, and provider details
+
 - Protocol risk and health reports with Aave account metrics, Compound safety checks, warnings, and adapter provenance
+
 - Configurable protocol snapshot freshness with clear fresh, stale, and future-observation states
+
 - Local protocol snapshot history selection and explicit exact-block refresh controls
+
+### Linux Distribution
+
 - Self-contained AMD64 and ARM64 Debian packages with desktop launcher and AppStream metadata
 
 The complete M5 transaction-understanding test matrix and optional-provider fallbacks are documented in [docs/M5_VALIDATION.md](docs/M5_VALIDATION.md).
@@ -65,13 +143,20 @@ The complete M5 transaction-understanding test matrix and optional-provider fall
 ## Privacy and Scope
 
 - The application is read-only.
+
 - It does not request, store, or use private keys.
+
 - It does not sign or broadcast transactions.
+
 - Provider API keys are stored through the operating-system keyring when available.
+
 - Settings, SQLite state, and cache data are stored locally.
+
 - Backups intentionally exclude provider API keys.
+
 - Custom JSON-RPC endpoint URLs are stored in the keyring and excluded from backups.
-- Network requests are made only to configured data/pricing providers, Robinhood's public Stock Token API, the public xStocks asset catalog when live analytics are enabled, the ENS resolver, and Blockscout when a user requests a verified ABI or inspects a transaction.
+
+- Network requests are made only to configured data/pricing providers, Robinhood's public Stock Token API, the public xStocks catalog and requested audit-history endpoints when live analytics are enabled, the ENS resolver, and Blockscout when a user requests a verified ABI or inspects a transaction.
 
 ## Architecture
 
@@ -108,7 +193,7 @@ Oracle41 Open uses separate provider roles. A wallet-data provider supplies inde
 | Custom JSON-RPC endpoint | Transactions only | No wallet index | Available | Not used |
 | Blockscout | Explorer context | No wallet index | Contract and explorer context | Not used |
 | Robinhood public Stock Token API | Not applicable | No wallet index | Not used | Official Stock Tokens on Robinhood Chain |
-| xStocks public API | Not applicable | No wallet index | Not used | Identity only in this release |
+| xStocks public API | Identity and issuer audit history | No wallet index | Not used | Not used for pricing |
 | Centrifuge deployment registry | Not applicable | No wallet index | Not used | Reviewed identity only in this release |
 
 Alchemy currently offers the broadest coverage from one account, including indexed wallet data and transaction inspection on Robinhood Chain. GoldRush provides an independent indexed wallet-data route for Robinhood and can act as a fallback. Ankr can supply wallet data and transaction inspection on the five established networks but does not currently support Robinhood. Moralis also does not currently list Robinhood.
@@ -116,9 +201,13 @@ Alchemy currently offers the broadest coverage from one account, including index
 Common setups:
 
 - **Alchemy only:** covers the current wallet and transaction feature set on all six registered networks. Official Robinhood Stock Tokens are priced through Robinhood's public API; Robinhood protocol positions remain unavailable.
+
 - **Alchemy plus GoldRush:** adds Robinhood wallet-data failover while Alchemy continues to provide transaction inspection.
+
 - **Ankr plus Alchemy:** provides full current coverage and indexed wallet-data failover.
+
 - **Moralis or GoldRush plus custom JSON-RPC:** provides wallet analytics and transaction inspection, but dedicated market pricing remains unavailable.
+
 - **Moralis or GoldRush only:** provides wallet balances and history; advanced transaction inspection and dedicated pricing are limited.
 
 Execution traces and historical contract reads can still depend on the provider plan and chain. Oracle41 reports unavailable evidence instead of presenting an incomplete transaction as complete. See [docs/PROVIDER_STRATEGY.md](docs/PROVIDER_STRATEGY.md) for feature boundaries, failover rules, and provider-specific limitations.
@@ -144,8 +233,11 @@ This command makes real provider requests and may consume API credits. It runs o
 ## Requirements
 
 - Linux with Python 3.11 or newer when installing from source
+
 - Qt-compatible desktop environment (the application installs the required PySide6 Essentials modules)
+
 - Alchemy, Ankr, Moralis, or GoldRush API key for live wallet data
+
 - Optional system keyring integration for persistent provider keys
 
 The application can run with local stub providers when no live provider key is configured.
@@ -212,30 +304,61 @@ The package and checksum are written to `dist/`. The complete release procedure 
 Oracle41 Open uses standard Linux user directories:
 
 - Settings: `${XDG_CONFIG_HOME:-~/.config}/oracle41-open/settings.json`
+
 - SQLite state: `${XDG_DATA_HOME:-~/.local/share}/oracle41-open/state.sqlite3`
+
 - Cache: `${XDG_CACHE_HOME:-~/.cache}/oracle41-open/cache.json`
 
 The exact resolved paths depend on the platformdirs configuration and environment.
 
 ## Known Alpha Limitations
 
+### Provider Data and Validation
+
 - Provider APIs and rate limits vary by chain and account.
+
 - Token metadata quality depends on provider responses and local filtering rules.
+
 - Live provider integration tests use mocked HTTP fixtures; they do not exercise private API keys in CI.
+
+### Portfolio Valuation and Protocol Coverage
+
 - Aave V3, Compound V3, and Uniswap V3 positions use current available prices for stored snapshot amounts. Historical price-at-block valuation is not included yet.
+
 - Manual protocol refresh supports Aave V3, configured Compound V3 markets, and directly owned Uniswap V3 NFTs for one chain and block at a time.
+
 - Uniswap V3 amounts are deterministic estimates from pool state. They are not withdrawal quotes and do not include NFTs held by staking, vault, or custody contracts.
+
 - Exact protocol-block mode uses current wallet balances, so it reports a known estimate rather than a complete historical portfolio total.
+
+### Indexed History
+
 - Moralis provides active ERC-20 approvals, not a complete archive of approvals that were later revoked.
+
 - GoldRush filters block floors locally while paging wallet history, which may consume more API credits for older wallets.
+
+### Robinhood Chain and RWA Sources
+
 - Robinhood Chain wallet data is available through Alchemy and GoldRush. Ankr and Moralis do not currently support this network.
+
 - Official Robinhood Stock Tokens receive multiplier-adjusted USD prices after exact catalog contract matching. Other Robinhood ERC-20 contracts remain unpriced unless another validated source is added.
-- xStocks and Centrifuge contracts receive verified RWA labels only. This release does not use those catalogs as a general price source.
+
+- xStocks contracts receive verified RWA labels and issuer audit history; Centrifuge contracts receive verified labels. This release does not use those catalogs as a general price source.
+
+- xStocks audit refresh saves only after both requested history feeds finish their validated pagination. The current limit is 20 pages of 100 records per feed; larger histories report an error and retain the previous saved records.
+
 - Robinhood fee separation depends on the RPC receipt providing `gasUsedForL1`; otherwise the correct bundled total remains visible.
+
 - Robinhood bridge intelligence covers the canonical Arbitrum route and one observed stage at a time. Partner bridges and cross-chain transaction matching are not included yet.
+
 - No Aave V3, Compound V3, or Uniswap V3 deployment is assumed on Robinhood Chain.
+
+### Platforms, Names, and Decoding
+
 - Debian compatibility targets and derivative distributions still require clean-system validation beyond the Ubuntu CI runners.
+
 - ENS wallet input is available in Overview, Activity, and Token Detail; local metadata editors continue to use resolved hexadecimal addresses.
+
 - Decoding currently covers bundled common token-standard signatures; unknown contract interactions remain available as raw calldata and logs.
 
 ## License

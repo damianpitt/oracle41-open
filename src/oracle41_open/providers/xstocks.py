@@ -1,16 +1,22 @@
-"""Load exact tokenized equity and ETF deployments from the public xStocks catalog.
+"""Load verified deployments and issuer audit history from the public xStocks API.
 
 The public catalog does not require a key. Oracle41 accepts only EVM deployments on networks it
 already supports and indexes every published token or wrapper contract by chain and address.
 Catalog results are cached because identity data changes much less often than wallet activity.
+Action revisions and historical multiplier changes use separate validated pagination sequences.
+Numeric multiplier responses are parsed as Decimal before they enter storage or exports.
 """
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
+from uuid import UUID
 
 from oracle41_open._json import loads as json_loads
 from oracle41_open.core.models import (
@@ -21,6 +27,11 @@ from oracle41_open.core.models import (
     ProviderTimeoutError,
     RealWorldAssetCategory,
     RealWorldAssetIdentity,
+)
+from oracle41_open.core.models.xstocks_audit import (
+    XStocksAuditContext,
+    XStocksCorporateAction,
+    XStocksMultiplierChange,
 )
 from oracle41_open.providers.http_client import (
     HTTPClient,
@@ -44,11 +55,9 @@ _NETWORKS = {
 
 
 class CacheStore(Protocol):
-    def get(self, key: str) -> Any | None:
-        ...
+    def get(self, key: str) -> Any | None: ...
 
-    def set(self, key: str, value: Any, ttl_seconds: int | None = None) -> None:
-        ...
+    def set(self, key: str, value: Any, ttl_seconds: int | None = None) -> None: ...
 
 
 class XStocksAssetProvider:
@@ -99,13 +108,87 @@ class XStocksAssetProvider:
                     return _parse_assets(raw_assets)
 
         assets = self._fetch_all_assets()
+        identities = _parse_assets(assets)
         if self._cache_store is not None:
             self._cache_store.set(
                 _CACHE_KEY,
                 {"version": 1, "assets": assets},
                 ttl_seconds=self._cache_ttl_seconds,
             )
-        return _parse_assets(assets)
+        return identities
+
+    def get_audit_history(self, chain: Chain, contract_address: str) -> XStocksAuditContext | None:
+        """Fetch complete bounded history only after an exact issuer deployment match."""
+        identity = self.get_asset_identity(chain, contract_address)
+        if identity is None:
+            return None
+        network = next(name for name, candidate in _NETWORKS.items() if candidate is chain)
+        action_nodes = self._history_pages(
+            "/public/corporate-actions/history",
+            {"symbol": identity.symbol, "sortBy": "createdTimeUtc", "sortOrder": "asc"},
+            first_page=1,
+        )
+        multiplier_nodes = self._history_pages(
+            f"/public/assets/{quote(identity.symbol, safe='')}/multiplier/history",
+            {"network": network},
+            first_page=0,
+        )
+        actions: dict[tuple[str, int], XStocksCorporateAction] = {}
+        for raw in action_nodes:
+            action = _parse_action(raw, identity.symbol)
+            key = (action.event_id, action.version)
+            if key in actions and actions[key] != action:
+                raise ProviderResponseError("Conflicting xStocks action revisions.")
+            actions[key] = action
+        changes: dict[str, XStocksMultiplierChange] = {}
+        for raw in multiplier_nodes:
+            change = _parse_multiplier_change(raw)
+            if change.change_id in changes and changes[change.change_id] != change:
+                raise ProviderResponseError("Conflicting xStocks multiplier changes.")
+            changes[change.change_id] = change
+        return XStocksAuditContext(
+            identity=identity,
+            corporate_actions=tuple(
+                sorted(
+                    actions.values(), key=lambda item: (item.created_at, item.version), reverse=True
+                )
+            ),
+            multiplier_history=tuple(
+                sorted(changes.values(), key=lambda item: item.effective_at, reverse=True)
+            ),
+            fetched_at=datetime.now(tz=UTC),
+        )
+
+    def _history_pages(
+        self,
+        path: str,
+        filters: dict[str, str],
+        *,
+        first_page: int,
+    ) -> list[dict[str, Any]]:
+        """Validate each continuation and refuse to save a truncated history as complete."""
+        nodes: list[dict[str, Any]] = []
+        for number in range(first_page, first_page + self._max_pages):
+            query = urlencode({**filters, "page": number, "pageSize": 100})
+            payload = self._send_json(f"{self._base_url}{path}?{query}", preserve_decimals=True)
+            raw_nodes, page = payload.get("nodes"), payload.get("page")
+            if (
+                not isinstance(raw_nodes, list)
+                or any(not isinstance(item, dict) for item in raw_nodes)
+                or not isinstance(page, dict)
+                or isinstance(page.get("currentPage"), bool)
+                or page.get("currentPage") != number
+                or not isinstance(page.get("hasNextPage"), bool)
+            ):
+                raise ProviderResponseError("Invalid xStocks history pagination.")
+            nodes.extend(raw_nodes)
+            if not page["hasNextPage"]:
+                return nodes
+            if not raw_nodes:
+                raise ProviderResponseError("xStocks history continuation has no records.")
+        raise ProviderResponseError(
+            "xStocks history exceeded the safe page limit; saved history retained."
+        )
 
     def _fetch_all_assets(self) -> list[dict[str, Any]]:
         assets: list[dict[str, Any]] = []
@@ -121,7 +204,7 @@ class XStocksAssetProvider:
                 return assets
         raise ProviderResponseError("xStocks asset catalog exceeded the safe page limit.")
 
-    def _send_json(self, url: str) -> dict[str, Any]:
+    def _send_json(self, url: str, *, preserve_decimals: bool = False) -> dict[str, Any]:
         def operation() -> dict[str, Any]:
             try:
                 response = self._http_client.send(
@@ -138,7 +221,12 @@ class XStocksAssetProvider:
                     f"xStocks catalog request failed with HTTP {response.status_code}."
                 )
             try:
-                decoded = json_loads(response.data)
+                # Parse issuer numeric multipliers directly as Decimal, before any float rounding.
+                decoded = (
+                    json.loads(response.data, parse_float=Decimal)
+                    if preserve_decimals
+                    else json_loads(response.data)
+                )
             except ValueError as error:
                 raise ProviderResponseError("Invalid xStocks catalog response format.") from error
             if not isinstance(decoded, dict):
@@ -196,7 +284,7 @@ def _parse_assets(raw_assets: Sequence[object]) -> dict[tuple[Chain, str], RealW
                     continue
                 identity = RealWorldAssetIdentity(
                     asset_id=asset_id.strip(),
-                    symbol=symbol.strip().upper(),
+                    symbol=symbol.strip(),
                     name=name.strip(),
                     chain=chain,
                     contract_address=address,
@@ -235,4 +323,86 @@ def _is_retryable_error(error: Exception) -> bool:
     return isinstance(
         error,
         (ProviderRateLimitError, ProviderTimeoutError, ProviderNetworkError),
+    )
+
+
+def _required_text(raw: object, field: str) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise ProviderResponseError(f"xStocks history is missing {field}.")
+    return raw.strip()
+
+
+def _timestamp(raw: object, field: str) -> datetime:
+    value = _required_text(raw, field)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ProviderResponseError(f"Invalid xStocks {field}.") from error
+    if parsed.tzinfo is None:
+        raise ProviderResponseError(f"xStocks {field} has no timezone.")
+    return parsed.astimezone(UTC)
+
+
+def _positive_decimal(raw: object, field: str) -> Decimal:
+    if isinstance(raw, bool) or not isinstance(raw, (str, int, Decimal)):
+        raise ProviderResponseError(f"Invalid xStocks {field}.")
+    try:
+        value = Decimal(raw)
+    except (InvalidOperation, ValueError) as error:
+        raise ProviderResponseError(f"Invalid xStocks {field}.") from error
+    if not value.is_finite() or value <= 0:
+        raise ProviderResponseError(f"Invalid xStocks {field}.")
+    return value
+
+
+def _parse_action(raw: dict[str, Any], symbol: str) -> XStocksCorporateAction:
+    event_id = _required_text(raw.get("eventId"), "eventId")
+    try:
+        event_id = str(UUID(event_id))
+    except ValueError as error:
+        raise ProviderResponseError("Invalid xStocks corporate-action event ID.") from error
+    version = raw.get("version")
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, (int, Decimal))
+        or not Decimal(version).is_finite()
+        or version < 0
+        or version != int(version)
+    ):
+        raise ProviderResponseError("Invalid xStocks corporate-action version.")
+    reported_symbol = _required_text(raw.get("xstockSymbol"), "xstockSymbol")
+    if reported_symbol.casefold() != symbol.casefold():
+        raise ProviderResponseError("xStocks corporate action belongs to another asset.")
+    status = _required_text(raw.get("status"), "status")
+    if status not in {"Initial", "Corrected", "Cancelled", "Scheduled"}:
+        raise ProviderResponseError("Unknown xStocks corporate-action status.")
+    details: list[tuple[str, str | None]] = []
+    for key, value in raw.items():
+        if value is None or isinstance(value, (str, int, Decimal)) and not isinstance(value, bool):
+            details.append((key, str(value) if value is not None else None))
+        else:
+            raise ProviderResponseError("Invalid xStocks corporate-action detail value.")
+    return XStocksCorporateAction(
+        event_id=event_id,
+        version=int(version),
+        symbol=reported_symbol,
+        action_type=_required_text(raw.get("caType"), "caType"),
+        status=status,
+        created_at=_timestamp(raw.get("createdTimeUtc"), "createdTimeUtc"),
+        effective_at=(
+            _timestamp(raw["effectiveTimeUtc"], "effectiveTimeUtc")
+            if raw.get("effectiveTimeUtc") is not None
+            else None
+        ),
+        details=tuple(sorted(details)),
+    )
+
+
+def _parse_multiplier_change(raw: dict[str, Any]) -> XStocksMultiplierChange:
+    return XStocksMultiplierChange(
+        change_id=_required_text(raw.get("id"), "multiplier change ID"),
+        reason=_required_text(raw.get("reason"), "multiplier reason"),
+        multiplier=_positive_decimal(raw.get("multiplier"), "multiplier"),
+        previous_multiplier=_positive_decimal(raw.get("previousMultiplier"), "previousMultiplier"),
+        effective_at=_timestamp(raw.get("activationDateTime"), "activationDateTime"),
     )

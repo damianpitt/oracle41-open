@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4G is complete in `0.4.0a21`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Exact-contract xStocks and reviewed Centrifuge RWA recognition cover supported L2 deployments.
+**Implementation status:** M6.4H is complete in `0.4.0a22`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Verified xStocks deployments now have issuer action revisions and historical multiplier data; reviewed Centrifuge RWA identity covers supported L2 deployments.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -609,3 +609,15 @@ Audit export format `oracle41-rwa-audit` version 1 includes exact deployment ide
 Multiplier deduplication now uses one SQLite write transaction. Older action observations cannot overwrite newer states. Conflicting catalog identities, invalid rates or dates, and mismatched action details are rejected. Tests cover concurrent refreshes, restart persistence, more than 20 records, export integrity, offline access, and network-failure fallback.
 
 xStocks corporate-action and historical multiplier ingestion is the next proposed RWA expansion. General RWA pricing and M7 historical valuation remain separate work.
+
+### Completed Slice: M6.4H
+
+**Status:** Complete in `0.4.0a22`.
+
+M6.4H adds xStocks issuer action revisions and historical multiplier changes for verified deployments on the five established networks. It preserves original action statuses, revision numbers, event IDs, cashflow details, reasons, and activation times. EVM balances remain unchanged by the audit layer because xStocks already implements rebasing in its balance reads.
+
+The SQLite schema is version 13. A history refresh validates both paginated feeds before saving their records and exact deployment identity in one transaction. Issuer IDs are deduplicated and conflicting evidence rolls back the refresh. Saved identity and history support offline browsing after restart.
+
+The existing RWA audit browser now displays xStocks history and exports format version 2 reports. Tests cover precision, corrected and cancelled revisions, pagination conventions, limits, malformed responses, failed refreshes, migration, source-aware exports, and offline use.
+
+The README retains its content with grouped feature and limitation lists, spaced bullets, and navigation links. Large-history resume, general RWA pricing, and M7 historical portfolio valuation remain future work.

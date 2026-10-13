@@ -1,0 +1,22 @@
+{
+  "page": {"currentPage": 2, "hasNextPage": false},
+  "nodes": [
+    {
+      "eventId": "11111111-2222-4333-8444-555555555555",
+      "version": 2,
+      "xstockSymbol": "AAPLx",
+      "spvSymbol": "TEST-AAPL",
+      "caType": "CashDividend",
+      "effectiveTimeUtc": "2026-10-01T00:30:00Z",
+      "multiplierOld": "1.000000000000000001",
+      "multiplierNew": "1.002100000000000001",
+      "grossCashflowUsd": "0.26",
+      "netCashflowUsd": "0.22",
+      "withholdingTaxRate": "0.15",
+      "notes": "Corrected deterministic dividend",
+      "createdTimeUtc": "2026-10-02T12:00:00Z",
+      "status": "Corrected",
+      "xstockIsin": "CH0000000001"
+    }
+  ]
+}

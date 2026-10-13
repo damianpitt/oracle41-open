@@ -1,0 +1,12 @@
+{
+  "page": {"currentPage": 0, "hasNextPage": false},
+  "nodes": [
+    {
+      "id": "test-multiplier-change-1",
+      "reason": "Dividend",
+      "multiplier": 1.002100000000000001,
+      "previousMultiplier": 1.000000000000000001,
+      "activationDateTime": "2026-10-01T00:30:00Z"
+    }
+  ]
+}

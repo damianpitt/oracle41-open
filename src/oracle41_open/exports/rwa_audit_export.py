@@ -15,10 +15,11 @@ from pathlib import Path
 
 from oracle41_open._json import dumps as json_dumps
 from oracle41_open.core.models import Chain, RealWorldAssetIdentity, StockTokenAuditContext
+from oracle41_open.core.models.xstocks_audit import XStocksAuditContext
 from oracle41_open.core.services.address_validator import AddressValidator
 
 RWA_AUDIT_FORMAT = "oracle41-rwa-audit"
-RWA_AUDIT_VERSION = 1
+RWA_AUDIT_VERSION = 2
 _FIELDS = (
     "record_type",
     "issuer_id",
@@ -34,6 +35,11 @@ _FIELDS = (
     "first_seen_at",
     "last_seen_at",
     "source_provider",
+    "revision",
+    "created_at",
+    "effective_at",
+    "previous_multiplier",
+    "reason",
 )
 
 
@@ -43,7 +49,7 @@ class RWAAuditReport:
 
     chain: Chain
     contract_address: str
-    history: StockTokenAuditContext
+    history: StockTokenAuditContext | XStocksAuditContext
     exported_at: datetime
     identity: RealWorldAssetIdentity | None = None
 
@@ -58,6 +64,44 @@ def _rows(report: RWAAuditReport) -> list[dict[str, object]]:
     ):
         raise ValueError("Audit identity does not match the export deployment.")
     rows: list[dict[str, object]] = []
+    if isinstance(report.history, XStocksAuditContext):
+        history = report.history
+        if (
+            history.identity.chain is not report.chain
+            or history.identity.contract_address.lower() != address
+        ):
+            raise ValueError("xStocks history does not match the export deployment.")
+        for revision in history.corporate_actions:
+            rows.append(
+                {
+                    "record_type": "issuer_action_revision",
+                    "issuer_id": revision.event_id,
+                    "revision": revision.version,
+                    "symbol": revision.symbol,
+                    "status": revision.status,
+                    "action_type": revision.action_type,
+                    "details": dict(revision.details),
+                    "created_at": revision.created_at.isoformat(),
+                    "effective_at": revision.effective_at.isoformat()
+                    if revision.effective_at
+                    else None,
+                    "source_provider": history.identity.source_name,
+                }
+            )
+        for change in history.multiplier_history:
+            rows.append(
+                {
+                    "record_type": "issuer_multiplier_change",
+                    "issuer_id": change.change_id,
+                    "symbol": history.identity.symbol,
+                    "reason": change.reason,
+                    "current_multiplier": str(change.multiplier),
+                    "previous_multiplier": str(change.previous_multiplier),
+                    "effective_at": change.effective_at.isoformat(),
+                    "source_provider": history.identity.source_name,
+                }
+            )
+        return rows
     for stored in report.history.corporate_actions:
         action = stored.action
         if action.chain is not report.chain or action.contract_address.lower() != address:
@@ -106,6 +150,8 @@ def _rows(report: RWAAuditReport) -> list[dict[str, object]]:
 
 def _context(report: RWAAuditReport) -> dict[str, object]:
     identity = report.identity
+    if identity is None and isinstance(report.history, XStocksAuditContext):
+        identity = report.history.identity
     return {
         "format": RWA_AUDIT_FORMAT,
         "format_version": RWA_AUDIT_VERSION,
@@ -118,6 +164,11 @@ def _context(report: RWAAuditReport) -> dict[str, object]:
         "source_reference": identity.source_reference if identity else None,
         "audit_source_reference": "https://docs.robinhood.com/chain/stock-token-apis/"
         if report.chain is Chain.ROBINHOOD
+        else "https://docs.xstocks.fi/apis/openapi/corporate-actions"
+        if isinstance(report.history, XStocksAuditContext)
+        else None,
+        "last_successful_fetch": report.history.fetched_at.isoformat()
+        if isinstance(report.history, XStocksAuditContext)
         else None,
     }
 
