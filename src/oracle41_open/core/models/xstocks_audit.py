@@ -3,6 +3,7 @@
 Corporate-action revisions retain their event ID, version, and original status. Historical multiplier
 changes keep the issuer's activation time separate from the local fetch time. These records describe
 issuer evidence and are never applied again to EVM token balances, which already reflect rebasing.
+Page and checkpoint models keep pending sync progress separate from published history.
 """
 
 from __future__ import annotations
@@ -42,4 +43,36 @@ class XStocksAuditContext:
     identity: RealWorldAssetIdentity
     corporate_actions: tuple[XStocksCorporateAction, ...]
     multiplier_history: tuple[XStocksMultiplierChange, ...]
-    fetched_at: datetime
+    fetched_at: datetime | None
+    sync_progress: XStocksSyncProgress | None = None
+
+
+@dataclass(frozen=True)
+class XStocksHistoryPage:
+    """One validated issuer page, with the continuation belonging to its feed."""
+
+    feed: str
+    page: int
+    next_page: int | None
+    corporate_actions: tuple[XStocksCorporateAction, ...] = ()
+    multiplier_history: tuple[XStocksMultiplierChange, ...] = ()
+
+
+@dataclass(frozen=True)
+class XStocksSyncProgress:
+    """Durable staging progress; its revision protects concurrent page writers."""
+
+    identity: RealWorldAssetIdentity
+    run_id: str
+    revision: int
+    state: str
+    actions_next_page: int
+    multipliers_next_page: int
+    actions_done: bool
+    multipliers_done: bool
+    actions_pages: int
+    multipliers_pages: int
+    actions_staged: int
+    multipliers_staged: int
+    started_at: datetime
+    updated_at: datetime

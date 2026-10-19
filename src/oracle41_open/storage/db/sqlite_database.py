@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 13
+_SCHEMA_VERSION = 14
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -572,6 +572,34 @@ CREATE TABLE xstocks_multiplier_history (
 );
 """
 
+_SCHEMA_V14_SQL = """
+CREATE TABLE xstocks_sync_checkpoints (
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    run_id TEXT NOT NULL UNIQUE,
+    identity_json TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 0,
+    state TEXT NOT NULL,
+    actions_next_page INTEGER NOT NULL DEFAULT 1,
+    multipliers_next_page INTEGER NOT NULL DEFAULT 0,
+    actions_done INTEGER NOT NULL DEFAULT 0,
+    multipliers_done INTEGER NOT NULL DEFAULT 0,
+    actions_pages INTEGER NOT NULL DEFAULT 0,
+    multipliers_pages INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(chain, contract_address)
+);
+CREATE TABLE xstocks_sync_records (
+    run_id TEXT NOT NULL,
+    feed TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    PRIMARY KEY(run_id, feed, record_id),
+    FOREIGN KEY(run_id) REFERENCES xstocks_sync_checkpoints(run_id) ON DELETE CASCADE
+);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -586,6 +614,7 @@ _MIGRATIONS = {
     11: _SCHEMA_V11_SQL,
     12: _SCHEMA_V12_SQL,
     13: _SCHEMA_V13_SQL,
+    14: _SCHEMA_V14_SQL,
 }
 
 

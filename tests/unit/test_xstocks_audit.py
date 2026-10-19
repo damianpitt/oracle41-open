@@ -88,12 +88,16 @@ def test_unknown_deployment_never_requests_asset_history() -> None:
     assert len(client.requests) == 1
 
 
-def test_history_page_limit_does_not_persist_partial_evidence(tmp_path: Path) -> None:
+def test_page_budget_stages_progress_without_publishing_partial_evidence(tmp_path: Path) -> None:
     client = _HTTPClient([_fixture("assets.json"), _fixture("actions_page1.json")])
     provider = XStocksAssetProvider(http_client=client, max_pages=1)  # type: ignore[arg-type]
     repository = XStocksAuditRepository(SQLiteDatabase(tmp_path / "state.sqlite3"))
-    with pytest.raises(ProviderResponseError, match="safe page limit"):
-        XStocksAuditService(provider, repository).refresh(Chain.ARBITRUM, _ADDRESS)
+    result = XStocksAuditService(provider, repository, page_budget=1).refresh(
+        Chain.ARBITRUM, _ADDRESS
+    )
+    assert result is not None and result.sync_progress is not None
+    assert result.sync_progress.actions_next_page == 2
+    assert result.sync_progress.state == "paused"
     assert repository.load(Chain.ARBITRUM, _ADDRESS) is None
 
 
@@ -141,12 +145,15 @@ def test_refresh_failure_keeps_saved_history_and_export_is_source_aware(tmp_path
     )
     with pytest.raises(ProviderResponseError):
         service.refresh(Chain.ARBITRUM, _ADDRESS)
-    assert service.load(Chain.ARBITRUM, _ADDRESS) == history
+    retained = service.load(Chain.ARBITRUM, _ADDRESS)
+    assert retained is not None and retained.sync_progress is not None
+    assert retained.sync_progress.state == "failed"
+    assert replace(retained, sync_progress=None) == history
     assert service.load(Chain.BASE, _ADDRESS) is None
     report = RWAAuditReport(Chain.ARBITRUM, _ADDRESS, history, datetime.now(tz=UTC))
     payload = json.loads(rwa_audit_json_bytes(report))
     rows = list(csv.DictReader(StringIO(rwa_audit_csv_text(report))))
-    assert payload["format_version"] == 2
+    assert payload["format_version"] == 3
     assert "xstocks" in payload["audit_source_reference"]
     assert len(rows) == 3
     assert payload["items"][-1]["current_multiplier"] == "1.002100000000000001"
@@ -206,5 +213,5 @@ def test_schema_v12_migrates_to_xstocks_history(tmp_path: Path) -> None:
         """)
     database = SQLiteDatabase(path)
     with database.connection() as conn:
-        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "13"
+        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "14"
         assert conn.execute("SELECT COUNT(*) FROM xstocks_corporate_actions").fetchone()[0] == 0

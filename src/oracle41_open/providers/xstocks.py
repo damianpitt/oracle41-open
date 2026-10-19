@@ -31,6 +31,7 @@ from oracle41_open.core.models import (
 from oracle41_open.core.models.xstocks_audit import (
     XStocksAuditContext,
     XStocksCorporateAction,
+    XStocksHistoryPage,
     XStocksMultiplierChange,
 )
 from oracle41_open.providers.http_client import (
@@ -171,23 +172,48 @@ class XStocksAssetProvider:
         for number in range(first_page, first_page + self._max_pages):
             query = urlencode({**filters, "page": number, "pageSize": 100})
             payload = self._send_json(f"{self._base_url}{path}?{query}", preserve_decimals=True)
-            raw_nodes, page = payload.get("nodes"), payload.get("page")
-            if (
-                not isinstance(raw_nodes, list)
-                or any(not isinstance(item, dict) for item in raw_nodes)
-                or not isinstance(page, dict)
-                or isinstance(page.get("currentPage"), bool)
-                or page.get("currentPage") != number
-                or not isinstance(page.get("hasNextPage"), bool)
-            ):
-                raise ProviderResponseError("Invalid xStocks history pagination.")
+            raw_nodes, has_next = _validated_page(payload, number)
             nodes.extend(raw_nodes)
-            if not page["hasNextPage"]:
+            if not has_next:
                 return nodes
-            if not raw_nodes:
-                raise ProviderResponseError("xStocks history continuation has no records.")
         raise ProviderResponseError(
             "xStocks history exceeded the safe page limit; saved history retained."
+        )
+
+    def get_history_page(
+        self,
+        identity: RealWorldAssetIdentity,
+        feed: str,
+        page: int,
+    ) -> XStocksHistoryPage:
+        """Load one feed page; the service verifies catalog identity before starting a run."""
+        if identity.source_name != _SOURCE_NAME or identity.chain not in _NETWORKS.values():
+            raise ProviderResponseError("Unsupported xStocks history deployment.")
+        if feed == "actions" and page >= 1:
+            path = "/public/corporate-actions/history"
+            filters = {"symbol": identity.symbol, "sortBy": "createdTimeUtc", "sortOrder": "asc"}
+        elif feed == "multipliers" and page >= 0:
+            path = f"/public/assets/{quote(identity.symbol, safe='')}/multiplier/history"
+            filters = {
+                "network": next(
+                    name for name, chain in _NETWORKS.items() if chain is identity.chain
+                )
+            }
+        else:
+            raise ProviderResponseError("Invalid xStocks history feed or page.")
+        query = urlencode({**filters, "page": page, "pageSize": 100})
+        payload = self._send_json(f"{self._base_url}{path}?{query}", preserve_decimals=True)
+        nodes, has_next = _validated_page(payload, page)
+        return XStocksHistoryPage(
+            feed=feed,
+            page=page,
+            next_page=page + 1 if has_next else None,
+            corporate_actions=tuple(_parse_action(raw, identity.symbol) for raw in nodes)
+            if feed == "actions"
+            else (),
+            multiplier_history=tuple(_parse_multiplier_change(raw) for raw in nodes)
+            if feed == "multipliers"
+            else (),
         )
 
     def _fetch_all_assets(self) -> list[dict[str, Any]]:
@@ -330,6 +356,22 @@ def _required_text(raw: object, field: str) -> str:
     if not isinstance(raw, str) or not raw.strip():
         raise ProviderResponseError(f"xStocks history is missing {field}.")
     return raw.strip()
+
+
+def _validated_page(payload: dict[str, Any], number: int) -> tuple[list[dict[str, Any]], bool]:
+    nodes, page = payload.get("nodes"), payload.get("page")
+    if (
+        not isinstance(nodes, list)
+        or any(not isinstance(item, dict) for item in nodes)
+        or not isinstance(page, dict)
+        or isinstance(page.get("currentPage"), bool)
+        or page.get("currentPage") != number
+        or not isinstance(page.get("hasNextPage"), bool)
+    ):
+        raise ProviderResponseError("Invalid xStocks history pagination.")
+    if page["hasNextPage"] and not nodes:
+        raise ProviderResponseError("xStocks history continuation has no records.")
+    return nodes, page["hasNextPage"]
 
 
 def _timestamp(raw: object, field: str) -> datetime:

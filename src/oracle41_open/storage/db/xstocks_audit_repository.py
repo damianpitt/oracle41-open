@@ -7,6 +7,7 @@ remain available after a corrected or cancelled revision arrives. Saved identity
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import asdict
 from decimal import Decimal
 
@@ -25,65 +26,16 @@ class XStocksAuditRepository:
     def __init__(self, database: SQLiteDatabase) -> None:
         self._database = database
 
+    @property
+    def database(self) -> SQLiteDatabase:
+        """Share storage with the staging repository used for atomic publication."""
+        return self._database
+
     def save(self, history: XStocksAuditContext) -> None:
-        """Commit validated issuer evidence and the successful fetch time atomically."""
-        identity = history.identity
-        chain, address = identity.chain.value, normalize_address_or_raise(identity.contract_address)
-        if identity.source_name != "xstocks-public-api":
-            raise ValueError("xStocks audit requires an issuer catalog identity.")
+        """Publish verified history in one transaction."""
         with self._database.connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            previous = conn.execute(
-                "SELECT identity_json, fetched_at FROM xstocks_audit_deployments "
-                "WHERE chain = ? AND contract_address = ?",
-                (chain, address),
-            ).fetchone()
-            if previous is not None:
-                if loads(previous["identity_json"])["asset_id"] != identity.asset_id:
-                    raise ValueError("xStocks issuer identity changed for this deployment.")
-                if parse_datetime(previous["fetched_at"]) > history.fetched_at:
-                    return
-            conn.execute(
-                """INSERT INTO xstocks_audit_deployments VALUES (?, ?, ?, ?)
-                ON CONFLICT(chain, contract_address) DO UPDATE SET
-                identity_json = excluded.identity_json, fetched_at = excluded.fetched_at""",
-                (chain, address, _text(asdict(identity)), history.fetched_at.isoformat()),
-            )
-            for action in history.corporate_actions:
-                if action.symbol.casefold() != identity.symbol.casefold():
-                    raise ValueError("Corporate action belongs to another xStocks asset.")
-                payload = _text(_action_payload(action))
-                previous = conn.execute(
-                    "SELECT payload_json FROM xstocks_corporate_actions "
-                    "WHERE chain = ? AND contract_address = ? AND event_id = ? AND version = ?",
-                    (chain, address, action.event_id, action.version),
-                ).fetchone()
-                if previous is not None and previous["payload_json"] != payload:
-                    raise ValueError("Conflicting saved xStocks action revision.")
-                conn.execute(
-                    "INSERT OR IGNORE INTO xstocks_corporate_actions VALUES (?, ?, ?, ?, ?, ?)",
-                    (
-                        chain,
-                        address,
-                        action.event_id,
-                        action.version,
-                        action.created_at.isoformat(),
-                        payload,
-                    ),
-                )
-            for change in history.multiplier_history:
-                payload = _text(_change_payload(change))
-                previous = conn.execute(
-                    "SELECT payload_json FROM xstocks_multiplier_history "
-                    "WHERE chain = ? AND contract_address = ? AND change_id = ?",
-                    (chain, address, change.change_id),
-                ).fetchone()
-                if previous is not None and previous["payload_json"] != payload:
-                    raise ValueError("Conflicting saved xStocks multiplier change.")
-                conn.execute(
-                    "INSERT OR IGNORE INTO xstocks_multiplier_history VALUES (?, ?, ?, ?, ?)",
-                    (chain, address, change.change_id, change.effective_at.isoformat(), payload),
-                )
+            _save_history(conn, history)
 
     def load(self, chain: Chain, contract_address: str) -> XStocksAuditContext | None:
         """Read one consistent local snapshot without contacting the issuer."""
@@ -172,3 +124,64 @@ def _change_from_payload(raw: dict[str, object]) -> XStocksMultiplierChange:
         previous_multiplier=Decimal(str(raw["previous_multiplier"])),
         effective_at=parse_datetime(raw["effective_at"]),
     )
+
+
+def _save_history(conn: sqlite3.Connection, history: XStocksAuditContext) -> None:
+    """Publish on an existing write transaction, including sync finalization."""
+    if history.fetched_at is None:
+        raise ValueError("Cannot publish an unfinished xStocks sync.")
+    identity = history.identity
+    chain, address = identity.chain.value, normalize_address_or_raise(identity.contract_address)
+    if identity.source_name != "xstocks-public-api":
+        raise ValueError("xStocks audit requires an issuer catalog identity.")
+    previous = conn.execute(
+        "SELECT identity_json, fetched_at FROM xstocks_audit_deployments "
+        "WHERE chain = ? AND contract_address = ?",
+        (chain, address),
+    ).fetchone()
+    if previous is not None:
+        if loads(previous["identity_json"])["asset_id"] != identity.asset_id:
+            raise ValueError("xStocks issuer identity changed for this deployment.")
+        if parse_datetime(previous["fetched_at"]) > history.fetched_at:
+            return
+    conn.execute(
+        """INSERT INTO xstocks_audit_deployments VALUES (?, ?, ?, ?)
+        ON CONFLICT(chain, contract_address) DO UPDATE SET
+        identity_json = excluded.identity_json, fetched_at = excluded.fetched_at""",
+        (chain, address, _text(asdict(identity)), history.fetched_at.isoformat()),
+    )
+    for action in history.corporate_actions:
+        if action.symbol.casefold() != identity.symbol.casefold():
+            raise ValueError("Corporate action belongs to another xStocks asset.")
+        payload = _text(_action_payload(action))
+        previous = conn.execute(
+            "SELECT payload_json FROM xstocks_corporate_actions "
+            "WHERE chain = ? AND contract_address = ? AND event_id = ? AND version = ?",
+            (chain, address, action.event_id, action.version),
+        ).fetchone()
+        if previous is not None and previous["payload_json"] != payload:
+            raise ValueError("Conflicting saved xStocks action revision.")
+        conn.execute(
+            "INSERT OR IGNORE INTO xstocks_corporate_actions VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                chain,
+                address,
+                action.event_id,
+                action.version,
+                action.created_at.isoformat(),
+                payload,
+            ),
+        )
+    for change in history.multiplier_history:
+        payload = _text(_change_payload(change))
+        previous = conn.execute(
+            "SELECT payload_json FROM xstocks_multiplier_history "
+            "WHERE chain = ? AND contract_address = ? AND change_id = ?",
+            (chain, address, change.change_id),
+        ).fetchone()
+        if previous is not None and previous["payload_json"] != payload:
+            raise ValueError("Conflicting saved xStocks multiplier change.")
+        conn.execute(
+            "INSERT OR IGNORE INTO xstocks_multiplier_history VALUES (?, ?, ?, ?, ?)",
+            (chain, address, change.change_id, change.effective_at.isoformat(), payload),
+        )

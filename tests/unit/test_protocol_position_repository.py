@@ -65,7 +65,7 @@ def test_database_migrates_v9_to_protocol_schema(tmp_path: Path) -> None:
             ).fetchall()
         }
 
-    assert version == ("13",)
+    assert version == ("14",)
     assert {"protocol_snapshots", "protocol_sync_checkpoints"}.issubset(tables)
 
 
@@ -77,7 +77,9 @@ def test_checkpoint_round_trip_survives_repository_restart(tmp_path: Path) -> No
     repository.save_checkpoint(checkpoint)
     restarted = ProtocolPositionRepository(SQLiteDatabase(database.file_path))
 
-    assert restarted.get_checkpoint(_WALLET.upper(), Chain.ETHEREUM, "aave-v3", _BLOCK) == checkpoint
+    assert (
+        restarted.get_checkpoint(_WALLET.upper(), Chain.ETHEREUM, "aave-v3", _BLOCK) == checkpoint
+    )
 
 
 def test_finished_snapshot_round_trip_removes_checkpoint(tmp_path: Path) -> None:

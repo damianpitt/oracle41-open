@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4H is complete in `0.4.0a22`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Verified xStocks deployments now have issuer action revisions and historical multiplier data; reviewed Centrifuge RWA identity covers supported L2 deployments.
+**Implementation status:** M6.4I is complete in `0.4.0a23`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Verified xStocks deployments have issuer action revisions, historical multiplier data, and resumable history synchronization; reviewed Centrifuge RWA identity covers supported L2 deployments.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -621,3 +621,17 @@ The SQLite schema is version 13. A history refresh validates both paginated feed
 The existing RWA audit browser now displays xStocks history and exports format version 2 reports. Tests cover precision, corrected and cancelled revisions, pagination conventions, limits, malformed responses, failed refreshes, migration, source-aware exports, and offline use.
 
 The README retains its content with grouped feature and limitation lists, spaced bullets, and navigation links. Large-history resume, general RWA pricing, and M7 historical portfolio valuation remain future work.
+
+### Completed Slice: M6.4I
+
+**Status:** Complete in `0.4.0a23`.
+
+M6.4I adds resumable xStocks corporate-action and multiplier-history collection. SQLite schema version 14 stores pending records and independent next-page checkpoints. Each run requests up to 20 pages of 100 records across both feeds, and later runs continue from the last saved page. There is no longer a 20-page total-history limit in the application sync service.
+
+Each page and its checkpoint commit together. A run ID and revision check reject stale writers. Both feeds must finish before records join published history, and publication removes pending state in the same transaction. A failed publication retains its resume point. Starting a fresh run discards only pending records, not published history.
+
+The audit browser adds progress, Pause Sync, Resume Audit Sync, and Start New Sync. Saved progress is available offline and survives restart. Export format version 3 includes pending status, per-feed progress, and the last completed fetch without mixing staged records into published history.
+
+Tests cover 2,100 action records over multiple runs, restart, independent feed failures, pause, overlapping records, conflicting evidence, stale writers, page-write rollback, publication rollback, schema migration, exports, and offline browser controls.
+
+The issuer endpoints use page numbers, not immutable snapshot cursors. Completion means both traversals reached their reported end; issuer changes can shift pages. General RWA pricing, Centrifuge fund history, and M7 historical portfolio valuation remain separate work.

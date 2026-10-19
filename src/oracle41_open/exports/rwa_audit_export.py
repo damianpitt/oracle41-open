@@ -1,8 +1,9 @@
 """Write saved RWA corporate actions and multiplier observations as audit reports.
 
-Reports describe all locally saved history for one chain and contract. Decimal values stay as text
+Reports describe published local history for one chain and contract. Decimal values stay as text
 to preserve precision. CSV stores action details as JSON in one cell; JSON preserves named fields.
 Both formats identify their scope so local observations cannot imply complete issuer history.
+Pending xStocks progress is exported as context, never as completed issuer records.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from oracle41_open.core.models.xstocks_audit import XStocksAuditContext
 from oracle41_open.core.services.address_validator import AddressValidator
 
 RWA_AUDIT_FORMAT = "oracle41-rwa-audit"
-RWA_AUDIT_VERSION = 2
+RWA_AUDIT_VERSION = 3
 _FIELDS = (
     "record_type",
     "issuer_id",
@@ -155,7 +156,9 @@ def _context(report: RWAAuditReport) -> dict[str, object]:
     return {
         "format": RWA_AUDIT_FORMAT,
         "format_version": RWA_AUDIT_VERSION,
-        "history_scope": "all_locally_saved_records",
+        "history_scope": "published_locally_saved_records"
+        if isinstance(report.history, XStocksAuditContext)
+        else "all_locally_saved_records",
         "chain": report.chain.value,
         "contract_address": AddressValidator.normalized(report.contract_address),
         "exported_at": report.exported_at.isoformat(),
@@ -168,8 +171,55 @@ def _context(report: RWAAuditReport) -> dict[str, object]:
         if isinstance(report.history, XStocksAuditContext)
         else None,
         "last_successful_fetch": report.history.fetched_at.isoformat()
-        if isinstance(report.history, XStocksAuditContext)
+        if isinstance(report.history, XStocksAuditContext) and report.history.fetched_at is not None
         else None,
+        **_sync_context(report),
+    }
+
+
+def _sync_context(report: RWAAuditReport) -> dict[str, object]:
+    """Describe pending collection separately from the published records in this report."""
+    # Keep the same columns for completed, pending, and Robinhood reports.
+    context: dict[str, object] = {
+        "sync_status": "not_tracked",
+        "sync_run_id": None,
+        "sync_started_at": None,
+        "sync_updated_at": None,
+        "actions_complete": None,
+        "multipliers_complete": None,
+        "actions_next_page": None,
+        "multipliers_next_page": None,
+        "actions_pages_saved": None,
+        "multipliers_pages_saved": None,
+        "actions_staged": None,
+        "multipliers_staged": None,
+    }
+    if not isinstance(report.history, XStocksAuditContext):
+        return context
+    progress = report.history.sync_progress
+    if progress is None:
+        complete = report.history.fetched_at is not None
+        return {
+            **context,
+            "sync_status": "complete" if complete else "not_synced",
+            "actions_complete": complete,
+            "multipliers_complete": complete,
+        }
+    return {
+        "sync_status": progress.state,
+        "sync_run_id": progress.run_id,
+        "sync_started_at": progress.started_at.isoformat(),
+        "sync_updated_at": progress.updated_at.isoformat(),
+        "actions_complete": progress.actions_done,
+        "multipliers_complete": progress.multipliers_done,
+        "actions_next_page": None if progress.actions_done else progress.actions_next_page,
+        "multipliers_next_page": None
+        if progress.multipliers_done
+        else progress.multipliers_next_page,
+        "actions_pages_saved": progress.actions_pages,
+        "multipliers_pages_saved": progress.multipliers_pages,
+        "actions_staged": progress.actions_staged,
+        "multipliers_staged": progress.multipliers_staged,
     }
 
 
@@ -185,7 +235,15 @@ def rwa_audit_csv_text(report: RWAAuditReport) -> str:
     output = StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()
-    for row in _rows(report):
+    rows = _rows(report)
+    # A first sync may have progress but no published rows; keep that context in CSV too.
+    if (
+        not rows
+        and isinstance(report.history, XStocksAuditContext)
+        and report.history.sync_progress
+    ):
+        rows = [{"record_type": "sync_status"}]
+    for row in rows:
         details = row.get("details")
         if details is not None:
             row["details"] = json_dumps(details, pretty=False).decode("utf-8")

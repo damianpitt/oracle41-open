@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a22] - Unreleased
+## [0.4.0a23] - Unreleased
+
+### Added
+
+- Resumable xStocks corporate-action and multiplier-history synchronization with independent feed checkpoints.
+- SQLite schema version 14 with pending page records, atomic checkpoint updates, and stale-writer protection.
+- Pause Sync, Resume Audit Sync, Start New Sync, offline progress, and last completed fetch details in the RWA audit browser.
+- RWA audit export format version 3 with sync status and per-feed progress, separate from published history.
+- Tests for 2,100-record histories, restart, feed failures, pause, deduplication, conflicts, concurrent writers, migration, page-write rollback, publication rollback, and browser controls.
+
+### Changed
+
+- Each sync run requests up to 20 pages of 100 records across both feeds. Later runs continue where collection stopped instead of rejecting larger histories.
+- Validated pages and resume points are saved together. Both feeds must finish before records join published history.
+- Publication and pending-state cleanup share one transaction. Failures retain the previous published history and a usable resume point.
+- Audit controls use separate sync and export rows for more comfortable spacing.
+
+### Known Limitations
+
+- xStocks uses page-number pagination. Issuer changes during collection can shift records; reaching both feed ends does not prove a fixed or independently complete historical snapshot.
+- Pause takes effect between requests. It does not cancel an HTTP request already in flight.
+- Robinhood keeps its existing audit refresh behavior. These new page checkpoints apply to xStocks, not Centrifuge or all RWA sources.
+- General xStocks pricing, Centrifuge fund history, and historical portfolio valuation remain separate work.
+
+## [0.4.0a22] - 2026-10-13
 
 ### Added
 

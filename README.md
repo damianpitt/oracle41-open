@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a22` is an alpha release.
+Version `0.4.0a23` is an alpha release.
 
 Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated.
 
@@ -75,6 +75,8 @@ Browse this README: [Features](#features) | [Privacy](#privacy-and-scope) | [Arc
 - Exact-contract xStocks and reviewed Centrifuge RWA recognition across supported L2 networks
 
 - xStocks corporate-action revisions and issuer multiplier history with durable storage, offline browsing, and audit exports
+
+- Resumable xStocks history sync with saved page checkpoints, pause/resume controls, progress, and separate pending records
 
 ### Transaction Understanding
 
@@ -345,7 +347,9 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 
 - xStocks contracts receive verified RWA labels and issuer audit history; Centrifuge contracts receive verified labels. This release does not use those catalogs as a general price source.
 
-- xStocks audit refresh saves only after both requested history feeds finish their validated pagination. The current limit is 20 pages of 100 records per feed; larger histories report an error and retain the previous saved records.
+- xStocks audit sync saves each validated page and its resume point in SQLite. Each run requests up to 20 pages of 100 records across both feeds; larger histories continue with **Resume Audit Sync**, including after restart. **Pause Sync** stops after the current page, and **Start New Sync** revisits earlier pages without deleting published history.
+
+- In-progress xStocks records stay separate from published history until both feeds finish. The browser and exports show sync status and the last completed fetch. Issuer pages can change while collection is running, so finishing a sync does not prove a fixed historical snapshot or complete issuer coverage.
 
 - Robinhood fee separation depends on the RPC receipt providing `gasUsedForL1`; otherwise the correct bundled total remains visible.
 

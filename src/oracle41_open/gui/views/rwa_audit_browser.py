@@ -2,7 +2,8 @@
 
 The browser loads SQLite history independently of wallet activity. Refresh uses the public issuer
 catalog in the background and keeps saved records visible when the network fails. Selecting a row
-shows its full source details, and exports include every loaded local record for that deployment.
+shows its full source details, and exports include published local records for that deployment.
+xStocks sync can pause or resume at saved page boundaries, with pending progress shown separately.
 """
 
 from __future__ import annotations
@@ -10,8 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Event
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QGroupBox,
@@ -30,7 +33,7 @@ from oracle41_open.core.models import (
     RealWorldAssetIdentity,
     StockTokenAuditContext,
 )
-from oracle41_open.core.models.xstocks_audit import XStocksAuditContext
+from oracle41_open.core.models.xstocks_audit import XStocksAuditContext, XStocksSyncProgress
 from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.exports.rwa_audit_export import RWAAuditReport, write_rwa_audit
 from oracle41_open.gui.task_runner import BackgroundTaskRunner
@@ -48,6 +51,8 @@ class _HistoryResult:
 class RWAAuditBrowser(QGroupBox):
     """Provide local browsing, explicit refresh, and audit exports for a selected token."""
 
+    sync_progress = Signal(object)
+
     def __init__(self, container: AppContainer) -> None:
         super().__init__("RWA Audit History")
         self._container = container
@@ -59,22 +64,33 @@ class RWAAuditBrowser(QGroupBox):
         self._identity: RealWorldAssetIdentity | None = None
         self._history: StockTokenAuditContext | XStocksAuditContext = StockTokenAuditContext((), ())
         self._busy = False
+        self._syncing = False
+        self._cancel_sync = Event()
+        self.sync_progress.connect(self._on_sync_progress)
         self._load_button = QPushButton("Load Saved History")
         self._refresh_button = QPushButton("Refresh Audit History")
         self._csv_button = QPushButton("Export Audit CSV")
         self._json_button = QPushButton("Export Audit JSON")
+        self._restart_button = QPushButton("Start New Sync")
+        self._pause_button = QPushButton("Pause Sync")
         self._load_button.clicked.connect(self.load_saved)
         self._refresh_button.clicked.connect(lambda: self._start(refresh=True))
         self._csv_button.clicked.connect(lambda: self._export(as_json=False))
         self._json_button.clicked.connect(lambda: self._export(as_json=True))
+        self._restart_button.clicked.connect(lambda: self._start(refresh=True, restart=True))
+        self._pause_button.clicked.connect(self._pause_sync)
         buttons = QHBoxLayout()
         for button in (
             self._load_button,
             self._refresh_button,
-            self._csv_button,
-            self._json_button,
+            self._restart_button,
+            self._pause_button,
         ):
             buttons.addWidget(button)
+        exports = QHBoxLayout()
+        exports.addWidget(self._csv_button)
+        exports.addWidget(self._json_button)
+        exports.addStretch()
         self._status = QLabel("Select a token contract to browse saved issuer audit history.")
         self._status.setWordWrap(True)
         self._actions = QListWidget()
@@ -90,6 +106,7 @@ class RWAAuditBrowser(QGroupBox):
         self._tabs.currentChanged.connect(self._show_selected_record)
         layout = QVBoxLayout(self)
         layout.addLayout(buttons)
+        layout.addLayout(exports)
         layout.addWidget(self._status)
         layout.addWidget(self._tabs)
         layout.addWidget(self._details)
@@ -106,6 +123,7 @@ class RWAAuditBrowser(QGroupBox):
         """Discard late results and clear rows when the selected deployment changes."""
         address = AddressValidator.normalized(address)
         if (chain, address) != (self._chain, self._address):
+            self._cancel_sync.set()
             self._runner.cancel_all()
             self._busy = False
             self._history = StockTokenAuditContext((), ())
@@ -121,14 +139,17 @@ class RWAAuditBrowser(QGroupBox):
         """Read all stored rows without requiring a wallet or live provider."""
         self._start(refresh=False)
 
-    def _start(self, *, refresh: bool) -> None:
+    def _start(self, *, refresh: bool, restart: bool = False) -> None:
         if self._busy:
             return
         if AddressValidator.validation_error(self._address) is not None:
             return
         address = self._address
         chain = self._chain
+        self._cancel_sync = Event()
+        cancel_sync = self._cancel_sync
         self._busy = True
+        self._syncing = refresh and chain is not Chain.ROBINHOOD
         self._update_buttons()
         self._status.setText(
             "Refreshing audit history..." if refresh else "Loading saved history..."
@@ -140,9 +161,17 @@ class RWAAuditBrowser(QGroupBox):
                 note = "Showing locally saved xStocks issuer history."
                 if refresh:
                     try:
-                        history = xstocks_service.refresh(chain, address)
+                        history = xstocks_service.refresh(
+                            chain,
+                            address,
+                            restart=restart,
+                            cancel_requested=cancel_sync.is_set,
+                            on_progress=lambda progress: self.sync_progress.emit(
+                                (cancel_sync, progress)
+                            ),
+                        )
                         note = (
-                            "xStocks history refreshed from the issuer."
+                            "xStocks sync progress saved."
                             if history is not None
                             else "Contract is not in the xStocks catalog."
                         )
@@ -193,8 +222,8 @@ class RWAAuditBrowser(QGroupBox):
                     f"to {change.multiplier} | {change.reason}"
                 )
             self._status.setText(
-                f"{result.note} Last saved fetch: {self._history.fetched_at.isoformat()}. "
-                "Issuer multiplier history is shown for inspection; EVM balances already include rebasing."
+                f"{result.note} {_sync_description(self._history)} "
+                "Published records are shown below; staged records remain separate."
             )
             self._busy = False
             self._update_buttons()
@@ -233,6 +262,17 @@ class RWAAuditBrowser(QGroupBox):
             valid and not self._busy and self._container.uses_live_providers
         )
         has_records = bool(self._history.corporate_actions or self._history.multiplier_history)
+        pending = (
+            self._history.sync_progress if isinstance(self._history, XStocksAuditContext) else None
+        )
+        self._refresh_button.setText("Resume Audit Sync" if pending else "Refresh Audit History")
+        self._restart_button.setVisible(self._chain is not Chain.ROBINHOOD)
+        self._pause_button.setVisible(self._chain is not Chain.ROBINHOOD)
+        self._restart_button.setEnabled(
+            bool(pending) and not self._busy and self._container.uses_live_providers
+        )
+        self._pause_button.setEnabled(self._busy and self._syncing)
+        has_records = has_records or pending is not None
         self._csv_button.setEnabled(has_records and not self._busy)
         self._json_button.setEnabled(has_records and not self._busy)
 
@@ -310,7 +350,13 @@ class RWAAuditBrowser(QGroupBox):
         )
 
     def _export(self, *, as_json: bool) -> None:
-        if self._busy or not (self._history.corporate_actions or self._history.multiplier_history):
+        pending = (
+            isinstance(self._history, XStocksAuditContext)
+            and self._history.sync_progress is not None
+        )
+        if self._busy or not (
+            self._history.corporate_actions or self._history.multiplier_history or pending
+        ):
             return
         suffix = "json" if as_json else "csv"
         name, _ = QFileDialog.getSaveFileName(
@@ -334,3 +380,41 @@ class RWAAuditBrowser(QGroupBox):
             self._status.setText(f"Could not export audit history: {error}")
         else:
             self._status.setText(f"Audit export saved: {path}")
+
+    def _pause_sync(self) -> None:
+        self._cancel_sync.set()
+        self._status.setText("Pausing after the current page; committed progress will be kept.")
+        self._pause_button.setEnabled(False)
+
+    def _on_sync_progress(self, message: object) -> None:
+        if not isinstance(message, tuple) or len(message) != 2:
+            return
+        cancellation, progress = message
+        if (
+            cancellation is self._cancel_sync
+            and not cancellation.is_set()
+            and isinstance(progress, XStocksSyncProgress)
+        ):
+            self._status.setText(_progress_description(progress))
+
+
+def _progress_description(progress: XStocksSyncProgress) -> str:
+    actions = "finished" if progress.actions_done else f"next page {progress.actions_next_page}"
+    multipliers = (
+        "finished" if progress.multipliers_done else f"next page {progress.multipliers_next_page}"
+    )
+    return (
+        f"Sync {progress.state}. Actions: {actions}, {progress.actions_staged} staged records. "
+        f"Multipliers: {multipliers}, {progress.multipliers_staged} staged records. "
+        f"Pages saved: {progress.actions_pages + progress.multipliers_pages}."
+    )
+
+
+def _sync_description(history: XStocksAuditContext) -> str:
+    last = history.fetched_at.isoformat() if history.fetched_at is not None else "none yet"
+    status = (
+        _progress_description(history.sync_progress)
+        if history.sync_progress
+        else "Both feed traversals finished."
+    )
+    return f"{status} Last completed sync: {last}."
