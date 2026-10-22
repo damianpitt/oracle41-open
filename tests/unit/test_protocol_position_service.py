@@ -138,7 +138,7 @@ def test_aave_collector_rejects_mixed_provider_snapshot() -> None:
     assert result.risk_snapshot is not None
     assert result.risk_snapshot.provenance.source_provider == "primary"
     issue = next(item for item in result.raw_evidence if item.kind == "aave_v3_collection_issue")
-    assert issue.value("error_type") == "ProviderResponseError"
+    assert issue.value("error_type") == "SnapshotContextError"
 
 
 def test_aave_collector_requires_reserve_discovery() -> None:

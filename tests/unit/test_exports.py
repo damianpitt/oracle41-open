@@ -114,18 +114,14 @@ def test_wallet_action_exports_preserve_nested_evidence_and_version() -> None:
         normalizer_version="1",
     )
 
-    rows = list(
-        csv.reader(wallet_actions_csv_text(actions, action_set=action_set).splitlines())
-    )
+    rows = list(csv.reader(wallet_actions_csv_text(actions, action_set=action_set).splitlines()))
     evidence_index = rows[0].index("evidence")
     assert rows[1][3] == "transfer"
     assert "log:3" in rows[1][evidence_index]
     assert rows[1][rows[0].index("action_set_completeness")] == "partial"
     assert rows[1][rows[0].index("trace_status")] == "unsupported"
 
-    payload = json_loads(
-        wallet_actions_json_bytes(actions, pretty=False, action_set=action_set)
-    )
+    payload = json_loads(wallet_actions_json_bytes(actions, pretty=False, action_set=action_set))
     assert payload["format"] == "oracle41-wallet-actions"
     assert payload["format_version"] == 2
     assert payload["context"]["action_set_completeness"] == "partial"
@@ -274,12 +270,10 @@ def test_portfolio_exports_support_all_templates() -> None:
         "export_format",
         "export_format_version",
     ]
-    assert summary_rows[1][-2:] == ["oracle41-portfolio", "4"]
+    assert summary_rows[1][-2:] == ["oracle41-portfolio", "5"]
 
     chain_rows = list(
-        csv.reader(
-            portfolio_csv_text(result, template=PortfolioExportTemplate.CHAINS).splitlines()
-        )
+        csv.reader(portfolio_csv_text(result, template=PortfolioExportTemplate.CHAINS).splitlines())
     )
     assert chain_rows[0] == [
         "chain",
@@ -334,7 +328,7 @@ def test_portfolio_exports_support_all_templates() -> None:
     )
     assert protocol_payload["template"] == "protocol_positions"
     assert protocol_payload["format"] == "oracle41-portfolio"
-    assert protocol_payload["format_version"] == 4
+    assert protocol_payload["format_version"] == 5
     assert protocol_payload["items"][0]["asset_role"] == "borrowed"
     assert protocol_payload["items"][0]["block_number"] == 24_000_000
 
@@ -348,10 +342,7 @@ def test_portfolio_exports_support_all_templates() -> None:
     )
     assert risk_rows[1][risk_rows[0].index("health_factor")] == "4.125"
     assert risk_rows[1][risk_rows[0].index("adapter_id")] == "aave-v3"
-    assert (
-        risk_rows[1][risk_rows[0].index("source_reference")]
-        == "aave-v3:ethereum:24000000"
-    )
+    assert risk_rows[1][risk_rows[0].index("source_reference")] == "aave-v3:ethereum:24000000"
     assert risk_rows[1][risk_rows[0].index("observation_age_seconds")] == "1800"
 
     risk_payload = json_loads(
@@ -363,9 +354,7 @@ def test_portfolio_exports_support_all_templates() -> None:
     )
     assert risk_payload["items"][0]["health_factor"] == "4.125"
     assert risk_payload["items"][0]["adapter_version"] == "1.0.0"
-    assert risk_payload["items"][0]["risk_state"] == (
-        "above_or_equal_liquidation_threshold"
-    )
+    assert risk_payload["items"][0]["risk_state"] == ("above_or_equal_liquidation_threshold")
     assert risk_payload["items"][0]["observation_freshness"] == "fresh"
     assert risk_payload["items"][0]["is_borrow_collateralized"] is None
     assert risk_payload["items"][0]["is_liquidatable"] is None

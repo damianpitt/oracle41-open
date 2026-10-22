@@ -35,8 +35,7 @@ class ContractStateReader(Protocol):
         call_data: str,
         chain: Chain,
         block_number: int,
-    ) -> ContractReadResult:
-        ...
+    ) -> ContractReadResult: ...
 
 
 class ProtocolSnapshotRepository(Protocol):
@@ -48,8 +47,7 @@ class ProtocolSnapshotRepository(Protocol):
         chain: Chain,
         protocol_id: str,
         block_number: int,
-    ) -> StoredProtocolSnapshot | None:
-        ...
+    ) -> StoredProtocolSnapshot | None: ...
 
     def get_checkpoint(
         self,
@@ -57,11 +55,9 @@ class ProtocolSnapshotRepository(Protocol):
         chain: Chain,
         protocol_id: str,
         block_number: int,
-    ) -> ProtocolCollectionCheckpoint | None:
-        ...
+    ) -> ProtocolCollectionCheckpoint | None: ...
 
-    def save_checkpoint(self, checkpoint: ProtocolCollectionCheckpoint) -> None:
-        ...
+    def save_checkpoint(self, checkpoint: ProtocolCollectionCheckpoint) -> None: ...
 
     def save_snapshot(
         self,
@@ -72,8 +68,11 @@ class ProtocolSnapshotRepository(Protocol):
         result: ProtocolAdapterResult,
         source_provider: str,
         observed_at: datetime,
-    ) -> StoredProtocolSnapshot:
-        ...
+    ) -> StoredProtocolSnapshot: ...
+
+
+class SnapshotContextError(ProviderResponseError):
+    """Reject evidence from a different chain, block, contract, or source provider."""
 
 
 class SnapshotReadTracker:
@@ -117,11 +116,11 @@ class SnapshotReadTracker:
             or result.contract_address.lower() != contract.lower()
             or result.block_number != self.block_number
         ):
-            raise ProviderResponseError(
+            raise SnapshotContextError(
                 "Contract provider returned a result outside the snapshot context."
             )
         if self._source_provider is not None and result.source_provider != self._source_provider:
-            raise ProviderResponseError(
+            raise SnapshotContextError(
                 "Protocol snapshot reads changed provider; retry to keep provenance consistent."
             )
         self._source_provider = result.source_provider
@@ -157,6 +156,5 @@ def decode_call_result(
 def evidence_values(values: dict[str, str]) -> tuple[ProtocolEvidenceValue, ...]:
     """Convert a mapping to stable, immutable evidence values."""
     return tuple(
-        ProtocolEvidenceValue(name=name, value=value)
-        for name, value in sorted(values.items())
+        ProtocolEvidenceValue(name=name, value=value) for name, value in sorted(values.items())
     )

@@ -1,0 +1,59 @@
+{
+  "format": "oracle41-protocol-adapter-fixture",
+  "format_version": 1,
+  "case_id": "erc4626-sdai-ethereum-complete",
+  "input": {
+    "wallet_address": "0x1111111111111111111111111111111111111111",
+    "chain": "ethereum",
+    "block_number": 24000000,
+    "contract_addresses": [
+      "0x83f20f44975d03b1b09e64809b757c47f942beea"
+    ],
+    "source_provider": "synthetic-json-rpc",
+    "observed_at": "2026-10-23T00:00:00+00:00",
+    "token_balances": [
+
+    ],
+    "decoded_events": [
+
+    ],
+    "raw_evidence": [
+      {
+        "kind": "erc4626_position",
+        "reference": "eth_call:erc4626:block:24000000",
+        "contract_address": "0x83f20f44975d03b1b09e64809b757c47f942beea",
+        "tx_hash": null,
+        "signature": "convertToAssets(uint256)",
+        "values": {
+          "vault_contract": "0x83f20f44975d03b1b09e64809b757c47f942beea",
+          "asset_contract": "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "share_symbol": "sDAI",
+          "asset_symbol": "DAI",
+          "raw_shares": "2000000000000000000",
+          "share_decimals": "18",
+          "asset_decimals": "18",
+          "converted_assets": "2500000000000000001",
+          "preview_redeem_assets": "2500000000000000001",
+          "max_redeem_shares": "2000000000000000000",
+          "valuation_method": "convertToAssets",
+          "source_reference": "https://github.com/sky-ecosystem/sdai#deployments"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "status": "matched",
+    "adapter_id": "oracle41.erc4626.ethereum.sdai",
+    "protocol_id": "erc4626-sdai",
+    "position_kinds": [
+      "supplied"
+    ],
+    "raw_amounts": [
+      "2500000000000000001"
+    ],
+    "risk_state": "not_applicable",
+    "source_balance_count": 0,
+    "source_event_count": 0,
+    "raw_evidence_count": 1
+  }
+}

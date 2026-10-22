@@ -183,6 +183,7 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "current_tick",
         "range_state",
         "liquidity",
+        "position_metadata",
         "raw_amount",
         "decimals",
         "amount",
@@ -293,7 +294,9 @@ def watchlist_json_bytes(entries: list[WatchlistEntry], pretty: bool = True) -> 
     return json_dumps(payload, pretty=pretty)
 
 
-def write_watchlist_json(entries: list[WatchlistEntry], output_path: Path, pretty: bool = True) -> Path:
+def write_watchlist_json(
+    entries: list[WatchlistEntry], output_path: Path, pretty: bool = True
+) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(watchlist_json_bytes(entries, pretty=pretty))
     return output_path
@@ -427,9 +430,7 @@ def _portfolio_records(
                 "requested_protocol_block_number": result.requested_protocol_block_number,
                 "partial_protocol_snapshot_count": result.partial_protocol_snapshot_count,
                 "stale_protocol_snapshot_count": result.stale_protocol_snapshot_count,
-                "future_protocol_observation_count": (
-                    result.future_protocol_observation_count
-                ),
+                "future_protocol_observation_count": (result.future_protocol_observation_count),
                 "missing_protocol_risk_snapshot_count": (
                     result.missing_protocol_risk_snapshot_count
                 ),
@@ -493,19 +494,14 @@ def _portfolio_records(
                 "current_tick": position.current_tick,
                 "range_state": position.range_state,
                 "liquidity": position.liquidity,
+                "position_metadata": {item.name: item.value for item in position.position_metadata},
                 "raw_amount": position.raw_amount,
                 "decimals": position.decimals,
                 "amount": str(position.amount) if position.amount is not None else None,
-                "price_usd": (
-                    str(position.price_usd) if position.price_usd is not None else None
-                ),
-                "value_usd": (
-                    str(position.value_usd) if position.value_usd is not None else None
-                ),
+                "price_usd": (str(position.price_usd) if position.price_usd is not None else None),
+                "value_usd": (str(position.value_usd) if position.value_usd is not None else None),
                 "net_value_usd": (
-                    str(position.net_value_usd)
-                    if position.net_value_usd is not None
-                    else None
+                    str(position.net_value_usd) if position.net_value_usd is not None else None
                 ),
                 "is_liability": position.is_liability,
                 "completeness": position.completeness.value,
@@ -588,9 +584,13 @@ def _portfolio_wallet_record(wallet: PortfolioWalletResult) -> dict[str, Any]:
         "error": wallet.error,
         "native_balance": str(wallet.overview.native_balance),
         "native_price_usd": (
-            str(wallet.overview.native_price_usd) if wallet.overview.native_price_usd is not None else None
+            str(wallet.overview.native_price_usd)
+            if wallet.overview.native_price_usd is not None
+            else None
         ),
-        "total_usd": str(wallet.overview.total_usd) if wallet.overview.total_usd is not None else None,
+        "total_usd": str(wallet.overview.total_usd)
+        if wallet.overview.total_usd is not None
+        else None,
         "token_count": len(wallet.overview.token_balances),
         "token_balance_page_count": wallet.overview.token_balance_page_count,
         "token_balances_truncated": wallet.overview.token_balances_truncated,
@@ -602,9 +602,7 @@ def _portfolio_wallet_record(wallet: PortfolioWalletResult) -> dict[str, Any]:
         ),
         "protocol_ids": [item.protocol_id for item in wallet.protocol_snapshots],
         "protocol_snapshot_blocks": [item.block_number for item in wallet.protocol_snapshots],
-        "protocol_source_providers": [
-            item.source_provider for item in wallet.protocol_snapshots
-        ],
+        "protocol_source_providers": [item.source_provider for item in wallet.protocol_snapshots],
         "protocol_observed_at": [
             item.observed_at.isoformat() for item in wallet.protocol_snapshots
         ],

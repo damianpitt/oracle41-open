@@ -118,7 +118,7 @@ Turn raw transfers and logs into understandable wallet activity while reducing d
 
 **Release target:** `0.4.0-alpha`
 
-**Implementation status:** M6.4I is complete in `0.4.0a23`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Verified xStocks deployments have issuer action revisions, historical multiplier data, and resumable history synchronization; reviewed Centrifuge RWA identity covers supported L2 deployments.
+**Implementation status:** M6.5A is complete in `0.4.0a24`. Oracle41 now uses a central network registry and per-chain provider capabilities. Robinhood Chain has indexed Alchemy and GoldRush wallet coverage, Alchemy and custom JSON-RPC transaction access, official Stock Token pricing, browsable corporate-action and multiplier history, audit exports, chain-aware fee reporting, canonical bridge intelligence, and Blockscout context. Verified xStocks deployments have issuer action revisions, historical multiplier data, and resumable history synchronization; reviewed Centrifuge RWA identity covers supported L2 deployments. ERC-4626 positions now cover the reviewed Ethereum sDAI vault, including underlying conversion and Portfolio integration.
 
 Model economic positions rather than treating every contract token as a simple wallet balance.
 
@@ -635,3 +635,17 @@ The audit browser adds progress, Pause Sync, Resume Audit Sync, and Start New Sy
 Tests cover 2,100 action records over multiple runs, restart, independent feed failures, pause, overlapping records, conflicting evidence, stale writers, page-write rollback, publication rollback, schema migration, exports, and offline browser controls.
 
 The issuer endpoints use page numbers, not immutable snapshot cursors. Completion means both traversals reached their reported end; issuer changes can shift pages. General RWA pricing, Centrifuge fund history, and M7 historical portfolio valuation remain separate work.
+
+### Completed Slice: M6.5A
+
+**Status:** Complete in `0.4.0a24`.
+
+M6.5A introduces reviewed ERC-4626 vault positions, starting with Ethereum sDAI. The registry matches an exact chain, share contract, and expected underlying asset. The collector reads direct wallet shares, independent decimals, accounting conversion, redemption preview, and owner redemption limit at one explicit block through the existing JSON-RPC pool.
+
+One underlying asset represents the position. Shares, conversion method, source reference, and redemption checks remain metadata. Portfolio removes the matching receipt token only when the underlying is represented. Missing conversions remain unknown, zero shares do not create a position, and redemption restrictions produce warnings. Liquidation health is not applicable and does not imply safety.
+
+Results reuse the existing protocol snapshots and schema version 14. Finished snapshots work offline, explicit refresh bypasses reuse, and mandatory failures retain prior saved results. The collector restarts unfinished calls rather than adding per-call checkpoints. Portfolio export format version 5 adds general position metadata as a JSON object or a JSON CSV cell.
+
+Synthetic fixtures cover complete, partial, and malformed evidence through the adapter conformance suite. Additional tests cover separate decimals, unknown and zero conversions, deployment rejection, source consistency, snapshot reuse, refresh, receipt double counting, missing prices, and exports. Live deployment availability and historical provider plans are not validated by these fixtures.
+
+See [ERC-4626 Vault Positions](ERC4626_VAULTS.md) for the reviewed address, official references, and use instructions. More vaults, recursive decomposition, custody-held shares, staking and reward adapters, yield accounting, and M7 historical valuation remain separate work.

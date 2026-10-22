@@ -28,7 +28,7 @@ Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data covera
 
 Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
 
-| Provider or source | Robinhood status in `0.4.0a23` |
+| Provider or source | Robinhood status in `0.4.0a24` |
 | --- | --- |
 | Alchemy wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Alchemy JSON-RPC | Available for transaction inspection |
@@ -57,7 +57,7 @@ Alchemy currently gives the broadest single-provider experience. It is not requi
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a23` keeps that path enabled after chain-specific fixture validation.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.4.0a24` keeps that path enabled after chain-specific fixture validation.
 
 The provider pool follows these rules:
 
@@ -72,7 +72,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.4.0a23` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
+Version `0.4.0a24` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -120,6 +120,10 @@ The transaction endpoint is page based and does not accept Oracle41's block floo
 Alchemy, Ankr, and custom JSON-RPC endpoints can supply standard transaction data. Oracle41 can request receipts, raw logs, contract storage, proxy information, revert evidence, and internal-call traces through these endpoints.
 
 Trace and historical-state methods are not universal JSON-RPC features. Some endpoints disable them, retain only recent state, or require a paid plan. Oracle41 learns these capabilities per chain and reports missing evidence in Transaction Inspector.
+
+## Vault Contract Reads
+
+Reviewed ERC-4626 vaults use the transaction JSON-RPC pool for exact-block contract reads, not the wallet-data adapters. Version `0.4.0a24` starts with Ethereum sDAI and validates its expected DAI underlying. Alchemy, Ankr, or a custom RPC must provide the requested historical state; Moralis and GoldRush do not collect it. No new provider key or public indexing endpoint is added. See [ERC-4626 Vault Positions](ERC4626_VAULTS.md).
 
 ## Pricing Scope
 

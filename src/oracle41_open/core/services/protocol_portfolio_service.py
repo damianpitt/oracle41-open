@@ -22,6 +22,7 @@ from oracle41_open.core.models import (
     ProtocolAdapterStatus,
     ProtocolAsset,
     ProtocolAssetRole,
+    ProtocolEvidenceValue,
     ProtocolPosition,
     ProtocolPositionCompleteness,
     ProtocolPositionKind,
@@ -36,8 +37,7 @@ class ProtocolAssetPricingProvider(Protocol):
         self,
         chain: Chain,
         contract_addresses: list[str],
-    ) -> dict[str, Decimal]:
-        ...
+    ) -> dict[str, Decimal]: ...
 
 
 class ProtocolObservationFreshness(str, Enum):
@@ -90,6 +90,7 @@ class ProtocolPositionValuation:
     current_tick: int | None = None
     range_state: str | None = None
     liquidity: str | None = None
+    position_metadata: tuple[ProtocolEvidenceValue, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -215,7 +216,11 @@ class ProtocolPortfolioService:
             group[1].update(protocol_receipt_token_addresses(item.snapshot))
             group[2].add(item.snapshot.block_number)
 
-        for (wallet_address, chain), (overview, excluded_addresses, blocks) in wallet_groups.items():
+        for (wallet_address, chain), (
+            overview,
+            excluded_addresses,
+            blocks,
+        ) in wallet_groups.items():
             excluded_receipt_token_count += sum(
                 1
                 for balance in overview.token_balances
@@ -235,12 +240,9 @@ class ProtocolPortfolioService:
             )
 
         for item, risk_report in zip(inputs, risk_reports, strict=True):
-            if (
-                item.snapshot.result.status is not ProtocolAdapterStatus.MATCHED
-                or any(
-                    position.completeness is ProtocolPositionCompleteness.PARTIAL
-                    for position in item.snapshot.result.positions
-                )
+            if item.snapshot.result.status is not ProtocolAdapterStatus.MATCHED or any(
+                position.completeness is ProtocolPositionCompleteness.PARTIAL
+                for position in item.snapshot.result.positions
             ):
                 partial_snapshot_count += 1
             for position in item.snapshot.result.positions:
@@ -309,12 +311,8 @@ class ProtocolPortfolioService:
                 report.observation_freshness is ProtocolObservationFreshness.FUTURE
                 for report in risk_reports
             ),
-            missing_risk_snapshot_count=sum(
-                report.risk_state is None for report in risk_reports
-            ),
-            unpriced_position_count=sum(
-                item.unpriced_position_count for item in aggregate_values
-            ),
+            missing_risk_snapshot_count=sum(report.risk_state is None for report in risk_reports),
+            unpriced_position_count=sum(item.unpriced_position_count for item in aggregate_values),
             excluded_receipt_token_count=excluded_receipt_token_count,
             asset_usd_total=asset_total,
             liability_usd_total=liability_total,
@@ -358,9 +356,7 @@ class ProtocolPortfolioService:
             adapter_status=snapshot.result.status,
             adapter_id=snapshot.result.adapter_id,
             adapter_version=snapshot.result.adapter_version,
-            source_reference=(
-                provenance.source_reference if provenance is not None else None
-            ),
+            source_reference=(provenance.source_reference if provenance is not None else None),
             source_provider=snapshot.source_provider,
             observed_at=observed_at,
             saved_at=_as_utc(snapshot.saved_at),
@@ -370,13 +366,9 @@ class ProtocolPortfolioService:
             warning_count=len(snapshot.result.warnings),
             warnings=snapshot.result.warnings,
             risk_state=risk.state if risk is not None else None,
-            total_collateral_base=(
-                risk.total_collateral_base if risk is not None else None
-            ),
+            total_collateral_base=(risk.total_collateral_base if risk is not None else None),
             total_debt_base=risk.total_debt_base if risk is not None else None,
-            available_borrow_base=(
-                risk.available_borrow_base if risk is not None else None
-            ),
+            available_borrow_base=(risk.available_borrow_base if risk is not None else None),
             liquidation_threshold_bps=(
                 risk.liquidation_threshold_bps if risk is not None else None
             ),
@@ -384,9 +376,7 @@ class ProtocolPortfolioService:
             health_factor_wad=risk.health_factor_wad if risk is not None else None,
             health_factor=health_factor,
             base_currency_unit=risk.base_currency_unit if risk is not None else None,
-            is_borrow_collateralized=(
-                risk.is_borrow_collateralized if risk is not None else None
-            ),
+            is_borrow_collateralized=(risk.is_borrow_collateralized if risk is not None else None),
             is_liquidatable=risk.is_liquidatable if risk is not None else None,
         )
 
@@ -426,8 +416,7 @@ def _value_asset(
     price = prices.get((position.chain, contract)) if contract is not None else None
     value = amount * price if amount is not None and price is not None else None
     is_liability = (
-        position.kind is ProtocolPositionKind.DEBT
-        or asset.role is ProtocolAssetRole.BORROWED
+        position.kind is ProtocolPositionKind.DEBT or asset.role is ProtocolAssetRole.BORROWED
     )
     return ProtocolPositionValuation(
         wallet_address=position.wallet_address,
@@ -462,6 +451,7 @@ def _value_asset(
         current_tick=_optional_integer(position.metadata_value("current_tick")),
         range_state=position.metadata_value("range_state"),
         liquidity=position.metadata_value("liquidity"),
+        position_metadata=position.metadata,
     )
 
 
@@ -493,6 +483,15 @@ def _optional_integer(value: str | None) -> int | None:
 def protocol_receipt_token_addresses(snapshot: StoredProtocolSnapshot) -> set[str]:
     """Return receipt tokens that mirror positive positions in this snapshot."""
     addresses: set[str] = set()
+    # Exclude vault shares only if a normalized underlying asset actually replaces them.
+    # A failed conversion leaves an empty position; its receipt token must remain in wallet totals.
+    for position in snapshot.result.positions:
+        if (
+            position.protocol_id.startswith("erc4626-")
+            and _positive(position.metadata_value("raw_shares"))
+            and any(asset.role is ProtocolAssetRole.UNDERLYING for asset in position.assets)
+        ):
+            _add_address(addresses, position.metadata_value("vault_contract"))
     for evidence in snapshot.result.raw_evidence:
         if evidence.kind == "aave_v3_reserve_position":
             if _positive(evidence.value("current_a_token_balance")):

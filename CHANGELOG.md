@@ -2,7 +2,32 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a23] - Unreleased
+## [0.4.0a24] - Unreleased
+
+### Added
+
+- Reviewed ERC-4626 vault registry and adapter, starting with the official Ethereum sDAI deployment and expected DAI underlying.
+- Exact-block collection of wallet shares, separate share/asset decimals, accounting conversion, redemption preview, and owner redemption limit.
+- Vault positions in the existing protocol refresh, stored snapshot, Portfolio valuation, and offline loading paths.
+- Receipt-token double-count protection that retains wallet shares when underlying conversion is unavailable.
+- Portfolio format version 5 with general position metadata in JSON and CSV, including raw shares and redemption checks.
+- Synthetic complete, partial, and malformed adapter fixtures plus contract-read, storage, valuation, export, and registry-safety tests.
+- Simple-English vault documentation with reviewed deployment sources, controls, provider requirements, and limits.
+
+### Changed
+
+- The shared snapshot reader now distinguishes source/context mismatches with `SnapshotContextError`. Vault collection aborts these mismatches instead of treating them as optional missing calls.
+- Portfolio displays vault share units and redemption details separately from underlying value.
+- Existing protocol snapshot tables store vault results without a database migration; schema version 14 remains current.
+
+### Known Limitations
+
+- This slice covers directly owned Ethereum sDAI only. Unknown vaults, bridged shares, nested vaults, and custody-held positions are not discovered automatically.
+- Vault conversion is an accounting estimate, not guaranteed withdrawal proceeds. Restricted or missing redemption data remains explicit.
+- USD valuation uses current prices and does not assume a stablecoin peg. Historical pricing, yield, rewards, and transaction execution are not included.
+- Unfinished vault reads restart that vault; only finished results are reused. Tests use synthetic responses rather than live keys.
+
+## [0.4.0a23] - 2026-10-19
 
 ### Added
 

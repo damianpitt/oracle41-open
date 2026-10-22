@@ -143,7 +143,17 @@ Version `0.4.0a14` refreshes Aave V3, every configured Compound V3 market, and d
 
 Robinhood Chain is registered in `0.4.0a15`, but no protocol deployment is inferred from that registration. Aave V3, Compound V3, and Uniswap V3 remain limited to the five networks with verified contract entries. Robinhood support requires separate official deployment evidence and fixtures.
 
-The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 4. They include position fields, freshness, warnings, adapter provenance, Aave risk metrics, Compound safety fields, and Uniswap pool and range details. Unsupported protocol-specific metrics remain empty instead of being estimated.
+The dedicated protocol-position and protocol-risk CSV and JSON templates use `oracle41-portfolio` format version 5. They include position fields, freshness, warnings, adapter provenance, Aave risk metrics, Compound safety fields, Uniswap pool and range details, and a general `position_metadata` object for protocol-position rows. CSV stores this object as JSON in one cell. Unsupported protocol-specific metrics remain empty instead of being estimated.
+
+## ERC-4626 Vault Adapter
+
+Version `0.4.0a24` adds `ERC4626Adapter` and `ERC4626PositionService`, starting with the official Ethereum sDAI deployment. The registry pins the exact share contract and expected DAI underlying. Other networks and vaults are not inferred from names, symbols, or callable selectors. See [ERC-4626 Vault Positions](ERC4626_VAULTS.md) for addresses, official sources, controls, and limits.
+
+The collector reads `asset()`, wallet shares, share decimals, and asset decimals at one exact block. Positive shares trigger `convertToAssets`, `previewRedeem`, and `maxRedeem` reads. The conversion creates one underlying asset; shares and redemption checks remain metadata. Failed optional reads create partial evidence, not zero balances. A mixed source, network, contract, or block aborts collection. Zero shares create an empty, matched result.
+
+Stored snapshots reuse the existing tables and finished-result cache. Mandatory failures do not replace a saved snapshot. This small collector restarts unfinished calls rather than introducing per-call checkpoints. Portfolio excludes shares only when the matching converted underlying is represented, then applies current available prices. A failed conversion retains the wallet's receipt token. Liquidation health is not applicable, which does not mean the vault is risk-free.
+
+The adapter fixtures are synthetic and do not establish live deployment availability at every historical block. They cover complete, partial, and malformed evidence through the shared conformance path. Contract-read tests also cover separate decimals, zero and unknown conversions, source consistency, registry safety, storage reuse, redemption limits, missing prices, and exports.
 
 ## Adding an Adapter
 

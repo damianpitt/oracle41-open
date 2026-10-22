@@ -11,6 +11,7 @@ from oracle41_open.core.services.compound_v3_position_service import (
     CompoundV3PositionService,
 )
 from oracle41_open.core.services.contract_abi_service import ContractABIService
+from oracle41_open.core.services.erc4626_position_service import ERC4626PositionService
 from oracle41_open.core.services.label_resolution_service import (
     AddressResolution,
     ENSIdeasLabelResolver,
@@ -54,6 +55,7 @@ __all__ = [
     "ActivityService",
     "AddressValidator",
     "ENSIdeasLabelResolver",
+    "ERC4626PositionService",
     "LabelResolutionService",
     "PortfolioChainAggregate",
     "PortfolioLoadResult",

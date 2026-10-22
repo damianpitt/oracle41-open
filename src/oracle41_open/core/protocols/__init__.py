@@ -16,6 +16,12 @@ from oracle41_open.core.protocols.compound_v3 import (
     compound_v3_market,
     compound_v3_markets,
 )
+from oracle41_open.core.protocols.erc4626 import (
+    ERC4626Adapter,
+    ERC4626Vault,
+    erc4626_vault,
+    erc4626_vaults,
+)
 from oracle41_open.core.protocols.reference_lending import ReferenceLendingAdapter
 from oracle41_open.core.protocols.registry import (
     ProtocolAdapterRegistry,
@@ -35,6 +41,10 @@ __all__ = [
     "AaveV3Deployment",
     "CompoundV3Adapter",
     "CompoundV3Market",
+    "ERC4626Adapter",
+    "ERC4626Vault",
+    "erc4626_vault",
+    "erc4626_vaults",
     "ProtocolAdapter",
     "ProtocolAdapterRegistry",
     "ReferenceLendingAdapter",

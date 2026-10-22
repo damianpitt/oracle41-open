@@ -37,6 +37,7 @@ from oracle41_open.core.models import (
 from oracle41_open.core.protocols import (
     AaveV3Adapter,
     CompoundV3Adapter,
+    ERC4626Adapter,
     ProtocolAdapter,
     ProtocolAdapterRegistry,
     ReferenceLendingAdapter,
@@ -44,6 +45,7 @@ from oracle41_open.core.protocols import (
     UnknownProtocolAdapter,
     compound_v3_market,
     compound_v3_markets,
+    erc4626_vaults,
     liquidity_amounts,
     production_protocol_registry,
     sqrt_ratio_at_tick,
@@ -60,6 +62,9 @@ _FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "protocols"
         "aave_v3_ethereum_v1.json",
         "compound_v3_ethereum_usdc_v1.json",
         "uniswap_v3_ethereum_v1.json",
+        "erc4626_sdai_ethereum_v1.json",
+        "erc4626_sdai_partial_v1.json",
+        "erc4626_sdai_malformed_v1.json",
         "unknown_protocol_v1.json",
     ),
 )
@@ -72,6 +77,7 @@ def test_protocol_fixture_conformance(fixture_name: str) -> None:
             AaveV3Adapter(),
             CompoundV3Adapter(compound_v3_market(Chain.ETHEREUM, "usdc")),
             UniswapV3Adapter(),
+            *(ERC4626Adapter(vault) for vault in erc4626_vaults()),
         )
     )
 
@@ -117,14 +123,20 @@ def test_aave_adapter_exposes_official_supported_market_contracts() -> None:
         "debt",
     }
     assert len(adapter.capabilities.contracts) == 15
-    assert ProtocolContract(
-        chain=Chain.ETHEREUM,
-        address="0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
-    ) in adapter.capabilities.contracts
-    assert ProtocolContract(
-        chain=Chain.BASE,
-        address="0xa238dd80c259a72e81d7e4664a9801593f98d1c5",
-    ) in adapter.capabilities.contracts
+    assert (
+        ProtocolContract(
+            chain=Chain.ETHEREUM,
+            address="0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+        )
+        in adapter.capabilities.contracts
+    )
+    assert (
+        ProtocolContract(
+            chain=Chain.BASE,
+            address="0xa238dd80c259a72e81d7e4664a9801593f98d1c5",
+        )
+        in adapter.capabilities.contracts
+    )
 
 
 @pytest.mark.parametrize(
@@ -148,15 +160,16 @@ def test_aave_adapter_matches_each_supported_pool(chain: Chain, pool: str) -> No
     assert AaveV3Adapter().supports(context)
 
 
-def test_production_registry_contains_aave_and_compound_v3() -> None:
+def test_production_registry_contains_all_reviewed_protocol_adapters() -> None:
     registry = production_protocol_registry()
 
     adapter_ids = [item.adapter_id for item in registry.capabilities]
-    assert len(adapter_ids) == 22
+    assert len(adapter_ids) == 23
     assert adapter_ids[0] == "oracle41.aave-v3"
     assert "oracle41.compound-v3.ethereum.usdc" in adapter_ids
     assert "oracle41.compound-v3.arbitrum.weth" in adapter_ids
-    assert adapter_ids[-1] == "oracle41.uniswap-v3"
+    assert "oracle41.uniswap-v3" in adapter_ids
+    assert "oracle41.erc4626.ethereum.sdai" in adapter_ids
 
 
 def test_uniswap_adapter_exposes_official_deployments() -> None:
@@ -166,9 +179,7 @@ def test_uniswap_adapter_exposes_official_deployments() -> None:
     assert adapter.capabilities.chains == frozenset(
         chain for chain in Chain if chain is not Chain.ROBINHOOD
     )
-    assert adapter.capabilities.position_kinds == frozenset(
-        {ProtocolPositionKind.LIQUIDITY}
-    )
+    assert adapter.capabilities.position_kinds == frozenset({ProtocolPositionKind.LIQUIDITY})
     assert len(adapter.capabilities.contracts) == 10
     assert uniswap_v3_deployment(Chain.ETHEREUM).position_manager == (
         "0xc36442b4a4522e871399cd717abdd847ab11fe88"
@@ -201,7 +212,10 @@ def test_uniswap_adapter_keeps_range_and_fee_components() -> None:
 def test_uniswap_tick_zero_has_exact_q96_ratio() -> None:
     assert sqrt_ratio_at_tick(0) == 2**96
     assert sqrt_ratio_at_tick(-887_272) == 4_295_128_739
-    assert sqrt_ratio_at_tick(887_272) == 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342
+    assert (
+        sqrt_ratio_at_tick(887_272)
+        == 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342
+    )
 
 
 def test_uniswap_liquidity_amounts_follow_range_boundaries() -> None:
@@ -222,8 +236,7 @@ def test_uniswap_malformed_position_is_partial() -> None:
     context = _context_from_fixture(_load_fixture("uniswap_v3_ethereum_v1.json"))
     position = context.raw_evidence[1]
     values = tuple(
-        replace(item, value="bad") if item.name == "liquidity" else item
-        for item in position.values
+        replace(item, value="bad") if item.name == "liquidity" else item for item in position.values
     )
 
     result = UniswapV3Adapter().analyze(
@@ -236,10 +249,7 @@ def test_uniswap_malformed_position_is_partial() -> None:
 
 
 def test_compound_market_catalog_covers_every_supported_chain() -> None:
-    counts = {
-        chain: len(compound_v3_markets(chain))
-        for chain in Chain
-    }
+    counts = {chain: len(compound_v3_markets(chain)) for chain in Chain}
 
     assert counts == {
         Chain.ETHEREUM: 6,
@@ -322,9 +332,7 @@ def test_compound_adapter_rejects_simultaneous_base_supply_and_debt() -> None:
     )
 
     assert result.status is ProtocolAdapterStatus.PARTIAL
-    assert [position.kind for position in result.positions] == [
-        ProtocolPositionKind.COLLATERAL
-    ]
+    assert [position.kind for position in result.positions] == [ProtocolPositionKind.COLLATERAL]
     assert result.risk_snapshot is None
     assert "cannot both be positive" in result.warnings[0]
 
@@ -391,12 +399,12 @@ def test_aave_health_factor_below_one_is_reported_from_raw_value() -> None:
     context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
     account = context.raw_evidence[1]
     values = tuple(
-        replace(item, value="999999999999999999")
-        if item.name == "health_factor_wad"
-        else item
+        replace(item, value="999999999999999999") if item.name == "health_factor_wad" else item
         for item in account.values
     )
-    context = replace(context, raw_evidence=(context.raw_evidence[0], replace(account, values=values)))
+    context = replace(
+        context, raw_evidence=(context.raw_evidence[0], replace(account, values=values))
+    )
 
     result = AaveV3Adapter().analyze(context)
 
@@ -409,10 +417,11 @@ def test_aave_malformed_account_snapshot_is_partial() -> None:
     context = _context_from_fixture(_load_fixture("aave_v3_ethereum_v1.json"))
     account = context.raw_evidence[1]
     values = tuple(
-        replace(item, value="10001") if item.name == "ltv_bps" else item
-        for item in account.values
+        replace(item, value="10001") if item.name == "ltv_bps" else item for item in account.values
     )
-    context = replace(context, raw_evidence=(context.raw_evidence[0], replace(account, values=values)))
+    context = replace(
+        context, raw_evidence=(context.raw_evidence[0], replace(account, values=values))
+    )
 
     result = AaveV3Adapter().analyze(context)
 
@@ -428,7 +437,9 @@ def test_aave_zero_debt_has_no_debt_risk_state() -> None:
         replace(item, value="0") if item.name == "total_debt_base" else item
         for item in account.values
     )
-    context = replace(context, raw_evidence=(context.raw_evidence[0], replace(account, values=values)))
+    context = replace(
+        context, raw_evidence=(context.raw_evidence[0], replace(account, values=values))
+    )
 
     result = AaveV3Adapter().analyze(context)
 
@@ -448,9 +459,7 @@ def test_fixture_schema_is_published_with_format_version_one() -> None:
     assert isinstance(schema, dict)
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["properties"]["format_version"]["const"] == 1
-    assert schema["properties"]["format"]["const"] == (
-        "oracle41-protocol-adapter-fixture"
-    )
+    assert schema["properties"]["format"]["const"] == ("oracle41-protocol-adapter-fixture")
 
 
 def test_matching_contract_without_snapshot_returns_partial_result() -> None:
@@ -621,8 +630,7 @@ def _raw_evidence(payload: dict[str, Any]) -> ProtocolRawEvidence:
         tx_hash=str(payload["tx_hash"]),
         signature=str(payload["signature"]),
         values=tuple(
-            ProtocolEvidenceValue(name=name, value=str(value))
-            for name, value in values.items()
+            ProtocolEvidenceValue(name=name, value=str(value)) for name, value in values.items()
         ),
     )
 

@@ -111,7 +111,9 @@ class PortfolioView(QWidget):
 
         self._status_label = QLabel("Portfolio aggregate ready.", self)
         self._status_label.setWordWrap(True)
-        self._selection_hint_label = QLabel("No wallets selected. Loading will include all listed wallets.", self)
+        self._selection_hint_label = QLabel(
+            "No wallets selected. Loading will include all listed wallets.", self
+        )
         self._selection_hint_label.setWordWrap(True)
 
         self._entries_list = QListWidget(self)
@@ -242,9 +244,7 @@ class PortfolioView(QWidget):
     def _on_protocol_history_clicked(self) -> None:
         chain = self._selected_chain()
         if chain is None:
-            self._status_label.setText(
-                "Choose one chain before finding stored protocol blocks."
-            )
+            self._status_label.setText("Choose one chain before finding stored protocol blocks.")
             return
         entries = self._selected_entries() or self._entries
         try:
@@ -288,7 +288,9 @@ class PortfolioView(QWidget):
 
     def _on_clear_selection_clicked(self) -> None:
         self._entries_list.clearSelection()
-        self._status_label.setText("Wallet selection cleared. Loading will include all listed wallets.")
+        self._status_label.setText(
+            "Wallet selection cleared. Loading will include all listed wallets."
+        )
 
     def _on_load_clicked(self) -> None:
         self._load_portfolio(force_refresh=False, refresh_protocol=False)
@@ -298,9 +300,7 @@ class PortfolioView(QWidget):
 
     def _on_refresh_protocol_clicked(self) -> None:
         if self._selected_chain() is None:
-            self._status_label.setText(
-                "Choose one chain before refreshing protocol snapshots."
-            )
+            self._status_label.setText("Choose one chain before refreshing protocol snapshots.")
             return
         self._load_portfolio(force_refresh=False, refresh_protocol=True)
 
@@ -352,7 +352,9 @@ class PortfolioView(QWidget):
             dust_threshold = self._parse_dust_threshold()
             protocol_block_number = self._selected_protocol_block()
             selected_entries = self._selected_entries()
-            selected_entry_ids = [entry.id for entry in selected_entries] if selected_entries else None
+            selected_entry_ids = (
+                [entry.id for entry in selected_entries] if selected_entries else None
+            )
         except ValidationError as error:
             self._status_label.setText(str(error))
             return
@@ -382,7 +384,9 @@ class PortfolioView(QWidget):
 
     def _on_portfolio_loaded(self, raw_result: object) -> None:
         if not isinstance(raw_result, PortfolioLoadResult) or self._pending_load is None:
-            self._on_portfolio_load_error(RuntimeError("Portfolio service returned an invalid result."))
+            self._on_portfolio_load_error(
+                RuntimeError("Portfolio service returned an invalid result.")
+            )
             return
 
         force_refresh, refresh_protocol = self._pending_load
@@ -392,7 +396,9 @@ class PortfolioView(QWidget):
         self._export_json_button.setEnabled(has_wallets)
         self._results.setPlainText(_render_result(raw_result))
         if raw_result.selected_wallet_count == 0:
-            self._status_label.setText("No wallets in scope. Adjust chain filter or add watchlist entries.")
+            self._status_label.setText(
+                "No wallets in scope. Adjust chain filter or add watchlist entries."
+            )
             return
 
         action = "loaded"
@@ -430,7 +436,9 @@ class PortfolioView(QWidget):
     def _on_portfolio_load_error(self, error: object) -> None:
         message = str(error)
         self._status_label.setText(
-            message if isinstance(error, ValidationError) else f"Could not load portfolio aggregate: {message}"
+            message
+            if isinstance(error, ValidationError)
+            else f"Could not load portfolio aggregate: {message}"
         )
 
     def _on_portfolio_load_finished(self) -> None:
@@ -555,9 +563,7 @@ def _render_result(result: PortfolioLoadResult) -> str:
         for chain_aggregate in result.chain_aggregates:
             missing_note = ""
             if chain_aggregate.native_usd_missing_wallet_count > 0:
-                missing_note = (
-                    f", native USD missing in {chain_aggregate.native_usd_missing_wallet_count} wallet(s)"
-                )
+                missing_note = f", native USD missing in {chain_aggregate.native_usd_missing_wallet_count} wallet(s)"
             lines.append(
                 f"- {chain_aggregate.chain.display_name}: wallets={chain_aggregate.wallet_count}, "
                 f"native={chain_aggregate.native_balance_total:.6f} {chain_aggregate.chain.native_symbol}, "
@@ -604,6 +610,18 @@ def _render_result(result: PortfolioLoadResult) -> str:
         for position in result.protocol_positions[:200]:
             liability_label = "liability" if position.is_liability else "asset"
             range_detail = ""
+            vault_detail = ""
+            metadata = {item.name: item.value for item in position.position_metadata}
+            if "vault_contract" in metadata:
+                vault_detail = (
+                    f" | raw_shares={metadata.get('raw_shares', 'unknown')} "
+                    f"{metadata.get('share_symbol', '')} "
+                    f"(decimals={metadata.get('share_decimals', 'unknown')})"
+                    f" | conversion={metadata.get('valuation_method', 'unknown')}"
+                    f" | redemption_preview_raw={metadata.get('preview_redeem_assets', 'unknown')}"
+                    f" | max_redeem_shares_raw={metadata.get('max_redeem_shares', 'unknown')}"
+                    " | accounting estimate, not a withdrawal quote"
+                )
             if position.range_state is not None:
                 range_detail = (
                     f" | range={position.range_state} "
@@ -617,7 +635,7 @@ def _render_result(result: PortfolioLoadResult) -> str:
                 f"net_usd={_fmt_decimal(position.net_value_usd)} | "
                 f"block={position.block_number} | provider={position.source_provider} | "
                 f"observation={position.observation_freshness.value} "
-                f"({_fmt_age(position.observation_age_seconds)}){range_detail}"
+                f"({_fmt_age(position.observation_age_seconds)}){range_detail}{vault_detail}"
             )
         remaining_positions = len(result.protocol_positions) - 200
         if remaining_positions > 0:
@@ -682,8 +700,7 @@ def _render_wallet_result(wallet: PortfolioWalletResult) -> str:
             for item in wallet.protocol_snapshots
         )
         protocol_note = (
-            f" | protocols={snapshots}"
-            f" | excluded_receipts={wallet.excluded_receipt_token_count}"
+            f" | protocols={snapshots} | excluded_receipts={wallet.excluded_receipt_token_count}"
         )
     return (
         f"- [{wallet.entry.chain.display_name}] {wallet.entry.address} | {label_text} | "

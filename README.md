@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a23` is an alpha release.
+Version `0.4.0a24` is an alpha release.
 
 Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated.
 
@@ -123,6 +123,10 @@ Browse this README: [Features](#features) | [Privacy](#privacy-and-scope) | [Arc
 - Uniswap V3 position-manager NFT discovery with concentrated-liquidity principal and fee estimates
 
 - Pool, fee-tier, tick-range, current-range-state, and liquidity details for Uniswap V3 positions
+
+- Reviewed ERC-4626 vault positions, starting with Ethereum sDAI: exact-block shares, underlying conversion, redemption previews, and limits
+
+- Vault underlying valuation with receipt-token double-count protection and share metadata in Portfolio CSV/JSON exports
 
 ### Protocol Portfolios and Health
 
@@ -325,9 +329,13 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 
 ### Portfolio Valuation and Protocol Coverage
 
-- Aave V3, Compound V3, and Uniswap V3 positions use current available prices for stored snapshot amounts. Historical price-at-block valuation is not included yet.
+- Aave V3, Compound V3, Uniswap V3, and reviewed ERC-4626 vault positions use current available prices for stored snapshot amounts. Historical price-at-block valuation is not included yet.
 
-- Manual protocol refresh supports Aave V3, configured Compound V3 markets, and directly owned Uniswap V3 NFTs for one chain and block at a time.
+- Manual protocol refresh supports Aave V3, configured Compound V3 markets, directly owned Uniswap V3 NFTs, and configured ERC-4626 vaults for one chain and block at a time.
+
+- ERC-4626 coverage starts with Ethereum sDAI only. The registry matches the exact chain, vault, and underlying asset. Other vaults, bridged shares, and shares held through custody or staking contracts are not discovered automatically.
+
+- Vault conversion values are accounting estimates, not guaranteed withdrawal proceeds. Redemption previews and limits are shown separately. Missing prices remain unknown; DAI is not assumed to equal one USD. See [ERC-4626 vault documentation](docs/ERC4626_VAULTS.md).
 
 - Uniswap V3 amounts are deterministic estimates from pool state. They are not withdrawal quotes and do not include NFTs held by staking, vault, or custody contracts.
 
@@ -355,7 +363,7 @@ The exact resolved paths depend on the platformdirs configuration and environmen
 
 - Robinhood bridge intelligence covers the canonical Arbitrum route and one observed stage at a time. Partner bridges and cross-chain transaction matching are not included yet.
 
-- No Aave V3, Compound V3, or Uniswap V3 deployment is assumed on Robinhood Chain.
+- No Aave V3, Compound V3, Uniswap V3, or ERC-4626 vault deployment is assumed on Robinhood Chain.
 
 ### Platforms, Names, and Decoding
 

@@ -29,6 +29,7 @@ from oracle41_open.core.services.address_validator import AddressValidator
 from oracle41_open.core.services.compound_v3_position_service import (
     CompoundV3PositionService,
 )
+from oracle41_open.core.services.erc4626_position_service import ERC4626PositionService
 from oracle41_open.core.services.protocol_collection import (
     ContractStateReader,
     ProtocolSnapshotRepository,
@@ -66,6 +67,17 @@ class ProtocolPositionService:
             registry=self._registry,
             repository=repository,
         )
+        self._erc4626 = ERC4626PositionService(provider, self._registry, repository)
+
+    def load_erc4626_positions(
+        self,
+        wallet_address: str,
+        chain: Chain,
+        block_number: int,
+        force_refresh: bool = False,
+    ) -> tuple[ProtocolAdapterResult, ...]:
+        """Load reviewed ERC-4626 vaults without assuming deployments on other chains."""
+        return self._erc4626.load_positions(wallet_address, chain, block_number, force_refresh)
 
     def load_compound_v3_positions(
         self,
@@ -108,7 +120,13 @@ class ProtocolPositionService:
             block_number,
             force_refresh=force_refresh,
         )
-        return (aave, *compound, uniswap)
+        vaults = self.load_erc4626_positions(
+            wallet_address,
+            chain,
+            block_number,
+            force_refresh=force_refresh,
+        )
+        return (aave, *compound, uniswap, *vaults)
 
     def load_uniswap_v3_positions(
         self,
@@ -365,7 +383,9 @@ class ProtocolPositionService:
                     variable_debt_token_contract=str(token_addresses[2]).lower(),
                 )
             except ProviderError as error:
-                issues.append(_collection_issue(data_provider, reserve, "reserve token addresses", error))
+                issues.append(
+                    _collection_issue(data_provider, reserve, "reserve token addresses", error)
+                )
 
         evidence = ProtocolRawEvidence(
             kind="aave_v3_reserve_position",

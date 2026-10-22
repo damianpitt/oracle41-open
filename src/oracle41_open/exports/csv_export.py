@@ -181,6 +181,7 @@ _PORTFOLIO_TEMPLATE_FIELDS: dict[PortfolioExportTemplate, list[str]] = {
         "current_tick",
         "range_state",
         "liquidity",
+        "position_metadata",
         "raw_amount",
         "decimals",
         "amount",
@@ -383,7 +384,9 @@ def _activity_row(item: ActivityItem) -> dict[str, str]:
         "tx_hash": item.tx_hash,
         "log_index": item.log_index,
         "contract_address": "" if item.contract_address is None else item.contract_address,
-        "is_verified": "" if item.is_verified is None else ("true" if item.is_verified else "false"),
+        "is_verified": ""
+        if item.is_verified is None
+        else ("true" if item.is_verified else "false"),
         "block_number": "" if item.block_number is None else str(item.block_number),
     }
 
@@ -396,7 +399,9 @@ def _snapshot_row(snapshot: WalletSnapshot) -> dict[str, str]:
         "label": "" if snapshot.label is None else snapshot.label,
         "captured_at": snapshot.captured_at.isoformat(),
         "native_balance": str(snapshot.native_balance),
-        "native_price_usd": "" if snapshot.native_price_usd is None else str(snapshot.native_price_usd),
+        "native_price_usd": ""
+        if snapshot.native_price_usd is None
+        else str(snapshot.native_price_usd),
         "total_usd": "" if snapshot.total_usd is None else str(snapshot.total_usd),
         "token_count": str(snapshot.token_count),
         "token_balance_page_count": _payload_text(snapshot.payload.get("token_balance_page_count")),
@@ -480,6 +485,9 @@ def _portfolio_rows(
                 "current_tick": "" if position.current_tick is None else str(position.current_tick),
                 "range_state": position.range_state or "",
                 "liquidity": position.liquidity or "",
+                "position_metadata": json_dumps(
+                    {item.name: item.value for item in position.position_metadata}
+                ).decode("utf-8"),
                 "raw_amount": position.raw_amount,
                 "decimals": "" if position.decimals is None else str(position.decimals),
                 "amount": "" if position.amount is None else str(position.amount),
@@ -524,9 +532,7 @@ def _portfolio_rows(
                     "" if report.health_factor is None else str(report.health_factor)
                 ),
                 "base_currency_unit": report.base_currency_unit or "",
-                "is_borrow_collateralized": _payload_text(
-                    report.is_borrow_collateralized
-                ),
+                "is_borrow_collateralized": _payload_text(report.is_borrow_collateralized),
                 "is_liquidatable": _payload_text(report.is_liquidatable),
                 "warning_count": str(report.warning_count),
                 "warnings": ";".join(report.warnings),
@@ -560,12 +566,8 @@ def _portfolio_summary_row(result: PortfolioLoadResult) -> dict[str, str]:
         ),
         "partial_protocol_snapshot_count": str(result.partial_protocol_snapshot_count),
         "stale_protocol_snapshot_count": str(result.stale_protocol_snapshot_count),
-        "future_protocol_observation_count": str(
-            result.future_protocol_observation_count
-        ),
-        "missing_protocol_risk_snapshot_count": str(
-            result.missing_protocol_risk_snapshot_count
-        ),
+        "future_protocol_observation_count": str(result.future_protocol_observation_count),
+        "missing_protocol_risk_snapshot_count": str(result.missing_protocol_risk_snapshot_count),
         "protocol_failed_wallet_count": str(result.protocol_failed_wallet_count),
         "protocol_missing_snapshot_wallet_count": str(
             result.protocol_missing_snapshot_wallet_count
@@ -611,7 +613,9 @@ def _portfolio_wallet_row(wallet: PortfolioWalletResult) -> dict[str, str]:
         "error": "" if wallet.error is None else wallet.error,
         "native_balance": str(wallet.overview.native_balance),
         "native_price_usd": (
-            "" if wallet.overview.native_price_usd is None else str(wallet.overview.native_price_usd)
+            ""
+            if wallet.overview.native_price_usd is None
+            else str(wallet.overview.native_price_usd)
         ),
         "total_usd": "" if wallet.overview.total_usd is None else str(wallet.overview.total_usd),
         "token_count": str(len(wallet.overview.token_balances)),
@@ -619,7 +623,9 @@ def _portfolio_wallet_row(wallet: PortfolioWalletResult) -> dict[str, str]:
         "token_balances_truncated": "true" if wallet.overview.token_balances_truncated else "false",
         "updated_at": wallet.overview.updated_at.isoformat(),
         "adjusted_wallet_total_usd": (
-            "" if wallet.adjusted_wallet_total_usd is None else str(wallet.adjusted_wallet_total_usd)
+            ""
+            if wallet.adjusted_wallet_total_usd is None
+            else str(wallet.adjusted_wallet_total_usd)
         ),
         "protocol_ids": ";".join(item.protocol_id for item in wallet.protocol_snapshots),
         "protocol_snapshot_blocks": ";".join(

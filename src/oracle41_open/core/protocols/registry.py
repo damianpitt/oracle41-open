@@ -88,6 +88,7 @@ def production_protocol_registry() -> ProtocolAdapterRegistry:
         CompoundV3Adapter,
         compound_v3_markets,
     )
+    from oracle41_open.core.protocols.erc4626 import ERC4626Adapter, erc4626_vaults
     from oracle41_open.core.protocols.uniswap_v3 import UniswapV3Adapter
 
     return ProtocolAdapterRegistry(
@@ -95,6 +96,7 @@ def production_protocol_registry() -> ProtocolAdapterRegistry:
             AaveV3Adapter(),
             *(CompoundV3Adapter(market) for market in compound_v3_markets()),
             UniswapV3Adapter(),
+            *(ERC4626Adapter(vault) for vault in erc4626_vaults()),
         )
     )
 
@@ -147,7 +149,9 @@ def _validate_adapter_result(
 ) -> None:
     capabilities = adapter.capabilities
     if result.schema_version != 1:
-        raise ValueError(f"Protocol adapter {capabilities.adapter_id} returned an unknown schema version.")
+        raise ValueError(
+            f"Protocol adapter {capabilities.adapter_id} returned an unknown schema version."
+        )
     if (
         result.adapter_id != capabilities.adapter_id
         or result.adapter_version != capabilities.adapter_version
