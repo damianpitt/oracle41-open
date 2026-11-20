@@ -49,6 +49,8 @@ GoldRush supplies decoded approval events from wallet transaction history, inclu
 
 The Wallet Data Providers order applies only to indexed wallet operations. It does not make Moralis or GoldRush into JSON-RPC or pricing providers.
 
+The Historical Prices screen also uses an enabled Alchemy key for explicit daily token-price fetches. No additional key is needed. Saved history, lookup, and exports work without credentials. Changing provider settings requires an application restart. Its maximum prior-price age is chosen on that screen; the current-pricing stale-age preference does not change historical lookup policy. See [Historical Price Evidence](HISTORICAL_PRICES.md).
+
 | Provider | Indexed wallet data | Transaction inspection | Market pricing |
 | --- | --- | --- | --- |
 | Alchemy | Yes | Yes | Yes |

@@ -144,6 +144,16 @@ Model economic positions rather than treating every contract token as a simple w
 
 **Release target:** `0.5.0-beta`
 
+**Development status:** M7.1 is complete in `0.5.0a1`. The 0.5 series remains alpha until its historical accounting exit gates are met. M6 protocol, staking, reward, NFT, and network expansions remain open; the M7 foundation does not mark those features complete.
+
+### Incremental Plan
+
+1. **M7.1: Historical price evidence.** Completed: bounded exact-contract daily collection, immutable fetch IDs, source revisions, offline lookup, age policy, UI, and CSV/JSON exports.
+2. **M7.2: Historical holdings and valuation inputs.** Define opening balances, ledger coverage, fees, and price gaps before reporting historical totals.
+3. **M7.3: Daily portfolio history.** Build snapshots, retention controls, and time series with explicit completeness.
+4. **M7.4: Accounting and lots.** Add flow classification and tested P&L calculations with configurable lot methods.
+5. **M7.5: Returns and audit reports.** Add documented return calculations, accounting overrides, and reproducible reports pinned to their inputs.
+
 Provide reproducible performance analysis from the event ledger.
 
 ### Scope
@@ -649,3 +659,15 @@ Results reuse the existing protocol snapshots and schema version 14. Finished sn
 Synthetic fixtures cover complete, partial, and malformed evidence through the adapter conformance suite. Additional tests cover separate decimals, unknown and zero conversions, deployment rejection, source consistency, snapshot reuse, refresh, receipt double counting, missing prices, and exports. Live deployment availability and historical provider plans are not validated by these fixtures.
 
 See [ERC-4626 Vault Positions](ERC4626_VAULTS.md) for the reviewed address, official references, and use instructions. More vaults, recursive decomposition, custody-held shares, staking and reward adapters, yield accounting, and M7 historical valuation remain separate work.
+
+### Completed Slice: M7.1
+
+**Status:** Complete in `0.5.0a1` (alpha).
+
+M7.1 adds daily historical price evidence by exact token contract through Alchemy's historical address endpoint. Each explicit request covers up to 30 days on a configured pricing network. The response must match the requested chain, contract, and USD currency. Ticker matching, native assets, Robinhood generic historical pricing, NFTs, and current-price fallback are outside this slice.
+
+SQLite schema version 15 stores immutable fetch records and decimal observations. A new fetch and its points commit together. Revisions receive new fetch IDs, empty responses remain explicit, and failures keep earlier evidence untouched. Offline reads can reopen the newest exact range or a pinned fetch. Prior-or-exact lookup reports age and missing/stale states and supports a fetch-time cutoff for historical knowledge.
+
+The Historical Prices screen supports explicit fetch, saved browsing, lookup, and version-1 CSV/JSON exports. Tests cover identity, precision, retries, time zones, gaps, zero prices, revisions, rollback, migration, offline UI, refresh failure, and late results after a scope change. Tests use synthetic responses, not live credentials.
+
+Current Portfolio valuation is unchanged. Daily observations are not trade execution prices or proof of complete market history. Historical holdings, daily portfolio series, accounting, lots, returns, and overrides remain later M7 slices. See [Historical Price Evidence](HISTORICAL_PRICES.md).

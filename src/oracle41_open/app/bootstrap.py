@@ -14,6 +14,7 @@ from oracle41_open.core.models import Chain, ProviderError
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.contract_abi_service import ContractABIService
+from oracle41_open.core.services.historical_price_service import HistoricalPriceService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
 from oracle41_open.core.services.pricing_service import PricingService
@@ -32,6 +33,7 @@ from oracle41_open.core.services.wallet_service import WalletService
 from oracle41_open.core.services.watchlist_service import WatchlistService
 from oracle41_open.core.services.xstocks_audit_service import XStocksAuditService
 from oracle41_open.providers.alchemy import AlchemyPricingProvider, AlchemyProvider
+from oracle41_open.providers.alchemy_historical_prices import AlchemyHistoricalPriceProvider
 from oracle41_open.providers.ankr import AnkrProvider
 from oracle41_open.providers.blockscout import BlockscoutABIProvider
 from oracle41_open.providers.capabilities import (
@@ -68,6 +70,7 @@ from oracle41_open.storage.db import (
     WalletNotesRepository,
     WatchlistRepository,
 )
+from oracle41_open.storage.db.historical_price_repository import HistoricalPriceRepository
 from oracle41_open.storage.db.xstocks_audit_repository import XStocksAuditRepository
 from oracle41_open.storage.secrets import SecretStore
 from oracle41_open.storage.settings import SettingsStore
@@ -109,6 +112,7 @@ class AppContainer:
     snapshot_compare_service: SnapshotCompareService
     portfolio_service: PortfolioService
     uses_live_providers: bool
+    historical_price_service: HistoricalPriceService
 
 
 def build_container() -> AppContainer:
@@ -221,7 +225,8 @@ def build_container() -> AppContainer:
     )
     xstocks_provider = XStocksAssetProvider(cache_store=cache_store)
     xstocks_audit_service = XStocksAuditService(
-        xstocks_provider, XStocksAuditRepository(sqlite_database),
+        xstocks_provider,
+        XStocksAuditRepository(sqlite_database),
     )
     rwa_recognition_service = RWARecognitionService(
         stock_token_pricing_provider,
@@ -267,8 +272,7 @@ def build_container() -> AppContainer:
             EVMJSONRPCProvider(
                 {
                     chain: (
-                        f"https://{chain.alchemy_network_path}.g.alchemy.com/v2/"
-                        f"{alchemy_api_key}"
+                        f"https://{chain.alchemy_network_path}.g.alchemy.com/v2/{alchemy_api_key}"
                     )
                     for chain in Chain
                     if chain.network.alchemy_network_path is not None
@@ -319,6 +323,13 @@ def build_container() -> AppContainer:
         protocol_snapshot_collector=protocol_position_service,
     )
 
+    historical_price_service = HistoricalPriceService(
+        HistoricalPriceRepository(sqlite_database),
+        AlchemyHistoricalPriceProvider(alchemy_api_key)
+        if alchemy_api_key and WalletDataProviderId.ALCHEMY in enabled_provider_ids
+        else None,
+    )
+
     return AppContainer(
         settings_store=settings_store,
         secret_store=secret_store,
@@ -354,6 +365,7 @@ def build_container() -> AppContainer:
         snapshot_compare_service=snapshot_compare_service,
         portfolio_service=portfolio_service,
         uses_live_providers=uses_live_providers,
+        historical_price_service=historical_price_service,
     )
 
 

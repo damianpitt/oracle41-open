@@ -40,6 +40,7 @@ def test_main_window_constructs_all_primary_tabs(
         "Token Detail",
         "Watchlist",
         "Portfolio",
+        "Historical Prices",
         "Notes & Views",
         "Snapshots",
         "Settings",

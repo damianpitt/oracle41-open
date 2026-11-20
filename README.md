@@ -4,7 +4,9 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.4.0a24` is an alpha release.
+Version `0.5.0a1` is an alpha release.
+
+The 0.5 series starts historical analytics with saved daily price evidence. It is not a complete accounting or tax-reporting release, and existing Portfolio totals still use current available prices.
 
 Alchemy, Ankr, Moralis, and GoldRush can be enabled and ordered in Settings. Their capabilities are declared separately for each chain, so Oracle41 does not send requests to a provider before that combination has been validated.
 
@@ -139,6 +141,20 @@ Browse this README: [Features](#features) | [Privacy](#privacy-and-scope) | [Arc
 - Configurable protocol snapshot freshness with clear fresh, stale, and future-observation states
 
 - Local protocol snapshot history selection and explicit exact-block refresh controls
+
+### Historical Price Evidence
+
+- Historical Prices screen for daily USD observations by exact network and token contract
+
+- Explicit Alchemy fetches of up to 30 days, saved-range browsing, and offline lookup
+
+- Durable fetch IDs and source revisions, without overwriting earlier observations
+
+- Exact, prior, stale, and missing lookup results with a configurable age limit; no later-timestamp or current-price substitution
+
+- Precision-preserving CSV/JSON exports of the displayed fetch, including source and requested range
+
+See [historical price documentation](docs/HISTORICAL_PRICES.md) for controls, coverage, lookup policy, and limits.
 
 ### Linux Distribution
 

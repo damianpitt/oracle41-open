@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.4.0a24] - Unreleased
+## [0.5.0a1] - Unreleased
+
+### Added
+
+- M7.1 historical price foundation with exact-contract daily Alchemy collection, bounded to 30 days per explicit request.
+- SQLite schema version 15 with immutable fetch IDs, source revisions, decimal observations, and atomic batch writes.
+- Offline prior-or-exact lookup with maximum-age policy, exact/prior/stale/missing results, and optional fetch-time cutoff.
+- Historical Prices screen with explicit fetch, saved-range browsing, lookup, source details, and CSV/JSON export.
+- Historical price export format version 1 with precision-preserving price text, source references, fetch IDs, and empty-fetch status.
+- Synthetic tests for source identity, precision, structured retries, migration, rollback, revisions, gaps, no-lookahead selection, exports, and offline UI.
+
+### Changed
+
+- Started the 0.5 alpha series. The planned beta milestone still requires historical holdings, accounting, and reproducibility exit gates.
+- Documented the M7 implementation sequence while keeping remaining M6 expansion work visible.
+- Existing SQLite backups now include historical price evidence automatically.
+
+### Known Limitations
+
+- Daily token samples are not trade execution prices, complete market history, historical wallet balances, P&L, or tax reports.
+- This path requires enabled Alchemy access for fetching. Native assets, NFTs, and Robinhood generic historical pricing are not included.
+- Current wallet and Portfolio valuation are unchanged. No interpolation, stablecoin peg, or current-price fallback is used for historical lookup.
+- Live API access and Linux package builds require separate validation. Public tests use no real provider keys.
+
+## [0.4.0a24] - 2026-10-23
 
 ### Added
 

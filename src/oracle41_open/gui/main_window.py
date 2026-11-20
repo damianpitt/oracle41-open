@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from oracle41_open.gui.views.activity_view import ActivityView
+from oracle41_open.gui.views.historical_prices_view import HistoricalPricesView
 from oracle41_open.gui.views.notes_saved_views_view import NotesSavedViewsView
 from oracle41_open.gui.views.overview_view import OverviewView
 from oracle41_open.gui.views.portfolio_view import PortfolioView
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
             "Watchlist",
         )
         tabs.addTab(PortfolioView(container=container), "Portfolio")
+        tabs.addTab(HistoricalPricesView(container=container), "Historical Prices")
         tabs.addTab(
             NotesSavedViewsView(
                 container=container,
@@ -62,11 +64,13 @@ class MainWindow(QMainWindow):
                     chain=chain,
                     filters=filters,
                 ),
-                open_token_detail_with_filters=lambda chain, filters: self._open_token_detail_with_filters(
-                    tabs=tabs,
-                    token_detail_view=token_detail_view,
-                    chain=chain,
-                    filters=filters,
+                open_token_detail_with_filters=lambda chain, filters: (
+                    self._open_token_detail_with_filters(
+                        tabs=tabs,
+                        token_detail_view=token_detail_view,
+                        chain=chain,
+                        filters=filters,
+                    )
                 ),
             ),
             "Notes & Views",

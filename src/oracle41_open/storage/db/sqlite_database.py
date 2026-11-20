@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 14
+_SCHEMA_VERSION = 15
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -600,6 +600,30 @@ CREATE TABLE xstocks_sync_records (
 );
 """
 
+_SCHEMA_V15_SQL = """
+CREATE TABLE historical_price_fetches (
+    fetch_id TEXT PRIMARY KEY,
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    interval TEXT NOT NULL,
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    source_provider TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+);
+CREATE INDEX idx_historical_price_fetch_scope ON historical_price_fetches(
+    chain, contract_address, interval, source_provider, fetched_at
+);
+CREATE TABLE historical_price_points (
+    fetch_id TEXT NOT NULL REFERENCES historical_price_fetches(fetch_id),
+    price_at TEXT NOT NULL,
+    value_usd TEXT NOT NULL,
+    PRIMARY KEY(fetch_id, price_at)
+);
+CREATE INDEX idx_historical_price_time ON historical_price_points(price_at);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -615,6 +639,7 @@ _MIGRATIONS = {
     12: _SCHEMA_V12_SQL,
     13: _SCHEMA_V13_SQL,
     14: _SCHEMA_V14_SQL,
+    15: _SCHEMA_V15_SQL,
 }
 
 

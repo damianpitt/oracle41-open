@@ -94,6 +94,7 @@ def test_bootstrap_uses_enabled_providers_in_saved_priority_order(
     assert isinstance(container.data_provider, OrderedDataProviderPool)
     assert container.data_provider.provider_ids == ("ankr", "alchemy")
     assert container.uses_live_providers
+    assert container.historical_price_service.can_refresh
 
 
 def test_bootstrap_does_not_configure_disabled_provider(
@@ -114,6 +115,7 @@ def test_bootstrap_does_not_configure_disabled_provider(
 
     assert isinstance(container.data_provider, OrderedDataProviderPool)
     assert container.data_provider.provider_ids == ("ankr",)
+    assert not container.historical_price_service.can_refresh
 
 
 def test_bootstrap_configures_enabled_moralis_in_saved_order(

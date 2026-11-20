@@ -309,7 +309,7 @@ def test_schema_v13_migrates_to_sync_staging(tmp_path: Path) -> None:
             INSERT INTO schema_meta VALUES ('schema_version', '13');""")
     database = SQLiteDatabase(path)
     with database.connection() as conn:
-        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "14"
+        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "15"
         assert conn.execute("SELECT COUNT(*) FROM xstocks_sync_records").fetchone()[0] == 0
 
 
