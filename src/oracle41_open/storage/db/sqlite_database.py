@@ -14,7 +14,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_SCHEMA_VERSION = 15
+_SCHEMA_VERSION = 16
 
 _SCHEMA_V1_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -624,6 +624,20 @@ CREATE TABLE historical_price_points (
 CREATE INDEX idx_historical_price_time ON historical_price_points(price_at);
 """
 
+_SCHEMA_V16_SQL = """
+CREATE TABLE historical_holdings_reports (
+    report_id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    contract_address TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    document_json TEXT NOT NULL
+);
+CREATE INDEX idx_historical_holdings_scope ON historical_holdings_reports(
+    wallet_address, chain, contract_address, created_at
+);
+"""
+
 _MIGRATIONS = {
     1: _SCHEMA_V1_SQL,
     2: _SCHEMA_V2_SQL,
@@ -640,6 +654,7 @@ _MIGRATIONS = {
     13: _SCHEMA_V13_SQL,
     14: _SCHEMA_V14_SQL,
     15: _SCHEMA_V15_SQL,
+    16: _SCHEMA_V16_SQL,
 }
 
 

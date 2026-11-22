@@ -2,7 +2,31 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.5.0a1] - Unreleased
+## [0.5.0a2] - Unreleased
+
+### Added
+
+- M7.2 single-token ERC-20 holdings inputs with explicit historical opening and closing balance reads.
+- Raw-integer saved transfer replay, canonical log deduplication, conflicting-log exclusions, receipt checks, and visible reconciliation differences.
+- Separate saved native-fee context and pinned M7.1 historical price evidence with replay-time eligibility checks.
+- SQLite schema version 16 with frozen, append-only input/result reports and offline reopening.
+- Historical Holdings screen with explicit collection, saved report browsing, readable warnings, and version-1 CSV/JSON exports.
+- Synthetic tests for boundaries, directions, gaps, fees, receipts, duplicate/conflicting logs, source consistency, precision, frozen revisions, migrations, rollback, and UI behavior.
+
+### Changed
+
+- Documented the bounded scope of M7.2 and the timing and coverage requirements before broader daily portfolio history.
+- Existing database backups now include historical holdings reports automatically.
+
+### Known Limitations
+
+- Reports cover one ERC-20 token, not complete native, NFT, protocol, or wallet holdings. Endpoint matches do not prove complete intermediate activity.
+- Price lookup time is user supplied and not verified against a block header. Reads use block numbers, not hash-pinned or finality-aware references.
+- USD estimates value the observed closing token balance; they are not P&L, tax reports, or full historical Portfolio totals.
+- Collection does not synchronize missing activity or fetch prices. Historical RPC availability depends on endpoint and plan.
+- Live RPC access and Linux package builds are separate validation; tests use synthetic data and no real keys.
+
+## [0.5.0a1] - 2026-11-21
 
 ### Added
 

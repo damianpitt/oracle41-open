@@ -74,6 +74,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
     )
     with database.connection() as conn:
         conn.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+        conn.execute("DROP TABLE historical_holdings_reports")
         conn.execute("DROP TABLE historical_price_points")
         conn.execute("DROP TABLE historical_price_fetches")
         conn.execute("DROP TABLE xstocks_sync_records")
@@ -111,7 +112,7 @@ def test_v2_database_migrates_to_latest_without_losing_ledger_rows(tmp_path: Pat
         receipt_columns = {
             row[1] for row in conn.execute("PRAGMA table_info(ledger_transaction_receipts)")
         }
-    assert version == ("15",)
+    assert version == ("16",)
     assert event_count == (1,)
     assert receipt_table == ("ledger_transaction_receipts",)
     assert "l1_gas_used" in receipt_columns

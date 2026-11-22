@@ -213,5 +213,5 @@ def test_schema_v12_migrates_to_xstocks_history(tmp_path: Path) -> None:
         """)
     database = SQLiteDatabase(path)
     with database.connection() as conn:
-        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "15"
+        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "16"
         assert conn.execute("SELECT COUNT(*) FROM xstocks_corporate_actions").fetchone()[0] == 0

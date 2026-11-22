@@ -28,7 +28,7 @@ Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data covera
 
 Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
 
-| Provider or source | Robinhood status in `0.5.0a1` |
+| Provider or source | Robinhood status in `0.5.0a2` |
 | --- | --- |
 | Alchemy wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Alchemy JSON-RPC | Available for transaction inspection |
@@ -57,7 +57,7 @@ Alchemy currently gives the broadest single-provider experience. It is not requi
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.5.0a1` keeps that path enabled after chain-specific fixture validation.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.5.0a2` keeps that path enabled after chain-specific fixture validation.
 
 The provider pool follows these rules:
 
@@ -72,7 +72,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.5.0a1` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
+Version `0.5.0a2` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -126,6 +126,8 @@ Trace and historical-state methods are not universal JSON-RPC features. Some end
 Reviewed ERC-4626 vaults use the transaction JSON-RPC pool for exact-block contract reads, not the wallet-data adapters. Coverage starts with Ethereum sDAI and validates its expected DAI underlying. Alchemy, Ankr, or a custom RPC must provide the requested historical state; Moralis and GoldRush do not collect it. No new provider key or public indexing endpoint is added. See [ERC-4626 Vault Positions](ERC4626_VAULTS.md).
 
 ## Pricing Scope
+
+Historical Holdings reports use historical `balanceOf` and `decimals` contract reads through Alchemy, Ankr, or custom JSON-RPC endpoints, plus already-saved ledger and price evidence. Moralis and GoldRush remain indexed wallet sources, not contract readers. This path does not synchronize history or fetch prices. Block-number/source checks and receipt context do not establish finality or a verified block-to-price timestamp. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).
 
 Version `0.5.0a1` adds a separate Alchemy historical-price source for exact token contracts and daily USD observations. Fetching is explicit and uses the existing enabled Alchemy key. Each request is bounded to 30 days, and saved responses keep fetch IDs and source revisions in SQLite. Ankr, Moralis, and GoldRush do not supply this path. Robinhood generic history and native-symbol history are not enabled. Token availability and access depend on the source, even on a configured pricing network.
 

@@ -39,7 +39,7 @@ These meanings follow [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626). Conve
 
 ## Storage and Portfolio Accounting
 
-Finished results reuse the existing protocol snapshot tables, keyed by wallet, chain, protocol, and block. Vault support did not require a migration in `0.4.0a24`; the current database is schema version 15 after M7.1 added separate historical price tables. Loading a finished vault snapshot makes no provider calls. Explicit refresh replaces it only after collection and normalization finish. Failed mandatory reads leave a saved result untouched. This small collector does not add per-call resume checkpoints; an interrupted vault read restarts that vault, while finished snapshots remain reusable.
+Finished results reuse the existing protocol snapshot tables, keyed by wallet, chain, protocol, and block. Vault support did not require a migration in `0.4.0a24`; the current database is schema version 16 after M7 added separate historical price and holdings-report tables. Loading a finished vault snapshot makes no provider calls. Explicit refresh replaces it only after collection and normalization finish. Failed mandatory reads leave a saved result untouched. This small collector does not add per-call resume checkpoints; an interrupted vault read restarts that vault, while finished snapshots remain reusable.
 
 The underlying appears as one supplied position. Shares, conversion values, preview values, limits, and the registry source remain in its metadata. Shares are not added as a second priced protocol asset.
 

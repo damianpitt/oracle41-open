@@ -53,4 +53,4 @@ An export describes one saved fetch, not complete token history, a wallet balanc
 
 ## What Comes Next
 
-M7.2 will define historical holdings and valuation inputs, including opening balances, event coverage, fees, and price gaps. Daily portfolio series, P&L and lots, returns, and accounting overrides follow in separate tested slices. M6 protocol and network expansion remains possible in parallel; starting M7 does not claim that every M6 adapter is finished.
+M7.2 now uses this evidence in a bounded [ERC-20 holdings-input report](HISTORICAL_HOLDINGS.md), including opening balances, saved transfer replay, fee context, and price gaps. It does not claim complete historical holdings or verified block-to-price timing. Daily portfolio series, P&L and lots, returns, and accounting overrides follow in separate tested slices. M6 protocol and network expansion remains possible in parallel.

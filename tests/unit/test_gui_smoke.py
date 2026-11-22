@@ -41,6 +41,7 @@ def test_main_window_constructs_all_primary_tabs(
         "Watchlist",
         "Portfolio",
         "Historical Prices",
+        "Historical Holdings",
         "Notes & Views",
         "Snapshots",
         "Settings",

@@ -51,6 +51,8 @@ The Wallet Data Providers order applies only to indexed wallet operations. It do
 
 The Historical Prices screen also uses an enabled Alchemy key for explicit daily token-price fetches. No additional key is needed. Saved history, lookup, and exports work without credentials. Changing provider settings requires an application restart. Its maximum prior-price age is chosen on that screen; the current-pricing stale-age preference does not change historical lookup policy. See [Historical Price Evidence](HISTORICAL_PRICES.md).
 
+The Historical Holdings screen uses the configured Alchemy, Ankr, or custom JSON-RPC pool to read token balances at explicit blocks. Archive-state availability depends on the chain, endpoint, and plan. It uses local saved ledger and price inputs, does not synchronize missing data, and needs no extra key. Saved reports reopen offline. Its price-age input is independent of current pricing preferences. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).
+
 | Provider | Indexed wallet data | Transaction inspection | Market pricing |
 | --- | --- | --- | --- |
 | Alchemy | Yes | Yes | Yes |

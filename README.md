@@ -4,7 +4,7 @@ Oracle41 Open is a Linux-first desktop application for read-only EVM wallet anal
 
 ## Alpha Status
 
-Version `0.5.0a1` is an alpha release.
+Version `0.5.0a2` is an alpha release.
 
 The 0.5 series starts historical analytics with saved daily price evidence. It is not a complete accounting or tax-reporting release, and existing Portfolio totals still use current available prices.
 
@@ -155,6 +155,20 @@ Browse this README: [Features](#features) | [Privacy](#privacy-and-scope) | [Arc
 - Precision-preserving CSV/JSON exports of the displayed fetch, including source and requested range
 
 See [historical price documentation](docs/HISTORICAL_PRICES.md) for controls, coverage, lookup policy, and limits.
+
+### Historical Holdings Inputs
+
+- Single-token ERC-20 audit with explicit opening and closing contract balances at selected blocks
+
+- Raw-integer replay of saved transfers, duplicate-log checks, receipt exclusions, and visible balance differences
+
+- Pinned historical price inputs and a closing-balance USD estimate, with missing and stale prices kept explicit
+
+- Native-fee context kept separate from ERC-20 amounts; no assumed zero opening balance or complete history
+
+- Frozen SQLite reports, offline reopening, and versioned CSV/JSON exports
+
+This is not a complete historical portfolio or P&L report. Price lookup time is user supplied, not verified against the block header. See [historical holdings documentation](docs/HISTORICAL_HOLDINGS.md).
 
 ### Linux Distribution
 

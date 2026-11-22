@@ -14,6 +14,7 @@ from oracle41_open.core.models import Chain, ProviderError
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.contract_abi_service import ContractABIService
+from oracle41_open.core.services.historical_holdings_service import HistoricalHoldingsService
 from oracle41_open.core.services.historical_price_service import HistoricalPriceService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
 from oracle41_open.core.services.portfolio_service import PortfolioService
@@ -70,6 +71,7 @@ from oracle41_open.storage.db import (
     WalletNotesRepository,
     WatchlistRepository,
 )
+from oracle41_open.storage.db.historical_holdings_repository import HistoricalHoldingsRepository
 from oracle41_open.storage.db.historical_price_repository import HistoricalPriceRepository
 from oracle41_open.storage.db.xstocks_audit_repository import XStocksAuditRepository
 from oracle41_open.storage.secrets import SecretStore
@@ -113,6 +115,7 @@ class AppContainer:
     portfolio_service: PortfolioService
     uses_live_providers: bool
     historical_price_service: HistoricalPriceService
+    historical_holdings_service: HistoricalHoldingsService
 
 
 def build_container() -> AppContainer:
@@ -366,6 +369,12 @@ def build_container() -> AppContainer:
         portfolio_service=portfolio_service,
         uses_live_providers=uses_live_providers,
         historical_price_service=historical_price_service,
+        historical_holdings_service=HistoricalHoldingsService(
+            transaction_data_provider,
+            HistoricalHoldingsRepository(sqlite_database),
+            historical_price_service,
+            rpc_available=bool(transaction_providers),
+        ),
     )
 
 

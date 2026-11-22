@@ -144,13 +144,13 @@ Model economic positions rather than treating every contract token as a simple w
 
 **Release target:** `0.5.0-beta`
 
-**Development status:** M7.1 is complete in `0.5.0a1`. The 0.5 series remains alpha until its historical accounting exit gates are met. M6 protocol, staking, reward, NFT, and network expansions remain open; the M7 foundation does not mark those features complete.
+**Development status:** M7.2's bounded ERC-20 holdings-input slice is complete in `0.5.0a2`. M7.1 price evidence remains available. The 0.5 series stays alpha until its historical accounting exit gates are met. Native, NFT, and protocol historical holdings remain open, as do remaining M6 expansions.
 
 ### Incremental Plan
 
 1. **M7.1: Historical price evidence.** Completed: bounded exact-contract daily collection, immutable fetch IDs, source revisions, offline lookup, age policy, UI, and CSV/JSON exports.
-2. **M7.2: Historical holdings and valuation inputs.** Define opening balances, ledger coverage, fees, and price gaps before reporting historical totals.
-3. **M7.3: Daily portfolio history.** Build snapshots, retention controls, and time series with explicit completeness.
+2. **M7.2: Historical holdings and valuation inputs.** Completed for one ERC-20 at a time: explicit endpoint balances, saved transfer replay, reconciliation, coverage context, separate native fees, pinned price inputs, and offline reports. No complete wallet total is claimed.
+3. **M7.3: Daily portfolio history.** Add verified time references and coverage controls, then build snapshots, retention controls, and time series with explicit completeness.
 4. **M7.4: Accounting and lots.** Add flow classification and tested P&L calculations with configurable lot methods.
 5. **M7.5: Returns and audit reports.** Add documented return calculations, accounting overrides, and reproducible reports pinned to their inputs.
 
@@ -671,3 +671,17 @@ SQLite schema version 15 stores immutable fetch records and decimal observations
 The Historical Prices screen supports explicit fetch, saved browsing, lookup, and version-1 CSV/JSON exports. Tests cover identity, precision, retries, time zones, gaps, zero prices, revisions, rollback, migration, offline UI, refresh failure, and late results after a scope change. Tests use synthetic responses, not live credentials.
 
 Current Portfolio valuation is unchanged. Daily observations are not trade execution prices or proof of complete market history. Historical holdings, daily portfolio series, accounting, lots, returns, and overrides remain later M7 slices. See [Historical Price Evidence](HISTORICAL_PRICES.md).
+
+### Completed Slice: M7.2
+
+**Status:** Complete for bounded single-token ERC-20 inputs in `0.5.0a2` (alpha).
+
+M7.2 reads opening and closing token balances and decimals at explicit block numbers through the existing historical JSON-RPC pool. It captures local token events, receipt status, fee evidence, and checkpoints in a SQLite snapshot, then replays usable raw transfer deltas in the interval after the opening block through the closing block. An opening balance is never guessed from missing history.
+
+Canonical log aliases are deduplicated; conflicts, unknown blocks, failed or mismatched receipts, and invalid movement evidence remain visible. Negative block-end projections are flagged, not clamped. Checkpoints are context, not a completeness proof. Even matching endpoint balances cannot prove complete intermediate activity.
+
+M7.1 prices are pinned by fetch ID and timestamp, with age and knowledge-cutoff policy. The optional USD estimate values the observed closing balance, not profit. Price time remains a user input, not a verified closing-block timestamp. Saved native fees are separate context, never ERC-20 deductions or a complete fee history.
+
+Schema version 16 stores append-only frozen reports. Original inputs can reproduce their result offline after ledger or price revisions. The Historical Holdings screen supports explicit collection, saved report browsing, warnings, and format-v1 CSV/JSON export. Tests cover block boundaries, directions, duplicates, conflicts, receipts, partial history, fees, price gaps, precision, migration, storage rollback, source consistency, and late UI results.
+
+Native, NFT, and protocol holdings, hash-pinned/finality-aware block references, verified block time, daily portfolio totals, accounting lots, P&L, and returns are not included. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).

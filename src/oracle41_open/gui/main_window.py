@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from oracle41_open.gui.views.activity_view import ActivityView
+from oracle41_open.gui.views.historical_holdings_view import HistoricalHoldingsView
 from oracle41_open.gui.views.historical_prices_view import HistoricalPricesView
 from oracle41_open.gui.views.notes_saved_views_view import NotesSavedViewsView
 from oracle41_open.gui.views.overview_view import OverviewView
@@ -55,6 +56,7 @@ class MainWindow(QMainWindow):
         )
         tabs.addTab(PortfolioView(container=container), "Portfolio")
         tabs.addTab(HistoricalPricesView(container=container), "Historical Prices")
+        tabs.addTab(HistoricalHoldingsView(container=container), "Historical Holdings")
         tabs.addTab(
             NotesSavedViewsView(
                 container=container,
