@@ -14,6 +14,7 @@ from oracle41_open.core.models import Chain, ProviderError
 from oracle41_open.core.services.abi_decoder import StandardABIDecoder
 from oracle41_open.core.services.activity_service import ActivityService
 from oracle41_open.core.services.contract_abi_service import ContractABIService
+from oracle41_open.core.services.historical_block_service import HistoricalBlockService
 from oracle41_open.core.services.historical_holdings_service import HistoricalHoldingsService
 from oracle41_open.core.services.historical_price_service import HistoricalPriceService
 from oracle41_open.core.services.label_resolution_service import LabelResolutionService
@@ -370,10 +371,10 @@ def build_container() -> AppContainer:
         uses_live_providers=uses_live_providers,
         historical_price_service=historical_price_service,
         historical_holdings_service=HistoricalHoldingsService(
-            transaction_data_provider,
             HistoricalHoldingsRepository(sqlite_database),
             historical_price_service,
             rpc_available=bool(transaction_providers),
+            blocks=HistoricalBlockService(transaction_data_provider),
         ),
     )
 

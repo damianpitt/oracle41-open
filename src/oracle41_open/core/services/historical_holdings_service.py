@@ -18,36 +18,32 @@ from uuid import uuid4
 
 from oracle41_open._json import dumps
 from oracle41_open.core.models import Chain, ProviderResponseError, ValidationError
+from oracle41_open.core.models.block_reference import BlockReferenceCheck
 from oracle41_open.core.models.historical_holdings import (
     HistoricalHoldingsReport,
     HistoricalHoldingsReportSummary,
     HistoricalHoldingsRequest,
 )
 from oracle41_open.core.models.historical_price import time_text, utc_time
+from oracle41_open.core.services.historical_block_service import HistoricalBlockService
 from oracle41_open.core.services.historical_price_service import HistoricalPriceService
-from oracle41_open.core.services.protocol_collection import (
-    ContractStateReader,
-    SnapshotReadTracker,
-    call_data,
-    decode_call_result,
-)
 from oracle41_open.storage.db.historical_holdings_repository import HistoricalHoldingsRepository
 
 
 class HistoricalHoldingsService:
     def __init__(
         self,
-        provider: ContractStateReader,
         repository: HistoricalHoldingsRepository,
         prices: HistoricalPriceService,
         now_func: Callable[[], datetime] | None = None,
         rpc_available: bool = True,
+        blocks: HistoricalBlockService | None = None,
     ) -> None:
-        self._provider = provider
         self._repository = repository
         self._prices = prices
         self._now = now_func or (lambda: datetime.now(tz=UTC))
         self.can_collect = rpc_available
+        self._blocks = blocks
 
     def collect(self, request: HistoricalHoldingsRequest) -> HistoricalHoldingsReport:
         """Capture endpoints, local evidence, and a pinned price without synchronizing activity."""
@@ -55,10 +51,22 @@ class HistoricalHoldingsService:
             raise ProviderResponseError(
                 "Configure Alchemy, Ankr, or a custom historical JSON-RPC endpoint, then restart."
             )
-        if request.price_at > utc_time(self._now()):
+        if request.price_at is not None and request.price_at > utc_time(self._now()):
             raise ValidationError("The requested historical price time cannot be in the future.")
-        opening = self._anchor(request, request.opening_block)
-        closing = self._anchor(request, request.closing_block, opening["source_provider"])
+        if self._blocks is None:
+            raise ProviderResponseError(
+                "Verified historical block collection requires a hash-capable reader. Numeric fallback is disabled."
+            )
+        anchors = self._blocks.collect(
+            request.chain,
+            request.wallet_address,
+            request.contract_address,
+            request.opening_block,
+            request.closing_block,
+            request.require_finalized,
+        )
+        opening, closing = anchors.opening, anchors.closing
+        price_at = datetime.fromisoformat(closing["header"]["timestamp"])
         if opening["decimals"] != closing["decimals"]:
             raise ProviderResponseError(
                 "Token decimals changed between the requested blocks; one-unit replay is not supported."
@@ -68,7 +76,7 @@ class HistoricalHoldingsService:
         selection = self._prices.select(
             request.chain,
             request.contract_address,
-            request.price_at,
+            price_at,
             max_age_seconds=request.max_price_age_seconds,
             known_by=created,
         )
@@ -91,7 +99,11 @@ class HistoricalHoldingsService:
                 "contract_address": request.contract_address,
                 "opening_block": request.opening_block,
                 "closing_block": request.closing_block,
-                "price_at": time_text(request.price_at),
+                "price_at": time_text(price_at),
+                "supplied_price_at_ignored": time_text(request.price_at)
+                if request.price_at is not None
+                else None,
+                "require_finalized": request.require_finalized,
                 "max_price_age_seconds": request.max_price_age_seconds,
                 "native_symbol": request.chain.native_symbol,
             },
@@ -99,11 +111,18 @@ class HistoricalHoldingsService:
             "closing": closing,
             "ledger": ledger,
             "price": price,
+            "timing": {
+                "price_time_source": "closing_block_header",
+                "closing_block_hash": closing["header"]["hash"],
+                "closing_block_timestamp": closing["header"]["timestamp"],
+                "canonical_rechecked": True,
+            },
+            "finality": anchors.finality,
         }
         report_id = str(uuid4())
         document = {
             "format": "oracle41-historical-holdings",
-            "format_version": 1,
+            "format_version": 2,
             "report_id": report_id,
             "created_at": time_text(created),
             "scope": "single_erc20_end_of_block_inputs_not_portfolio_or_accounting",
@@ -116,26 +135,42 @@ class HistoricalHoldingsService:
         self._repository.save(report)
         return report
 
-    def _anchor(
-        self, request: HistoricalHoldingsRequest, block: int, source: str | None = None
-    ) -> dict[str, Any]:
-        tracker = SnapshotReadTracker(self._provider, request.chain, block, source_provider=source)
-        balance = tracker.read(
-            request.contract_address,
-            call_data("balanceOf(address)", ("address",), (request.wallet_address,)),
-        )
-        amount = decode_call_result(balance.data, ("uint256",), "Historical token balance")[0]
-        units = tracker.read(request.contract_address, call_data("decimals()"))
-        decimals = decode_call_result(units.data, ("uint8",), "Historical token decimals")[0]
-        return {
-            "block_number": block,
-            "raw_balance": str(amount),
-            "decimals": int(str(decimals)),
-            "source_provider": tracker.source_provider,
-            "observed_at": time_text(tracker.observed_at),
-            "method": "balanceOf(address),decimals()",
-            "block_reference": "number_not_hash_pinned",
+    def revalidate(self, report_id: str) -> BlockReferenceCheck:
+        """Append a check of saved hashes; the original report and USD estimate stay frozen."""
+        report = self.load(report_id)
+        if report is None:
+            raise ValidationError("The selected historical report does not exist.")
+        inputs = report.document["inputs"]
+        headers = [inputs[side].get("header") for side in ("opening", "closing")]
+        if any(header is None for header in headers):
+            result = {
+                "status": "legacy_no_hash_references",
+                "limitation": "This report used block numbers and a supplied price time. Its original evidence cannot be upgraded by a recheck.",
+            }
+        else:
+            if self._blocks is None or not self.can_collect:
+                raise ProviderResponseError(
+                    "Configure a historical block reader to check saved references."
+                )
+            result = self._blocks.revalidate(Chain(inputs["request"]["chain"]), headers)
+        checked_at = utc_time(self._now())
+        check_id = str(uuid4())
+        document = {
+            "format": "oracle41-block-reference-check",
+            "format_version": 1,
+            "check_id": check_id,
+            "report_id": report_id,
+            "checked_at": time_text(checked_at),
+            **result,
         }
+        check = BlockReferenceCheck(
+            check_id, report_id, checked_at, dumps(document, pretty=True).decode("utf-8")
+        )
+        self._repository.save_check(check)
+        return check
+
+    def latest_check(self, report_id: str) -> BlockReferenceCheck | None:
+        return self._repository.latest_check(report_id)
 
     def load(self, report_id: str) -> HistoricalHoldingsReport | None:
         return self._repository.get(report_id)
@@ -265,12 +300,27 @@ def analyze_holdings_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
         if projected < 0:
             negative_blocks.append(block)
     difference = closing - projected
+    has_block_timing = "timing" in inputs
+    verified_timing = _verified_timing(inputs) if has_block_timing else False
     warnings = [
         "Saved ledger rows do not prove complete intermediate activity, even when endpoint balances match.",
-        "Price time is user supplied and is not verified against the closing block timestamp.",
-        "Block-number reads are not hash-pinned or a finality guarantee.",
         "Native holdings, NFT and protocol positions, accounting lots, and P&L are outside this report.",
     ]
+    if has_block_timing:
+        warnings.extend(
+            [
+                "Hash-pinned reads and repeated headers are endpoint observations, not independent consensus proofs.",
+                "Safe and finalized labels describe this endpoint; they do not independently prove L1 settlement.",
+            ]
+        )
+        if not verified_timing:
+            warnings.append("Saved block timing is inconsistent; no USD estimate is authorized.")
+    else:
+        # Keep legacy replay wording and order unchanged for format-1 reports.
+        warnings[1:1] = [
+            "Price time is user supplied and is not verified against the closing block timestamp.",
+            "Block-number reads are not hash-pinned or a finality guarantee.",
+        ]
     if difference:
         warnings.append(
             "Saved transfer replay differs from the closing balance; missing activity, token mechanics, or changed chain history need investigation."
@@ -325,6 +375,7 @@ def analyze_holdings_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
         known_by = utc_time(datetime.fromisoformat(price["known_by"]))
         eligible_price = (
             price["usable"]
+            and (not has_block_timing or verified_timing)
             and price["status"] in {"exact", "prior"}
             and quote.is_finite()
             and quote >= 0
@@ -359,7 +410,9 @@ def analyze_holdings_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
         if difference == 0 and not excluded and not negative_blocks and not metadata_mismatches
         else "unreconciled",
         "is_complete_history": False,
-        "price_time_source": "user_supplied_not_block_verified",
+        "price_time_source": ("closing_block_header" if verified_timing else "invalid_block_timing")
+        if has_block_timing
+        else "user_supplied_not_block_verified",
         "closing_balance_estimate_usd": value,
         "price_eligible": bool(eligible_price),
         "price_status": price["status"],
@@ -377,3 +430,35 @@ def analyze_holdings_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
         "fee_coverage": "saved_native_records_only_not_complete_not_deducted_from_erc20",
         "warnings": warnings,
     }
+
+
+def _verified_timing(inputs: dict[str, Any]) -> bool:
+    """Check saved timing links before replay can use a block-derived price time."""
+    try:
+        request, timing = inputs["request"], inputs["timing"]
+        opening, closing = inputs["opening"], inputs["closing"]
+        first, last = opening["header"], closing["header"]
+        return bool(
+            timing["price_time_source"] == "closing_block_header"
+            and timing["canonical_rechecked"] is True
+            and timing["closing_block_hash"] == last["hash"]
+            and timing["closing_block_timestamp"] == last["timestamp"] == request["price_at"]
+            and utc_time(datetime.fromisoformat(first["timestamp"]))
+            <= utc_time(datetime.fromisoformat(last["timestamp"]))
+            and all(
+                anchor["block_reference"] == "eip1898_hash_require_canonical"
+                and header["chain"] == request["chain"]
+                and header["number"] == anchor["block_number"] == request[f"{side}_block"]
+                and header["source_provider"]
+                == anchor["source_provider"]
+                == closing["source_provider"]
+                and re.fullmatch(r"0x[0-9a-f]{64}", header["hash"])
+                and header["hash"] != "0x" + "00" * 32
+                for side, anchor, header in (
+                    ("opening", opening, first),
+                    ("closing", closing, last),
+                )
+            )
+        )
+    except (KeyError, ValueError, TypeError, ValidationError):
+        return False

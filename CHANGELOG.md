@@ -2,7 +2,32 @@
 
 All notable changes to Oracle41 Open will be documented here.
 
-## [0.5.0a2] - Unreleased
+## [0.5.0a3] - Unreleased
+
+### Added
+
+- M7.3A historical ERC-20 block references with chain-ID checks, block hashes, parent hashes, timestamps, and repeated numbered-header checks.
+- Canonical EIP-1898 balance/decimals reads through one provider per operation, without numeric state-read fallback.
+- Explicit endpoint safe/finalized observations, unavailable-tag diagnostics, and an optional finalized-block requirement.
+- SQLite schema version 17 with append-only saved-reference checks, offline latest-check browsing, and separate JSON exports.
+- Synthetic tests for canonicality failures, reorganization signals, wrong networks, malformed headers, source failover, finality, timing, legacy reports, migration, exports, and UI controls.
+
+### Changed
+
+- New reports derive historical price lookup time from the closing block header and recheck the saved timing links during replay.
+- Historical Holdings report and CSV/JSON format version 2 includes block identity, timing, and finality evidence.
+- Format-1 reports retain their original results and warnings. Later checks never rewrite reports, prices, or ledger events.
+- Updated historical analytics, provider, configuration, architecture, and roadmap documentation in simple English.
+
+### Known Limitations
+
+- Hash and finality checks are endpoint observations, not independent consensus or L1 settlement proofs. Distant block ancestry is not independently verified.
+- Unsupported hash reads fail. Available historical state and finality tags still depend on endpoint, network, and plan.
+- Reference checks detect disagreement but do not repair or roll back the canonical ledger automatically.
+- Reports remain bounded to one ERC-20 token, with no complete intermediate-history, daily portfolio, P&L, or tax claim.
+- Live endpoint checks and Linux package builds require separate validation; public tests use synthetic data and no real keys.
+
+## [0.5.0a2] - 2026-11-22
 
 ### Added
 

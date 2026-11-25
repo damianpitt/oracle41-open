@@ -32,6 +32,13 @@ from oracle41_open.core.models import (
     TransactionInspection,
     TransactionTrace,
 )
+from oracle41_open.core.models.block_reference import (
+    BlockReference,
+    BlockReferenceChangedError,
+    HashPinnedContractRead,
+)
+from oracle41_open.core.models.errors import ValidationError
+from oracle41_open.providers.block_reader import BlockStateReader
 from oracle41_open.providers.http_client import HTTPClient
 from oracle41_open.providers.jsonrpc import (
     JSONRPCClient,
@@ -45,16 +52,10 @@ from oracle41_open.providers.jsonrpc import (
 from oracle41_open.providers.retry import retry_with_backoff
 from oracle41_open.providers.trace_mapper import map_debug_call_trace, map_parity_trace
 
-_EIP_1967_IMPLEMENTATION_SLOT = (
-    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
-)
-_EIP_1967_BEACON_SLOT = (
-    "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
-)
+_EIP_1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+_EIP_1967_BEACON_SLOT = "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
 _BEACON_IMPLEMENTATION_CALL = "0x5c60da1b"
-_EIP_1167_PATTERN = re.compile(
-    r"363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3"
-)
+_EIP_1167_PATTERN = re.compile(r"363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3")
 
 _Result = TypeVar("_Result")
 
@@ -72,9 +73,7 @@ class EVMJSONRPCProvider:
         sleep_func: Callable[[float], None] | None = None,
     ) -> None:
         self._endpoints = {
-            chain: endpoint.strip()
-            for chain, endpoint in endpoints.items()
-            if endpoint.strip()
+            chain: endpoint.strip() for chain, endpoint in endpoints.items() if endpoint.strip()
         }
         self._source_name = source_name.strip() or "json-rpc"
         self._rpc_client = rpc_client or JSONRPCClient(http_client=HTTPClient())
@@ -89,17 +88,13 @@ class EVMJSONRPCProvider:
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         configured = chain in self._endpoints
         trace_support = (
-            self._trace_dialects[chain] is not None
-            if chain in self._trace_dialects
-            else None
+            self._trace_dialects[chain] is not None if chain in self._trace_dialects else None
         )
         return ProviderCapabilities(
             transaction_lookup=configured,
             receipts=configured,
             traces=trace_support if configured else False,
-            archive_queries=(
-                self._historical_state_support.get(chain) if configured else False
-            ),
+            archive_queries=(self._historical_state_support.get(chain) if configured else False),
             proxy_resolution=configured,
             revert_replay=configured,
         )
@@ -160,6 +155,79 @@ class EVMJSONRPCProvider:
             data=_require_hex_data(raw_result, "contract call result"),
             source_provider=self._source_name,
             fetched_at=datetime.now(tz=UTC),
+        )
+
+    def get_chain_id(self, chain: Chain) -> int:
+        """Check the actual endpoint network before collecting hash-pinned state."""
+        return _block_quantity(
+            self._rpc_call(self._endpoint_for(chain), "eth_chainId", []), "chain ID"
+        )
+
+    def get_block_reference(self, chain: Chain, block: int | str) -> BlockReference:
+        """Fetch a numbered, safe, or finalized header without substituting another tag."""
+        if isinstance(block, bool) or not (
+            (isinstance(block, int) and 0 <= block < 2**63)
+            or (isinstance(block, str) and block in {"safe", "finalized"})
+        ):
+            raise ProviderResponseError("Invalid historical block reference request.")
+        tag = hex(block) if isinstance(block, int) else block
+        raw = self._rpc_call(self._endpoint_for(chain), "eth_getBlockByNumber", [tag, False])
+        if not isinstance(raw, dict):
+            raise ProviderResponseError("Historical block reference is unavailable.")
+        try:
+            number = _block_quantity(raw.get("number"), "block number")
+            if isinstance(block, int) and number != block:
+                raise ProviderResponseError("Historical block number does not match the request.")
+            return BlockReference(
+                chain,
+                number,
+                _require_hash(raw.get("hash")),
+                _require_hash(raw.get("parentHash")),
+                datetime.fromtimestamp(
+                    _block_quantity(raw.get("timestamp"), "block timestamp"), tz=UTC
+                ),
+                self._source_name,
+                datetime.now(tz=UTC),
+            )
+        except (ValidationError, ValueError, OverflowError, OSError):
+            raise ProviderResponseError("Invalid historical block header.") from None
+
+    def read_contract_at_hash(
+        self, contract_address: str, call_data: str, reference: BlockReference
+    ) -> HashPinnedContractRead:
+        """Require EIP-1898 canonical hash reads; never fall back to a numeric block."""
+        address = _require_address(contract_address, "contract")
+        data = _require_hex_data(call_data, "contract call data")
+        if reference.source_provider != self._source_name:
+            raise ProviderResponseError("Block reference belongs to another provider.")
+        try:
+            raw = self._historical_rpc_call(
+                reference.chain,
+                self._endpoint_for(reference.chain),
+                "eth_call",
+                [
+                    {"to": address, "data": data},
+                    {"blockHash": reference.block_hash, "requireCanonical": True},
+                ],
+            )
+        except ProviderResponseError as error:
+            # An explicit canonicality failure is not ordinary source unavailability.
+            if any(
+                marker in str(error).lower()
+                for marker in ("not canonical", "non-canonical", "not currently canonical")
+            ):
+                raise BlockReferenceChangedError(
+                    "The endpoint rejected the saved hash as non-canonical."
+                ) from None
+            raise
+        return HashPinnedContractRead(
+            reference.chain,
+            address,
+            reference.number,
+            reference.block_hash,
+            _require_hex_data(raw, "contract call result"),
+            self._source_name,
+            datetime.now(tz=UTC),
         )
 
     def resolve_proxy(
@@ -444,9 +512,7 @@ class EVMJSONRPCProvider:
         gas_used = _required_hex_int(receipt.get("gasUsed"), "gas used")
         l1_gas_used = _optional_hex_int(receipt.get("gasUsedForL1"), "L1 data gas used")
         if l1_gas_used is not None and l1_gas_used > gas_used:
-            raise ProviderResponseError(
-                "JSON-RPC receipt L1 data gas exceeds total gas used."
-            )
+            raise ProviderResponseError("JSON-RPC receipt L1 data gas exceeds total gas used.")
 
         return TransactionInspection(
             chain=chain,
@@ -508,15 +574,33 @@ class FailoverTransactionDataProvider:
     def __init__(self, providers: list[EVMJSONRPCProvider]) -> None:
         self._providers = list(providers)
 
+    def with_block_reader(
+        self, chain: Chain, operation: Callable[[BlockStateReader], _Result]
+    ) -> _Result:
+        """Retry a whole verified collection on one provider, not individual mixed-source calls."""
+        errors: list[str] = []
+        for provider in self._providers:
+            if not provider.capabilities(chain).transaction_lookup:
+                continue
+            try:
+                return operation(provider)
+            except BlockReferenceChangedError:
+                raise
+            except ProviderError as error:
+                # Do not copy remote messages or credential-bearing URLs into this diagnostic.
+                errors.append(type(error).__name__)
+        raise ProviderResponseError(
+            "No provider completed verified historical block reads. A matching-chain endpoint "
+            "with historical EIP-1898 support is required. Failures: " + ", ".join(errors)
+        )
+
     def capabilities(self, chain: Chain) -> ProviderCapabilities:
         available = [provider.capabilities(chain) for provider in self._providers]
         return ProviderCapabilities(
             transaction_lookup=any(item.transaction_lookup for item in available),
             receipts=any(item.receipts for item in available),
             traces=_merge_optional_capability(item.traces for item in available),
-            archive_queries=_merge_optional_capability(
-                item.archive_queries for item in available
-            ),
+            archive_queries=_merge_optional_capability(item.archive_queries for item in available),
             proxy_resolution=_merge_optional_capability(
                 item.proxy_resolution for item in available
             ),
@@ -685,6 +769,13 @@ def _map_log(raw_log: object) -> RawTransactionLog:
         data=_require_hex_data(raw_log.get("data"), "log data"),
         removed=raw_log.get("removed") is True,
     )
+
+
+def _block_quantity(value: object, field: str) -> int:
+    """Reject signed or malformed quantities in block identity fields."""
+    if not isinstance(value, str) or not re.fullmatch(r"0x[0-9a-fA-F]+", value):
+        raise ProviderResponseError(f"Invalid hexadecimal {field} in historical block response.")
+    return int(value, 16)
 
 
 def _required_hex_int(value: object, field: str) -> int:

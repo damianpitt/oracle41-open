@@ -139,6 +139,12 @@ The default threshold is 3,600 seconds, or one hour. A protocol snapshot older t
 
 This setting measures the age of the saved provider observation. It does not compare the snapshot block with the latest chain block. Set the value to `0` when only observations made at the current second should count as fresh. The accepted range is 0 to 604,800 seconds.
 
+## Historical Holdings Controls
+
+Historical Holdings derives price time from the closing block header. Choose the maximum prior-price age in the screen; the default is 86,400 seconds. The optional finalized-block checkbox rejects collection unless the endpoint reports the closing height finalized. It is off by default, so unknown or not-yet-safe observations remain possible but explicitly labeled. These are per-report controls, not changes to existing protocol collection or global settings.
+
+Collection needs a matching-chain historical JSON-RPC endpoint with canonical EIP-1898 hash-read support. There is no block-number fallback. Reference checks are separate explicit network actions; saved reports and the latest saved check can be read and exported offline. Neither collection nor reference checks fetch missing activity or prices. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).
+
 ## Local Files
 
 The application uses platformdirs to resolve these paths:

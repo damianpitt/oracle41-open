@@ -35,12 +35,17 @@ from oracle41_open.core.models import (
     ProviderTimeoutError,
     ValidationError,
 )
-from oracle41_open.core.models.historical_holdings import HistoricalHoldingsRequest
+from oracle41_open.core.models.block_reference import BlockReference, HashPinnedContractRead
+from oracle41_open.core.models.historical_holdings import (
+    HistoricalHoldingsReport,
+    HistoricalHoldingsRequest,
+)
 from oracle41_open.core.models.historical_price import (
     HistoricalPriceBatch,
     HistoricalPricePoint,
     HistoricalPriceQuery,
 )
+from oracle41_open.core.services.historical_block_service import HistoricalBlockService
 from oracle41_open.core.services.historical_holdings_service import (
     HistoricalHoldingsService,
     analyze_holdings_inputs,
@@ -49,6 +54,7 @@ from oracle41_open.core.services.historical_holdings_service import (
 from oracle41_open.core.services.historical_price_service import HistoricalPriceService
 from oracle41_open.core.services.protocol_collection import call_data
 from oracle41_open.exports.historical_holdings_export import (
+    block_reference_check_json_bytes,
     historical_holdings_csv_text,
     historical_holdings_json_bytes,
 )
@@ -72,6 +78,36 @@ class _Reader:
         self.error: str | None = None
         self.wrong: str | None = None
         self.decimals = {100: 2, 110: 2}
+
+    def with_block_reader(self, chain, operation):
+        return operation(self)
+
+    def get_chain_id(self, chain):
+        return chain.network.chain_id
+
+    def get_block_reference(self, chain, block):
+        number = 110 if isinstance(block, str) else block
+        return BlockReference(
+            chain,
+            number,
+            "0x" + f"{number:064x}",
+            "0x" + f"{number - 1:064x}",
+            _TIME - timedelta(seconds=(110 - number) * 12),
+            "fixture-rpc",
+            _NOW,
+        )
+
+    def read_contract_at_hash(self, address, data, reference):
+        result = self.read_contract(address, data, reference.chain, reference.number)
+        return HashPinnedContractRead(
+            result.chain,
+            result.contract_address,
+            result.block_number,
+            reference.block_hash,
+            result.data,
+            result.source_provider,
+            result.fetched_at,
+        )
 
     def read_contract(self, contract_address, data, chain, block_number):
         self.calls.append((contract_address, data, chain, block_number))
@@ -158,8 +194,12 @@ def _setup(tmp_path: Path, events: list | None = None, reader: _Reader | None = 
         )
     )
     repository = HistoricalHoldingsRepository(database)
+    reader = reader or _Reader()
     service = HistoricalHoldingsService(
-        reader or _Reader(), repository, HistoricalPriceService(prices), now_func=lambda: _NOW
+        repository,
+        HistoricalPriceService(prices),
+        now_func=lambda: _NOW,
+        blocks=HistoricalBlockService(reader, now_func=lambda: _NOW),
     )
     return service, repository, database, ledger, prices
 
@@ -533,11 +573,12 @@ def test_report_id_cannot_be_overwritten_and_capture_limit_is_not_silent(
 def test_v15_migration_preserves_ledger_and_price_history(tmp_path: Path) -> None:
     service, _, database, _, prices = _setup(tmp_path)
     with database.connection() as conn:
+        conn.execute("DROP TABLE historical_block_checks")
         conn.execute("DROP TABLE historical_holdings_reports")
         conn.execute("UPDATE schema_meta SET value='15'")
     migrated = SQLiteDatabase(database.file_path)
     with migrated.connection() as conn:
-        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "16"
+        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "17"
         assert conn.execute("SELECT COUNT(*) FROM ledger_events").fetchone()[0] == 2
     assert HistoricalPriceRepository(migrated).get("original-price") is not None
     assert (
@@ -633,4 +674,132 @@ def test_gui_discards_late_result_after_wallet_scope_change(qt_application, tmp_
     assert not view._runner._active_tasks
     assert view._report is None and not view._json.isEnabled()
     assert len(repository.list_reports(_WALLET, Chain.ETHEREUM, _TOKEN)) == 1
+    view.close()
+
+
+def test_new_price_time_is_derived_from_closing_header_not_supplied_time(tmp_path: Path) -> None:
+    service, _, _, _, _ = _setup(tmp_path)
+    report = service.collect(replace(_REQUEST, price_at=_TIME + timedelta(hours=1)))
+    document = report.document
+    assert document["format_version"] == 2
+    assert document["result"]["price_time_source"] == "closing_block_header"
+    assert document["result"]["closing_balance_estimate_usd"] == "325.000"
+    inputs = document["inputs"]
+    assert inputs["request"]["price_at"] == inputs["closing"]["header"]["timestamp"]
+    assert datetime.fromisoformat(
+        inputs["request"]["supplied_price_at_ignored"]
+    ) == _TIME + timedelta(hours=1)
+    assert inputs["finality"]["status"] == "finalized_by_endpoint"
+    kinds = {
+        row["record_type"] for row in csv.DictReader(StringIO(historical_holdings_csv_text(report)))
+    }
+    assert {"timing", "finality"} <= kinds
+
+
+@pytest.mark.parametrize("case", ["time", "hash", "chain", "number", "source", "mode", "canonical"])
+def test_replay_requires_consistent_saved_block_timing(tmp_path: Path, case: str) -> None:
+    service, _, _, _, _ = _setup(tmp_path)
+    inputs = service.collect(_REQUEST).document["inputs"]
+    if case == "time":
+        inputs["request"]["price_at"] = (_TIME + timedelta(seconds=1)).isoformat()
+    elif case == "canonical":
+        inputs["timing"]["canonical_rechecked"] = False
+    elif case == "mode":
+        inputs["closing"]["block_reference"] = "block_number"
+    else:
+        field, value = {
+            "hash": ("hash", "0x" + "ab" * 32),
+            "chain": ("chain", "base"),
+            "number": ("number", 111),
+            "source": ("source_provider", "other"),
+        }[case]
+        inputs["closing"]["header"][field] = value
+    result = analyze_holdings_inputs(inputs)
+    assert result["price_eligible"] is False
+    assert result["closing_balance_estimate_usd"] is None
+    assert result["price_time_source"] == "invalid_block_timing"
+
+
+def test_saved_reference_checks_append_survive_restart_and_do_not_change_report(
+    tmp_path: Path, monkeypatch
+) -> None:
+    reader = _Reader()
+    service, repository, database, _, _ = _setup(tmp_path, reader=reader)
+    report = service.collect(_REQUEST)
+    first = service.revalidate(report.report_id)
+    assert json.loads(first.document_json)["status"] == "references_match_at_check"
+    original = reader.get_block_reference
+    monkeypatch.setattr(
+        reader,
+        "get_block_reference",
+        lambda *args: replace(original(*args), block_hash="0x" + "ab" * 32),
+    )
+    second = service.revalidate(report.report_id)
+    assert json.loads(block_reference_check_json_bytes(second))["status"] == "changed_reference"
+    reopened = HistoricalHoldingsRepository(SQLiteDatabase(database.file_path))
+    assert reopened.latest_check(report.report_id) == second
+    assert reopened.get(report.report_id) == report
+    with pytest.raises(sqlite3.IntegrityError):
+        reopened.save_check(first)
+    with database.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM historical_block_checks").fetchone()[0] == 2
+        conn.execute(
+            "CREATE TRIGGER reject_check BEFORE INSERT ON historical_block_checks BEGIN SELECT RAISE(ABORT, 'test'); END"
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        service.revalidate(report.report_id)
+    assert repository.latest_check(report.report_id) == second
+    assert repository.get(report.report_id) == report
+
+
+def test_legacy_format_one_replays_and_rechecks_without_fabricating_headers(tmp_path: Path) -> None:
+    service, repository, _, _, _ = _setup(tmp_path)
+    new = service.collect(_REQUEST)
+    document = new.document
+    document["format_version"] = 1
+    document["report_id"] = "legacy-report"
+    for side in ("opening", "closing"):
+        del document["inputs"][side]["header"]
+        document["inputs"][side]["block_reference"] = "block_number_not_hash_pinned"
+    del document["inputs"]["timing"]
+    del document["inputs"]["finality"]
+    document["result"] = analyze_holdings_inputs(document["inputs"])
+    legacy = HistoricalHoldingsReport("legacy-report", new.created_at, json.dumps(document))
+    repository.save(legacy)
+    service.can_collect = False
+    check = service.revalidate(legacy.report_id)
+    assert json.loads(check.document_json)["status"] == "legacy_no_hash_references"
+    assert document["result"]["price_time_source"] == "user_supplied_not_block_verified"
+    assert repository.get(legacy.report_id) == legacy
+    assert json.loads(historical_holdings_json_bytes(legacy))["format_version"] == 1
+
+
+def test_v16_migration_preserves_frozen_reports(tmp_path: Path) -> None:
+    service, _, database, _, _ = _setup(tmp_path)
+    report = service.collect(_REQUEST)
+    with database.connection() as conn:
+        conn.execute("DROP TABLE historical_block_checks")
+        conn.execute("UPDATE schema_meta SET value='16'")
+    reopened = HistoricalHoldingsRepository(SQLiteDatabase(database.file_path))
+    assert reopened.get(report.report_id) == report
+    assert reopened.latest_check(report.report_id) is None
+
+
+def test_gui_displays_separate_check_and_offline_export(qt_application, tmp_path: Path) -> None:
+    service, _, _, _, _ = _setup(tmp_path)
+    report = service.collect(_REQUEST)
+    check = service.revalidate(report.report_id)
+    service.can_collect = False
+    view = HistoricalHoldingsView(SimpleNamespace(historical_holdings_service=service))
+    view._loaded(report)
+    view._loaded(check)
+    assert view._report == report and view._latest_check == check
+    assert not view._check.isEnabled() and view._export_check.isEnabled()
+    assert view._price_at.isReadOnly()
+    assert view._price_at.text() == report.document["inputs"]["request"]["price_at"]
+    assert "references_match_at_check" in view._status.text()
+    view._token.setText(_OTHER)
+    view._loaded(check)
+    assert view._report is None and view._latest_check is None
+    assert not view._export_check.isEnabled()
     view.close()

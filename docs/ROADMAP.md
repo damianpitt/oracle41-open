@@ -144,13 +144,13 @@ Model economic positions rather than treating every contract token as a simple w
 
 **Release target:** `0.5.0-beta`
 
-**Development status:** M7.2's bounded ERC-20 holdings-input slice is complete in `0.5.0a2`. M7.1 price evidence remains available. The 0.5 series stays alpha until its historical accounting exit gates are met. Native, NFT, and protocol historical holdings remain open, as do remaining M6 expansions.
+**Development status:** M7.3A adds verified block references and closing-header timing for bounded ERC-20 reports in `0.5.0a3`. M7.1 price evidence and M7.2 transfer replay remain available. The 0.5 series stays alpha until its historical accounting exit gates are met. Daily coverage and series reporting, native, NFT, and protocol historical holdings remain open, as do remaining M6 expansions.
 
 ### Incremental Plan
 
 1. **M7.1: Historical price evidence.** Completed: bounded exact-contract daily collection, immutable fetch IDs, source revisions, offline lookup, age policy, UI, and CSV/JSON exports.
 2. **M7.2: Historical holdings and valuation inputs.** Completed for one ERC-20 at a time: explicit endpoint balances, saved transfer replay, reconciliation, coverage context, separate native fees, pinned price inputs, and offline reports. No complete wallet total is claimed.
-3. **M7.3: Daily portfolio history.** Add verified time references and coverage controls, then build snapshots, retention controls, and time series with explicit completeness.
+3. **M7.3: Daily portfolio history.** M7.3A completes bounded block identity, hash reads, endpoint finality labels, closing-header price timing, and separate reference checks. Next, M7.3B adds day-boundary selection and explicit daily coverage for bounded ERC-20 history before broader snapshots, retention controls, and wallet time series.
 4. **M7.4: Accounting and lots.** Add flow classification and tested P&L calculations with configurable lot methods.
 5. **M7.5: Returns and audit reports.** Add documented return calculations, accounting overrides, and reproducible reports pinned to their inputs.
 
@@ -684,4 +684,18 @@ M7.1 prices are pinned by fetch ID and timestamp, with age and knowledge-cutoff 
 
 Schema version 16 stores append-only frozen reports. Original inputs can reproduce their result offline after ledger or price revisions. The Historical Holdings screen supports explicit collection, saved report browsing, warnings, and format-v1 CSV/JSON export. Tests cover block boundaries, directions, duplicates, conflicts, receipts, partial history, fees, price gaps, precision, migration, storage rollback, source consistency, and late UI results.
 
-Native, NFT, and protocol holdings, hash-pinned/finality-aware block references, verified block time, daily portfolio totals, accounting lots, P&L, and returns are not included. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).
+At M7.2 release, native, NFT, and protocol holdings, hash-pinned/finality-aware block references, verified block time, daily portfolio totals, accounting lots, P&L, and returns were not included. M7.3A addresses the bounded block-reference and timing gap below; broader coverage remains open. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).
+
+### Completed Slice: M7.3A
+
+**Status:** Complete for bounded ERC-20 historical report references in `0.5.0a3` (alpha).
+
+M7.3A checks the endpoint chain ID and opening/closing headers, reads balances and decimals by canonical EIP-1898 hash, and rechecks the numbered headers and chain ID after collection. The closing header supplies price lookup time. One provider supplies the whole operation; ordinary failure retries a whole operation on another source. Detected reference changes stop collection instead of being hidden by failover. Numeric state-read fallback is disabled.
+
+Reports record optional safe/finalized heads, explicit unknown or not-yet-safe states, and a per-report finalized requirement. These are endpoint assertions, not independent consensus or L1 settlement proofs. Adjacent endpoint parent links are checked, but distant ancestry and agreement between independent sources are not proven.
+
+Schema version 17 adds separate append-only reference checks. Explicit revalidation retains saved and current evidence without changing the original report, valuation, or event ledger. The screen shows the latest check offline and exports it separately as JSON format version 1. New holdings reports and CSV/JSON exports use format version 2 with timing, headers, and finality. Format-1 reports retain their original warnings and replay behavior; they are never silently upgraded.
+
+Synthetic tests cover wrong networks, malformed headers, canonicality failures, changed hashes, unsupported hash reads, whole-source failover, finality states, timing policy, migration, frozen checks, failed writes, legacy reports, exports, and UI behavior. Live historical RPC and Linux packaging validation remain separate.
+
+**Next:** M7.3B adds bounded UTC day-boundary selection and explicit daily coverage before portfolio time-series totals. Native, NFT, and protocol historical holdings, retention policy, accounting, lots, P&L, and returns remain open.

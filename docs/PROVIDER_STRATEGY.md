@@ -28,7 +28,7 @@ Ethereum, Optimism, Polygon, Base, and Arbitrum have recorded wallet-data covera
 
 Network identity and RPC details come from the [Robinhood Chain connection guide](https://docs.robinhood.com/chain/connecting/). Provider decisions follow the official [Alchemy Robinhood API overview](https://www.alchemy.com/docs/robinhood-chain/robinhood-chain-api-overview), [GoldRush chain catalog](https://goldrush.dev/chains/), [Ankr chain list](https://www.ankr.com/docs/rpc-service/chains/chains-list/), and [Moralis chain list](https://docs.moralis.com/data-api/supported-chains).
 
-| Provider or source | Robinhood status in `0.5.0a2` |
+| Provider or source | Robinhood status in `0.5.0a3` |
 | --- | --- |
 | Alchemy wallet data | Available for balances, activity, token and NFT history, approvals, and pagination |
 | Alchemy JSON-RPC | Available for transaction inspection |
@@ -57,7 +57,7 @@ Alchemy currently gives the broadest single-provider experience. It is not requi
 
 ## Four-Provider Wallet Data
 
-M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.5.0a2` keeps that path enabled after chain-specific fixture validation.
+M6.2 adds [Moralis](https://docs.moralis.com/get-started/global-api-reference) and [GoldRush](https://goldrush.dev/docs/chains) as wallet-data choices. Both provide indexed balances and transaction history for Oracle41's five established networks. GoldRush also provides core structured wallet data for Robinhood as a Frontier Chain. Version `0.5.0a3` keeps that path enabled after chain-specific fixture validation.
 
 The provider pool follows these rules:
 
@@ -72,7 +72,7 @@ The provider pool follows these rules:
 
 ## Capability Catalog
 
-Version `0.5.0a2` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
+Version `0.5.0a3` records wallet features per provider and chain. Adding a new network no longer gives it every existing provider capability automatically. Robinhood advertises Alchemy and GoldRush wallet data because both adapters have completed chain-specific fixtures.
 
 Settings reads the catalog without creating network clients. Alchemy credential checks connect to `api.g.alchemy.com`. Ankr checks connect to `rpc.ankr.com`. Moralis checks connect to `deep-index.moralis.io`. GoldRush checks connect to `api.covalenthq.com`. These destinations are shown before the user starts validation.
 
@@ -156,6 +156,12 @@ These endpoints use page numbers, not an immutable snapshot cursor. Issuer chang
 Wallet providers may return other vendor-specific quote fields, but Oracle41 does not treat those values as a shared pricing source. This avoids silently mixing prices with different timestamps, currencies, or methodologies.
 
 When no pricing provider is configured, balances and token quantities remain available. USD portfolio values may be missing or may use a previously cached value when the configured cache policy allows it.
+
+## Historical Holdings Block References
+
+M7.3A uses Alchemy, Ankr, or configured custom JSON-RPC readers for whole-operation collection of historical ERC-20 balances. The selected endpoint must return the matching chain ID and headers and accept EIP-1898 `eth_call` with `blockHash` and `requireCanonical`. Support depends on the network, node software, retained state, and plan. A configured endpoint is not a guarantee of hash-read support. Unsupported requests fail rather than reverting to a numbered-state read. Moralis and GoldRush remain indexed wallet sources for this purpose.
+
+The collector records `safe` and `finalized` head observations when available. Failed or unsupported tags remain explicitly unavailable; callers can require the endpoint's finalized label. These labels are source assertions, not independent consensus or L1 settlement proofs. Ordinary errors can retry the entire collection on another source, but a detected canonical reference change stops instead of being hidden by failover. Public fixtures validate request forms and safety behavior, not live per-network provider availability. See [Historical Holdings Inputs](HISTORICAL_HOLDINGS.md).
 
 ## Admission Requirements
 

@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from oracle41_open.core.models import Chain, ValidationError
+from oracle41_open.core.models.block_reference import BlockReferenceCheck
 from oracle41_open.core.models.historical_holdings import (
     HistoricalHoldingsReport,
     HistoricalHoldingsReportSummary,
@@ -101,6 +102,31 @@ class HistoricalHoldingsRepository:
             if row is None
             else HistoricalHoldingsReport(
                 row["report_id"], datetime.fromisoformat(row["created_at"]), row["document_json"]
+            )
+        )
+
+    def save_check(self, check: BlockReferenceCheck) -> None:
+        """Append current-reference evidence; never update the original report."""
+        with self._database.connection() as conn:
+            conn.execute(
+                "INSERT INTO historical_block_checks VALUES (?, ?, ?, ?)",
+                (check.check_id, check.report_id, time_text(check.checked_at), check.document_json),
+            )
+
+    def latest_check(self, report_id: str) -> BlockReferenceCheck | None:
+        with self._database.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM historical_block_checks WHERE report_id=? ORDER BY checked_at DESC, rowid DESC LIMIT 1",
+                (report_id,),
+            ).fetchone()
+        return (
+            None
+            if row is None
+            else BlockReferenceCheck(
+                row["check_id"],
+                row["report_id"],
+                datetime.fromisoformat(row["checked_at"]),
+                row["document_json"],
             )
         )
 

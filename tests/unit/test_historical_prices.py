@@ -367,6 +367,7 @@ def test_v14_migration_preserves_existing_data(tmp_path: Path) -> None:
     path = tmp_path / "state.sqlite3"
     database = SQLiteDatabase(path)
     with database.connection() as conn:
+        conn.execute("DROP TABLE historical_block_checks")
         conn.execute("DROP TABLE historical_holdings_reports")
         conn.execute("DROP TABLE historical_price_points")
         conn.execute("DROP TABLE historical_price_fetches")
@@ -377,7 +378,7 @@ def test_v14_migration_preserves_existing_data(tmp_path: Path) -> None:
         )
     migrated = SQLiteDatabase(path)
     with migrated.connection() as conn:
-        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "16"
+        assert conn.execute("SELECT value FROM schema_meta").fetchone()[0] == "17"
         assert conn.execute("SELECT label FROM watchlist_entries").fetchone()[0] == "Saved"
     assert HistoricalPriceRepository(migrated).latest(_QUERY) is None
 

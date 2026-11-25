@@ -53,4 +53,4 @@ An export describes one saved fetch, not complete token history, a wallet balanc
 
 ## What Comes Next
 
-M7.2 now uses this evidence in a bounded [ERC-20 holdings-input report](HISTORICAL_HOLDINGS.md), including opening balances, saved transfer replay, fee context, and price gaps. It does not claim complete historical holdings or verified block-to-price timing. Daily portfolio series, P&L and lots, returns, and accounting overrides follow in separate tested slices. M6 protocol and network expansion remains possible in parallel.
+M7.2 uses this evidence in a bounded [ERC-20 holdings-input report](HISTORICAL_HOLDINGS.md), including opening balances, saved transfer replay, fee context, and price gaps. M7.3A adds hash-pinned endpoint reads and closing-header-derived price time; older reports retain their original timing limits. Neither slice claims complete historical holdings. Daily portfolio series, coverage controls, P&L and lots, returns, and accounting overrides follow in separate tested slices. M6 protocol and network expansion remains possible in parallel.

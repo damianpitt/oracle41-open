@@ -11,11 +11,17 @@ import csv
 from io import StringIO
 
 from oracle41_open._json import dumps
+from oracle41_open.core.models.block_reference import BlockReferenceCheck
 from oracle41_open.core.models.historical_holdings import HistoricalHoldingsReport
 
 
 def historical_holdings_json_bytes(report: HistoricalHoldingsReport) -> bytes:
     return dumps(report.document, pretty=True)
+
+
+def block_reference_check_json_bytes(check: BlockReferenceCheck) -> bytes:
+    """Export a later observation separately, without changing the original report."""
+    return check.document_json.encode("utf-8")
 
 
 def historical_holdings_csv_text(report: HistoricalHoldingsReport) -> str:
@@ -49,6 +55,9 @@ def historical_holdings_csv_text(report: HistoricalHoldingsReport) -> str:
         ("price_input", inputs["price"]),
         ("request", request),
     ]
+    for kind in ("timing", "finality"):
+        if kind in inputs:
+            records.append((kind, inputs[kind]))
     for kind, items in (
         ("ledger_event", inputs["ledger"]["events"]),
         ("checkpoint_context", inputs["ledger"]["checkpoints"]),

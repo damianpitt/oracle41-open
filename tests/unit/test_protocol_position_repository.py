@@ -65,7 +65,7 @@ def test_database_migrates_v9_to_protocol_schema(tmp_path: Path) -> None:
             ).fetchall()
         }
 
-    assert version == ("16",)
+    assert version == ("17",)
     assert {"protocol_snapshots", "protocol_sync_checkpoints"}.issubset(tables)
 
 

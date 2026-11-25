@@ -1,8 +1,8 @@
 """Define bounded historical holdings requests and immutable report documents.
 
-A report covers one wallet, token contract, and pair of end-of-block balances. The requested
-price time is a separate user input, not a verified block timestamp. Saved JSON freezes inputs
-and derived results so later ledger or price changes cannot silently alter an earlier report.
+A report covers one wallet, token contract, and pair of end-of-block balances. New collection
+derives price time from the closing header; the optional supplied time is legacy context only.
+Saved JSON freezes inputs and results so later ledger or price changes cannot alter the report.
 """
 
 from __future__ import annotations
@@ -24,13 +24,17 @@ class HistoricalHoldingsRequest:
     contract_address: str
     opening_block: int
     closing_block: int
-    price_at: datetime
+    price_at: datetime | None = None
     max_price_age_seconds: int = 86_400
+    require_finalized: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "wallet_address", token_address(self.wallet_address))
         object.__setattr__(self, "contract_address", token_address(self.contract_address))
-        object.__setattr__(self, "price_at", utc_time(self.price_at))
+        if self.price_at is not None:
+            object.__setattr__(self, "price_at", utc_time(self.price_at))
+        if not isinstance(self.require_finalized, bool):
+            raise ValidationError("The finalized-block requirement must be boolean.")
         if any(
             not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < 2**63
             for value in (self.opening_block, self.closing_block)
